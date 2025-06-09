@@ -1,11 +1,19 @@
 import React from "react";
+import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import CodeRunner from "./CodeRunner";
+import LandingPage from "./LandingPage";
 import { supabase } from "./supabaseClient";
 import axios from "axios";
 
-
 function App() {
-  return <CodeRunner />;
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/code" element={<CodeRunner />} />
+      </Routes>
+    </Router>
+  );
 }
 
 export default App;
