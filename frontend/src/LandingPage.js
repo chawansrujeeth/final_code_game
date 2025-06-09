@@ -1,30 +1,46 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "./supabaseClient";
 
-const pages = [
-  {
-    background: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1500&q=80",
-    content: <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>Welcome to Code Game!</h1>,
-  },
-  {
-    background: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=80",
-    content: <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>Solve coding challenges and test your skills.</h1>,
-  },
-  {
-    background: "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=1500&q=80",
-    content: <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>Ready to start?</h1>,
-  },
+const backgrounds = [
+  "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1500&q=80",
+  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=80",
+  "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=1500&q=80"
 ];
 
 export default function LandingPage() {
   const [page, setPage] = useState(0);
+  const [testcases, setTestcases] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const isFirst = page === 0;
-  const isLast = page === pages.length - 1;
+  const isLast = page === testcases.length - 1;
+
+  useEffect(() => {
+    async function fetchTestcases() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("testcases")
+        .select("input, expected_output")
+        .order("id", { ascending: true });
+      if (!error && data) {
+        setTestcases(data);
+      }
+      setLoading(false);
+    }
+    fetchTestcases();
+  }, []);
+
+  if (loading) {
+    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading test cases...</div>;
+  }
+
+  // Fallback for backgrounds if there are more testcases than backgrounds
+  const bg = backgrounds[page % backgrounds.length];
 
   return (
     <div style={{
-      backgroundImage: `url(${pages[page].background})`,
+      backgroundImage: `url(${bg})`,
       backgroundSize: "cover",
       backgroundPosition: "center",
       width: "100vw",
@@ -35,7 +51,14 @@ export default function LandingPage() {
       justifyContent: "center"
     }}>
       <div style={{ position: "absolute", top: 80, width: "100%", textAlign: "center" }}>
-        {pages[page].content}
+        <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>Test Case {page + 1}</h1>
+        <pre style={{ color: '#fff', background: 'rgba(0,0,0,0.5)', padding: 16, borderRadius: 8, display: 'inline-block' }}>
+Input:
+{testcases[page].input}
+
+Expected Output:
+{testcases[page].expected_output}
+        </pre>
       </div>
       {/* Left Arrow */}
       {!isFirst && (
@@ -81,7 +104,7 @@ export default function LandingPage() {
           &#8594;
         </button>
       )}
-      {/* Start Coding Button */}
+      {/* Start Coding Button (always enabled) */}
       <button
         style={{
           position: "absolute",
@@ -91,17 +114,15 @@ export default function LandingPage() {
           height: 80,
           borderRadius: "50%",
           border: "none",
-          background: isLast ? "#4caf50" : "rgba(0,0,0,0.7)",
+          background: "#4caf50",
           color: "#fff",
           fontSize: "1.2rem",
           fontWeight: "bold",
-          cursor: isLast ? "pointer" : "not-allowed",
+          cursor: "pointer",
           boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-          opacity: isLast ? 1 : 0.7,
           transition: "background 0.2s, opacity 0.2s"
         }}
-        onClick={() => isLast && navigate("/code")}
-        disabled={!isLast}
+        onClick={() => navigate("/code", { state: { testcase: testcases[page] } })}
       >
         Start Coding
       </button>

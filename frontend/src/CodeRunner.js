@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { supabase } from "./supabaseClient";
+import { useLocation } from "react-router-dom";
 
 const languageOptions = [
   { id: 71, name: "Python 3" },
@@ -18,21 +19,30 @@ export default function CodeRunner() {
   const [loading, setLoading] = useState(false);
   const [testcase, setTestcase] = useState(null);
   const [testcaseLoading, setTestcaseLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
-    async function fetchTestcase() {
-      setTestcaseLoading(true);
-      const { data, error } = await supabase
-        .from("testcases")
-        .select("input, expected_output")
-        .limit(1)
-        .single();
-      if (!error && data) {
-        setTestcase(data);
-      }
+    // If testcase is passed via router state, use it
+    if (location.state && location.state.testcase) {
+      setTestcase(location.state.testcase);
       setTestcaseLoading(false);
+    } else {
+      // Otherwise, fetch the first testcase from Supabase
+      async function fetchTestcase() {
+        setTestcaseLoading(true);
+        const { data, error } = await supabase
+          .from("testcases")
+          .select("input, expected_output")
+          .limit(1)
+          .single();
+        if (!error && data) {
+          setTestcase(data);
+        }
+        setTestcaseLoading(false);
+      }
+      fetchTestcase();
     }
-    fetchTestcase();
+    // eslint-disable-next-line
   }, []);
 
   const handleSubmit = async (e) => {
