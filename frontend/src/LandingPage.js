@@ -2,45 +2,45 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
-const backgrounds = [
-  "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1500&q=80",
-  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=80",
-  "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=1500&q=80"
-];
+function getDirectImageUrl(url) {
+  // Convert Google Drive view links to direct image links
+  const match = url.match(/https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\//);
+  if (match) {
+    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  }
+  return url;
+}
 
 export default function LandingPage() {
   const [page, setPage] = useState(0);
-  const [testcases, setTestcases] = useState([]);
+  const [pages, setPages] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const isFirst = page === 0;
-  const isLast = page === testcases.length - 1;
+  const isLast = page === pages.length - 1;
 
   useEffect(() => {
-    async function fetchTestcases() {
+    async function fetchPages() {
       setLoading(true);
       const { data, error } = await supabase
-        .from("testcases")
-        .select("input, expected_output")
+        .from("landing_pages")
+        .select("background_url, title, description, testcase_id")
         .order("id", { ascending: true });
       if (!error && data) {
-        setTestcases(data);
+        setPages(data);
       }
       setLoading(false);
     }
-    fetchTestcases();
+    fetchPages();
   }, []);
 
   if (loading) {
-    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading test cases...</div>;
+    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading pages...</div>;
   }
-
-  // Fallback for backgrounds if there are more testcases than backgrounds
-  const bg = backgrounds[page % backgrounds.length];
 
   return (
     <div style={{
-      backgroundImage: `url(${bg})`,
+      backgroundImage: `url(${getDirectImageUrl(pages[page].background_url)})`,
       backgroundSize: "cover",
       backgroundPosition: "center",
       width: "100vw",
@@ -51,14 +51,10 @@ export default function LandingPage() {
       justifyContent: "center"
     }}>
       <div style={{ position: "absolute", top: 80, width: "100%", textAlign: "center" }}>
-        <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>Test Case {page + 1}</h1>
-        <pre style={{ color: '#fff', background: 'rgba(0,0,0,0.5)', padding: 16, borderRadius: 8, display: 'inline-block' }}>
-Input:
-{testcases[page].input}
-
-Expected Output:
-{testcases[page].expected_output}
-        </pre>
+        <h1 style={{ color: '#fff', textShadow: '0 2px 8px #000' }}>{pages[page].title || `Test Case ${page + 1}`}</h1>
+        {pages[page].description && (
+          <p style={{ color: '#fff', textShadow: '0 1px 4px #000', fontSize: 18 }}>{pages[page].description}</p>
+        )}
       </div>
       {/* Left Arrow */}
       {!isFirst && (
@@ -122,7 +118,7 @@ Expected Output:
           boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
           transition: "background 0.2s, opacity 0.2s"
         }}
-        onClick={() => navigate("/code", { state: { testcase: testcases[page] } })}
+        onClick={() => navigate("/code", { state: { testcase_id: pages[page].testcase_id } })}
       >
         Start Coding
       </button>

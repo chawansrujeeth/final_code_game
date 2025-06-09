@@ -22,13 +22,28 @@ export default function CodeRunner() {
   const location = useLocation();
 
   useEffect(() => {
-    // If testcase is passed via router state, use it
-    if (location.state && location.state.testcase) {
+    async function fetchTestcaseById(id) {
+      setTestcaseLoading(true);
+      const { data, error } = await supabase
+        .from("testcases")
+        .select("input, expected_output")
+        .eq("id", id)
+        .single();
+      if (!error && data) {
+        setTestcase(data);
+      }
+      setTestcaseLoading(false);
+    }
+    // If testcase_id is passed via router state, fetch that testcase
+    if (location.state && location.state.testcase_id) {
+      fetchTestcaseById(location.state.testcase_id);
+    } else if (location.state && location.state.testcase) {
+      // fallback for old state passing
       setTestcase(location.state.testcase);
       setTestcaseLoading(false);
     } else {
       // Otherwise, fetch the first testcase from Supabase
-      async function fetchTestcase() {
+      async function fetchFirstTestcase() {
         setTestcaseLoading(true);
         const { data, error } = await supabase
           .from("testcases")
@@ -40,7 +55,7 @@ export default function CodeRunner() {
         }
         setTestcaseLoading(false);
       }
-      fetchTestcase();
+      fetchFirstTestcase();
     }
     // eslint-disable-next-line
   }, []);
