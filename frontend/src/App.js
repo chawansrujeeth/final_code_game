@@ -1,6 +1,7 @@
 import React from "react";
 import CodeRunner from "./CodeRunner";
 import { supabase } from "./supabaseClient";
+import axios from "axios";
 // import logo from './logo.svg';
 // import './App.css';
 
@@ -42,7 +43,7 @@ const handleSubmit = async (e) => {
   setLoading(true);
   setResult(null);
   try {
-    const res = await axios.post("http://localhost:5051/run", {
+    const res = await axios.post(`${process.env.REACT_APP_API_URL}/run`, {
       source_code: sourceCode,
       language_id: languageId,
       stdin,
