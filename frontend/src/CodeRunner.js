@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { supabase } from "./supabaseClient";
 
 const languageOptions = [
   { id: 71, name: "Python 3" },
@@ -13,9 +14,26 @@ const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5051";
 export default function CodeRunner() {
   const [sourceCode, setSourceCode] = useState("");
   const [languageId, setLanguageId] = useState(71);
-  const [stdin, setStdin] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [testcase, setTestcase] = useState(null);
+  const [testcaseLoading, setTestcaseLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTestcase() {
+      setTestcaseLoading(true);
+      const { data, error } = await supabase
+        .from("testcases")
+        .select("input, expected_output")
+        .limit(1)
+        .single();
+      if (!error && data) {
+        setTestcase(data);
+      }
+      setTestcaseLoading(false);
+    }
+    fetchTestcase();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +43,8 @@ export default function CodeRunner() {
       const res = await axios.post(`${API_URL}/run`, {
         source_code: sourceCode,
         language_id: languageId,
-        stdin,
+        stdin: testcase.input,
+        expected_output: testcase.expected_output,
       });
       setResult(res.data);
     } catch (err) {
@@ -33,6 +52,10 @@ export default function CodeRunner() {
     }
     setLoading(false);
   };
+
+  if (testcaseLoading) {
+    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading test case...</div>;
+  }
 
   return (
     <div style={{ maxWidth: 600, margin: "2rem auto" }}>
@@ -61,17 +84,6 @@ export default function CodeRunner() {
             value={sourceCode}
             onChange={(e) => setSourceCode(e.target.value)}
             required
-          />
-        </label>
-        <br />
-        <label>
-          Input (stdin):
-          <br />
-          <textarea
-            rows={2}
-            cols={60}
-            value={stdin}
-            onChange={(e) => setStdin(e.target.value)}
           />
         </label>
         <br />
