@@ -2,6 +2,16 @@ import React from "react";
 import CodeRunner from "./CodeRunner";
 import { supabase } from "./supabaseClient";
 import axios from "axios";
+
+
+function App() {
+  return <CodeRunner />;
+}
+
+export default App;
+
+
+
 // import logo from './logo.svg';
 // import './App.css';
 
@@ -28,42 +38,35 @@ import axios from "axios";
 
 // export default App;
 
-function App() {
-  return <CodeRunner />;
-}
 
-export default App;
+// const user = supabase.auth.getUser(); // Get the current user (async, see note below)
 
+// const handleSubmit = async (e) => {
+//   e.preventDefault();
+//   setLoading(true);
+//   setResult(null);
+//   try {
+//     const res = await axios.post(`${process.env.REACT_APP_API_URL}/run`, {
+//       source_code: sourceCode,
+//       language_id: languageId,
+//       stdin,
+//     });
+//     setResult(res.data);
 
-
-const user = supabase.auth.getUser(); // Get the current user (async, see note below)
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setResult(null);
-  try {
-    const res = await axios.post(`${process.env.REACT_APP_API_URL}/run`, {
-      source_code: sourceCode,
-      language_id: languageId,
-      stdin,
-    });
-    setResult(res.data);
-
-    // Store submission in Supabase
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData && userData.user) {
-      await supabase.from('submissions').insert([
-        {
-          user_id: userData.user.id,
-          source_code: sourceCode,
-          language_id: languageId,
-          result: JSON.stringify(res.data),
-        }
-      ]);
-    }
-  } catch (err) {
-    setResult({ error: err.message });
-  }
-  setLoading(false);
-};
+//     // Store submission in Supabase
+//     const { data: userData } = await supabase.auth.getUser();
+//     if (userData && userData.user) {
+//       await supabase.from('submissions').insert([
+//         {
+//           user_id: userData.user.id,
+//           source_code: sourceCode,
+//           language_id: languageId,
+//           result: JSON.stringify(res.data),
+//         }
+//       ]);
+//     }
+//   } catch (err) {
+//     setResult({ error: err.message });
+//   }
+//   setLoading(false);
+// };
