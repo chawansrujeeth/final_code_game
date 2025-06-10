@@ -1,15 +1,13 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import CodeRunner from "./CodeRunner";
-import LandingPage from "./LandingPage";
-import { supabase } from "./supabaseClient";
-import axios from "axios";
+import MangaReader from "./MangaReader";
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<MangaReader />} />
         <Route path="/code" element={<CodeRunner />} />
       </Routes>
     </Router>
