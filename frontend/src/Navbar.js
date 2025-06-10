@@ -40,17 +40,38 @@ export default function Navbar() {
     transition: "background 0.2s"
   });
   return (
-    <nav style={navStyle}>
-      <div style={navInner}>
-        <Link to="/" style={{ color: "#7c3aed", fontWeight: 800, fontSize: "1.5rem", textDecoration: "none" }}>
-          Code Stories
-        </Link>
-        <div style={linksContainer}>
-          <Link to="/" style={linkStyle("/")}>Home</Link>
-          <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>
-          <Link to="/login" style={linkStyle("/login")}>Login</Link>
+    <>
+      <style>{`
+        @media (max-width: 600px) {
+          .navbar-inner {
+            flex-direction: column;
+            align-items: flex-start !important;
+            padding: 0.5rem 1rem !important;
+          }
+          .navbar-links {
+            flex-direction: column;
+            gap: 8px !important;
+            width: 100%;
+            margin-top: 0.5rem;
+          }
+          .navbar-title {
+            font-size: 1.1rem !important;
+            padding-bottom: 0.2rem;
+          }
+        }
+      `}</style>
+      <nav style={navStyle}>
+        <div className="navbar-inner" style={navInner}>
+          <Link to="/" className="navbar-title" style={{ color: "#7c3aed", fontWeight: 800, fontSize: "1.5rem", textDecoration: "none" }}>
+            Code Stories
+          </Link>
+          <div className="navbar-links" style={linksContainer}>
+            <Link to="/" style={linkStyle("/")}>Home</Link>
+            <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>
+            <Link to="/login" style={linkStyle("/login")}>Login</Link>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 } 
