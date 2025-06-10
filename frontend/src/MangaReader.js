@@ -9,6 +9,7 @@ export default function MangaReader() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    document.title = "Code Stories";
     async function fetchPages() {
       setLoading(true);
       const { data, error } = await supabase
@@ -35,7 +36,7 @@ export default function MangaReader() {
     <div style={{
       width: "100vw",
       height: "100vh",
-      background: "#222",
+      background: "linear-gradient(135deg, #e0ecff 0%, #b6d0f7 100%)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center"
@@ -52,8 +53,10 @@ export default function MangaReader() {
           alt="Manga Page"
           style={{
             display: "block",
-            maxWidth: "90vw",
-            maxHeight: "80vh",
+            maxWidth: "100vw",
+            maxHeight: "90vh",
+            minWidth: 600,
+            minHeight: 400,
             width: "auto",
             height: "auto"
           }}

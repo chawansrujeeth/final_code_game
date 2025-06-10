@@ -15,9 +15,9 @@ export default function LandingHome() {
       fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif'"
     }}>
       <header style={{ width: "100%", padding: "2rem 0 1rem 0", textAlign: "center" }}>
-        <h1 style={{ color: "#7c3aed", fontSize: "3rem", margin: 0, fontWeight: 800, letterSpacing: 1 }}>Anime Stories</h1>
+        <h1 style={{ color: "#7c3aed", fontSize: "3rem", margin: 0, fontWeight: 800, letterSpacing: 1 }}>Code Stories</h1>
         <p style={{ color: "#444", fontSize: "1.3rem", marginTop: 16, marginBottom: 0 }}>
-          Immerse yourself in captivating visual novels with stunning anime artwork and engaging storytelling.
+          Dive into coding adventures with interactive manga and challenges.
         </p>
       </header>
       <main style={{ marginTop: 40, textAlign: "center" }}>
