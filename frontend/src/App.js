@@ -3,15 +3,25 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import CodeRunner from "./CodeRunner";
 import MangaReader from "./MangaReader";
 import LandingHome from "./LandingHome";
+import Navbar from "./Navbar";
+import Profile from "./Profile";
+import Login from "./Login";
+import Footer from "./Footer";
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingHome />} />
-        <Route path="/manga" element={<MangaReader />} />
-        <Route path="/code" element={<CodeRunner />} />
-      </Routes>
+      <Navbar />
+      <div style={{ paddingTop: 64, minHeight: 'calc(100vh - 350px)' }}>
+        <Routes>
+          <Route path="/" element={<LandingHome />} />
+          <Route path="/manga" element={<MangaReader />} />
+          <Route path="/code" element={<CodeRunner />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/login" element={<Login />} />
+        </Routes>
+      </div>
+      <Footer />
     </Router>
   );
 }
