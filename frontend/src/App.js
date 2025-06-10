@@ -2,12 +2,14 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import CodeRunner from "./CodeRunner";
 import MangaReader from "./MangaReader";
+import LandingHome from "./LandingHome";
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<MangaReader />} />
+        <Route path="/" element={<LandingHome />} />
+        <Route path="/manga" element={<MangaReader />} />
         <Route path="/code" element={<CodeRunner />} />
       </Routes>
     </Router>
