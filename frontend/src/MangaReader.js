@@ -2,15 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
-function getDirectImageUrl(url) {
-  // Convert Google Drive view links to direct image links
-  const match = url.match(/https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\//);
-  if (match) {
-    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-  }
-  return url;
-}
-
 export default function MangaReader() {
   const [pages, setPages] = useState([]);
   const [page, setPage] = useState(0);
@@ -57,7 +48,7 @@ export default function MangaReader() {
         overflow: "hidden"
       }}>
         <img
-          src={getDirectImageUrl(currentPage.background_url)}
+          src={currentPage.background_url}
           alt="Manga Page"
           style={{
             display: "block",
