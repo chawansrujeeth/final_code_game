@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
 export default function MangaReader() {
@@ -9,6 +9,8 @@ export default function MangaReader() {
   const [unlocked, setUnlocked] = useState(0); // highest unlocked page index
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [justUnlocked, setJustUnlocked] = useState(false);
 
   useEffect(() => {
     document.title = "Code Stories";
@@ -40,6 +42,30 @@ export default function MangaReader() {
     }
     fetchPagesAndProgress();
   }, []);
+
+  // Refresh progress if coming back from CodeRunner with success
+  useEffect(() => {
+    if (location.state && location.state.justUnlocked) {
+      // Refetch progress
+      async function refetchProgress() {
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          const { data: progressData } = await supabase
+            .from("progress")
+            .select("page_index")
+            .eq("user_id", userData.user.id);
+          const maxUnlocked = progressData && progressData.length > 0
+            ? Math.max(...progressData.map(p => p.page_index)) + 1
+            : 1;
+          setUnlocked(maxUnlocked);
+          setJustUnlocked(true);
+        }
+      }
+      refetchProgress();
+      // Clean up state so it doesn't trigger again
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   if (loading || pages.length === 0) {
     return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading pages...</div>;
@@ -153,6 +179,31 @@ export default function MangaReader() {
               disabled={page + 1 >= unlocked}
             >
               &#8594;
+            </button>
+          )}
+          {/* Done Button (after accepted) */}
+          {justUnlocked && page + 1 === unlocked && !isLast && (
+            <button
+              style={{
+                position: "absolute",
+                bottom: 24,
+                left: 24,
+                background: "#2196f3",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 24px",
+                fontSize: 18,
+                fontWeight: "bold",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+              }}
+              onClick={() => {
+                setPage(page + 1);
+                setJustUnlocked(false);
+              }}
+            >
+              Done! Go to Next Story
             </button>
           )}
           {/* Start Coding Button */}

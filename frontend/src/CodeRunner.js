@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { supabase } from "./supabaseClient";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const languageOptions = [
   { id: 71, name: "Python 3" },
@@ -20,6 +20,7 @@ export default function CodeRunner() {
   const [testcase, setTestcase] = useState(null);
   const [testcaseLoading, setTestcaseLoading] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchTestcaseById(id) {
@@ -92,6 +93,10 @@ export default function CodeRunner() {
             user_id: userData.user.id,
             page_index: pageIndex
           });
+          // Navigate back to MangaReader with justUnlocked flag
+          setTimeout(() => {
+            navigate('/manga', { state: { justUnlocked: true } });
+          }, 1200);
         }
       }
     } catch (err) {
