@@ -7,6 +7,23 @@ import Navbar from "./Navbar";
 import Profile from "./Profile";
 import Login from "./Login";
 import Footer from "./Footer";
+import Auth from "./Auth";
+import { supabase } from "./supabaseClient";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+function ProtectedRoute({ children }) {
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) navigate("/login");
+      else setUser(data.user);
+    });
+  }, [navigate]);
+  if (!user) return null;
+  return children;
+}
 
 function App() {
   return (
@@ -17,8 +34,8 @@ function App() {
           <Route path="/" element={<LandingHome />} />
           <Route path="/manga" element={<MangaReader />} />
           <Route path="/code" element={<CodeRunner />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/login" element={<Auth />} />
         </Routes>
       </div>
       <Footer />

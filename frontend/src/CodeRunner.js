@@ -72,6 +72,19 @@ export default function CodeRunner() {
         expected_output: testcase.expected_output,
       });
       setResult(res.data);
+      // Save submission to Supabase if user is logged in
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData && userData.user) {
+        await supabase.from('submissions').insert([
+          {
+            user_id: userData.user.id,
+            source_code: sourceCode,
+            language_id: languageId,
+            result: JSON.stringify(res.data),
+            created_at: new Date().toISOString(),
+          }
+        ]);
+      }
     } catch (err) {
       setResult({ error: err.message });
     }

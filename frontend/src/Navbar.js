@@ -1,8 +1,32 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "./supabaseClient";
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
+    getUser();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    navigate("/login");
+  };
+
   const navStyle = {
     position: "fixed",
     top: 0,
@@ -67,8 +91,11 @@ export default function Navbar() {
           </Link>
           <div className="navbar-links" style={linksContainer}>
             <Link to="/" style={linkStyle("/")}>Home</Link>
-            <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>
-            <Link to="/login" style={linkStyle("/login")}>Login</Link>
+            {user && <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>}
+            {!user && <Link to="/login" style={linkStyle("/login")}>Login</Link>}
+            {user && <button onClick={handleLogout} style={{
+              background: "none", border: "none", color: "#7c3aed", fontWeight: 600, fontSize: "1.1rem", cursor: "pointer", padding: 0, marginLeft: 8
+            }}>Logout</button>}
           </div>
         </div>
       </nav>
