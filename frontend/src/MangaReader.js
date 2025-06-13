@@ -41,6 +41,11 @@ export default function MangaReader() {
       setLoading(false);
     }
     fetchPagesAndProgress();
+    // If goToPage is set in location.state, jump to that page
+    if (location.state && typeof location.state.goToPage === 'number') {
+      setPage(location.state.goToPage);
+      window.history.replaceState({}, document.title);
+    }
   }, []);
 
   // Refresh progress if coming back from CodeRunner with success
@@ -185,28 +190,6 @@ export default function MangaReader() {
               disabled={page + 1 >= unlocked}
             >
               &#8594;
-            </button>
-          )}
-          {/* Done Button (after accepted) */}
-          {justUnlocked && page + 1 === unlocked && !isLast && (
-            <button
-              style={{
-                position: "absolute",
-                bottom: 24,
-                left: 24,
-                background: "#2196f3",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "12px 24px",
-                fontSize: 18,
-                fontWeight: "bold",
-                cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
-              }}
-              onClick={handleDone}
-            >
-              Done! Go to Next Story
             </button>
           )}
           {/* Start Coding Button */}

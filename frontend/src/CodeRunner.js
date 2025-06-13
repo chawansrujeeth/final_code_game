@@ -21,6 +21,7 @@ export default function CodeRunner() {
   const [testcaseLoading, setTestcaseLoading] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     async function fetchTestcaseById(id) {
@@ -65,6 +66,7 @@ export default function CodeRunner() {
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    setAccepted(false);
     try {
       const res = await axios.post(`${API_URL}/run`, {
         source_code: sourceCode,
@@ -93,10 +95,7 @@ export default function CodeRunner() {
             user_id: userData.user.id,
             page_index: pageIndex
           });
-          // Navigate back to MangaReader with justUnlocked flag
-          setTimeout(() => {
-            navigate('/manga', { state: { justUnlocked: true } });
-          }, 1200);
+          setAccepted(true);
         }
       }
     } catch (err) {
@@ -147,6 +146,29 @@ export default function CodeRunner() {
         <div style={{ marginTop: "1rem" }}>
           <h3>Result:</h3>
           <pre>{JSON.stringify(result, null, 2)}</pre>
+          {accepted && (
+            <button
+              style={{
+                marginTop: 16,
+                background: "#2196f3",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 24px",
+                fontSize: 18,
+                fontWeight: "bold",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+              }}
+              onClick={() => {
+                // Go to next story page
+                const nextPage = location.state && typeof location.state.page_index === 'number' ? location.state.page_index + 1 : 1;
+                navigate('/manga', { state: { goToPage: nextPage } });
+              }}
+            >
+              Done! Go to Next Story
+            </button>
+          )}
         </div>
       )}
     </div>
