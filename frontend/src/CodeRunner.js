@@ -93,7 +93,7 @@ export default function CodeRunner() {
           const pageIndex = location.state && typeof location.state.page_index === 'number' ? location.state.page_index : 0;
           await supabase.from('progress').upsert({
             user_id: userData.user.id,
-            page_index: pageIndex
+            page_index: pageIndex + 1 // unlock the next page
           });
           setAccepted(true);
         }
