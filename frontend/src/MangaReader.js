@@ -148,23 +148,25 @@ export default function MangaReader() {
           background: isLocked ? "#eee" : "#fff",
           borderRadius: 8,
           overflow: "hidden",
-          opacity: isLocked ? 0.6 : 1
+          opacity: isLocked ? 0.6 : 1,
+          width: 700,
+          height: "80vh",
+          display: "flex",
+          flexDirection: "column"
         }}>
-          <img
-            className="manga-img"
-            src={currentPage.background_url}
-            alt="Manga Page"
-            style={{
-              display: "block",
-              maxWidth: "100vw",
-              maxHeight: "90vh",
-              minWidth: 600,
-              minHeight: 400,
-              width: "auto",
-              height: "auto",
-              filter: isLocked ? "blur(2px) grayscale(0.7)" : "none"
-            }}
-          />
+          <div style={{ overflowY: "auto", height: "100%" }}>
+            <img
+              className="manga-img"
+              src={currentPage.background_url}
+              alt="Manga Page"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "auto",
+                minWidth: 600
+              }}
+            />
+          </div>
           {/* Previous Button */}
           {!isFirst && (
             <button
