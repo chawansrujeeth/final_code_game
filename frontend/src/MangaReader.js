@@ -15,7 +15,7 @@ export default function MangaReader() {
   const audioRef = useRef();
 
   // Replace this with your actual Supabase public URL
-  const MUSIC_URL = "https://https://nrgtgbxetvqlrckfsfgu.supabase.co/storage/v1/object/sign/music/lofi-background-music-337568.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kNDExZWVhMS1lNDc3LTQxZjItOTFlZi0wY2JmYTRlMWJhNGUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy9sb2ZpLWJhY2tncm91bmQtbXVzaWMtMzM3NTY4Lm1wMyIsImlhdCI6MTc0OTgwMjY3OSwiZXhwIjoxNzgxMzM4Njc5fQ.OsYSCF-eadw0O40-xqa0-b3Qx6C7017ui9PnIAyAuSY-supabase-link-to-music-file.mp3";
+  const MUSIC_URL = "https://nrgtgbxetvqlrckfsfgu.supabase.co/storage/v1/object/sign/music/lofi-background-music-337568.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kNDExZWVhMS1lNDc3LTQxZjItOTFlZi0wY2JmYTRlMWJhNGUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy9sb2ZpLWJhY2tncm91bmQtbXVzaWMtMzM3NTY4Lm1wMyIsImlhdCI6MTc0OTgwNzU2OCwiZXhwIjoxNzgxMzQzNTY4fQ.Omxc_iB8M-31hGijzaRmTikGfUYDi8u7lnjXqtYe9JE";
 
   useEffect(() => {
     document.title = "Code Stories";
