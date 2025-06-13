@@ -22,6 +22,8 @@ export default function CodeRunner() {
   const [accepted, setAccepted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [loginMessage, setLoginMessage] = useState("");
 
   useEffect(() => {
     async function fetchTestcaseById(id) {
@@ -62,8 +64,21 @@ export default function CodeRunner() {
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => {
+    async function fetchUser() {
+      const { data: userData } = await supabase.auth.getUser();
+      setUser(userData.user);
+    }
+    fetchUser();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoginMessage("");
+    if (!user) {
+      setLoginMessage("You must be logged in to submit code.");
+      return;
+    }
     setLoading(true);
     setResult(null);
     setAccepted(false);
@@ -75,28 +90,15 @@ export default function CodeRunner() {
         expected_output: testcase.expected_output,
       });
       setResult(res.data);
-      // Save submission to Supabase if user is logged in
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData && userData.user) {
-        await supabase.from('submissions').insert([
-          {
-            user_id: userData.user.id,
-            source_code: sourceCode,
-            language_id: languageId,
-            result: JSON.stringify(res.data),
-            created_at: new Date().toISOString(),
-          }
-        ]);
-        // If correct, mark progress
-        if (res.data && res.data.status && res.data.status.id === 3 && res.data.stdout && (!res.data.expected_output || res.data.stdout.trim() === res.data.expected_output.trim())) {
-          // status.id === 3 means Done, and output matches expected
-          const pageIndex = location.state && typeof location.state.page_index === 'number' ? location.state.page_index : 0;
-          await supabase.from('progress').upsert({
-            user_id: userData.user.id,
-            page_index: pageIndex + 1 // unlock the next page
-          });
-          setAccepted(true);
-        }
+      // If correct, mark progress
+      if (res.data && res.data.status && res.data.status.id === 3 && res.data.stdout && (!res.data.expected_output || res.data.stdout.trim() === res.data.expected_output.trim())) {
+        // status.id === 3 means Done, and output matches expected
+        const pageIndex = location.state && typeof location.state.page_index === 'number' ? location.state.page_index : 0;
+        await supabase.from('progress').upsert({
+          user_id: user.id,
+          page_index: pageIndex + 1 // unlock the next page
+        });
+        setAccepted(true);
       }
     } catch (err) {
       setResult({ error: err.message });
@@ -123,6 +125,9 @@ export default function CodeRunner() {
           <button onClick={handleToggleStory} style={{ background: '#eee', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 600, cursor: 'pointer', color: '#7c3aed' }}>Go to Story</button>
         </div>
         <form onSubmit={handleSubmit}>
+          {loginMessage && (
+            <div style={{ color: 'red', marginBottom: 12, fontWeight: 600 }}>{loginMessage}</div>
+          )}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontWeight: 600, fontSize: 15 }}>Language:</label>
             <select
