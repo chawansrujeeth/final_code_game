@@ -149,15 +149,16 @@ export default function MangaReader() {
         <div
           style={{
             position: "relative",
-            boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
+            boxShadow: "0 4px 32px rgba(0,0,0,0.12)",
             background: isLocked ? "#eee" : "#fff",
             borderRadius: 8,
             overflow: "hidden",
             opacity: isLocked ? 0.6 : 1,
-            width: "min(95vw, 900px)",
+            width: "98vw",
             height: "80vh",
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            margin: "1vw auto"
           }}
         >
           <div style={{ overflowY: "auto", height: "100%" }}>
