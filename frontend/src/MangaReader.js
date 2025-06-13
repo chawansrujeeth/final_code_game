@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
@@ -11,6 +11,11 @@ export default function MangaReader() {
   const navigate = useNavigate();
   const location = useLocation();
   const [justUnlocked, setJustUnlocked] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const audioRef = useRef();
+
+  // Replace this with your actual Supabase public URL
+  const MUSIC_URL = "https://your-supabase-link-to-music-file.mp3";
 
   useEffect(() => {
     document.title = "Code Stories";
@@ -251,6 +256,20 @@ export default function MangaReader() {
           )}
         </div>
       </div>
+      <audio
+        ref={audioRef}
+        src={MUSIC_URL}
+        autoPlay
+        loop
+        muted={muted}
+        style={{ display: 'none' }}
+      />
+      <button
+        onClick={() => setMuted(m => !m)}
+        style={{ position: 'fixed', top: 16, right: 24, zIndex: 200, background: '#fff', border: '1px solid #ccc', borderRadius: 8, padding: '6px 18px', fontWeight: 600, color: '#7c3aed', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+      >
+        {muted ? "Unmute Music" : "Mute Music"}
+      </button>
     </>
   );
 } 
