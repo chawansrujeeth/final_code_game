@@ -76,6 +76,12 @@ export default function MangaReader() {
   const currentPage = pages[page];
   const isLocked = page >= unlocked;
 
+  // When justUnlocked and user clicks Done, always advance to next page and clear justUnlocked
+  const handleDone = () => {
+    setPage((prev) => Math.min(prev + 1, pages.length - 1));
+    setJustUnlocked(false);
+  };
+
   return (
     <>
       <style>{`
@@ -198,10 +204,7 @@ export default function MangaReader() {
                 cursor: "pointer",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
               }}
-              onClick={() => {
-                setPage(page + 1);
-                setJustUnlocked(false);
-              }}
+              onClick={handleDone}
             >
               Done! Go to Next Story
             </button>
