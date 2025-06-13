@@ -6,22 +6,39 @@ export default function MangaReader() {
   const [pages, setPages] = useState([]);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [unlocked, setUnlocked] = useState(0); // highest unlocked page index
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     document.title = "Code Stories";
-    async function fetchPages() {
+    async function fetchPagesAndProgress() {
       setLoading(true);
+      const { data: userData } = await supabase.auth.getUser();
+      setUser(userData.user);
       const { data, error } = await supabase
         .from("landing_pages")
         .select("background_url, testcase_id")
         .order("id", { ascending: true });
       if (!error && data) {
         setPages(data);
+        if (userData.user) {
+          // Fetch progress
+          const { data: progressData } = await supabase
+            .from("progress")
+            .select("page_index")
+            .eq("user_id", userData.user.id);
+          const maxUnlocked = progressData && progressData.length > 0
+            ? Math.max(...progressData.map(p => p.page_index)) + 1
+            : 1;
+          setUnlocked(maxUnlocked); // user can access up to this index (exclusive)
+        } else {
+          setUnlocked(1); // not logged in, only first page
+        }
       }
       setLoading(false);
     }
-    fetchPages();
+    fetchPagesAndProgress();
   }, []);
 
   if (loading || pages.length === 0) {
@@ -31,6 +48,7 @@ export default function MangaReader() {
   const isFirst = page === 0;
   const isLast = page === pages.length - 1;
   const currentPage = pages[page];
+  const isLocked = page >= unlocked;
 
   return (
     <>
@@ -67,9 +85,10 @@ export default function MangaReader() {
         <div style={{
           position: "relative",
           boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
-          background: "#fff",
+          background: isLocked ? "#eee" : "#fff",
           borderRadius: 8,
-          overflow: "hidden"
+          overflow: "hidden",
+          opacity: isLocked ? 0.6 : 1
         }}>
           <img
             className="manga-img"
@@ -82,7 +101,8 @@ export default function MangaReader() {
               minWidth: 600,
               minHeight: 400,
               width: "auto",
-              height: "auto"
+              height: "auto",
+              filter: isLocked ? "blur(2px) grayscale(0.7)" : "none"
             }}
           />
           {/* Previous Button */}
@@ -124,9 +144,13 @@ export default function MangaReader() {
                 width: 48,
                 height: 48,
                 fontSize: 24,
-                cursor: "pointer"
+                cursor: page + 1 < unlocked ? "pointer" : "not-allowed",
+                opacity: page + 1 < unlocked ? 1 : 0.5
               }}
-              onClick={() => setPage(page + 1)}
+              onClick={() => {
+                if (page + 1 < unlocked) setPage(page + 1);
+              }}
+              disabled={page + 1 >= unlocked}
             >
               &#8594;
             </button>
@@ -138,20 +162,38 @@ export default function MangaReader() {
               position: "absolute",
               bottom: 24,
               right: 24,
-              background: "#4caf50",
+              background: isLocked ? "#aaa" : "#4caf50",
               color: "#fff",
               border: "none",
               borderRadius: 8,
               padding: "12px 24px",
               fontSize: 18,
               fontWeight: "bold",
-              cursor: "pointer",
+              cursor: isLocked ? "not-allowed" : "pointer",
               boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
             }}
-            onClick={() => navigate("/code", { state: { testcase_id: currentPage.testcase_id } })}
+            onClick={() => {
+              if (!isLocked) navigate("/code", { state: { testcase_id: currentPage.testcase_id, page_index: page } });
+            }}
+            disabled={isLocked}
           >
-            Start Coding
+            {isLocked ? "Locked" : "Start Coding"}
           </button>
+          {isLocked && (
+            <div style={{
+              position: "absolute",
+              top: 20,
+              left: 0,
+              width: "100%",
+              textAlign: "center",
+              color: "#b00",
+              fontWeight: "bold",
+              fontSize: 22,
+              textShadow: "0 2px 8px #fff"
+            }}>
+              Solve the previous challenge to unlock!
+            </div>
+          )}
         </div>
       </div>
     </>

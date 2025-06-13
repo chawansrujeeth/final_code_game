@@ -84,6 +84,15 @@ export default function CodeRunner() {
             created_at: new Date().toISOString(),
           }
         ]);
+        // If correct, mark progress
+        if (res.data && res.data.status && res.data.status.id === 3 && res.data.stdout && (!res.data.expected_output || res.data.stdout.trim() === res.data.expected_output.trim())) {
+          // status.id === 3 means Done, and output matches expected
+          const pageIndex = location.state && typeof location.state.page_index === 'number' ? location.state.page_index : 0;
+          await supabase.from('progress').upsert({
+            user_id: userData.user.id,
+            page_index: pageIndex
+          });
+        }
       }
     } catch (err) {
       setResult({ error: err.message });
