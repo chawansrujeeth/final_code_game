@@ -163,7 +163,9 @@ export default function CodeRunner() {
               onClick={() => {
                 // Go to next story page
                 const nextPage = location.state && typeof location.state.page_index === 'number' ? location.state.page_index + 1 : 1;
-                navigate('/manga', { state: { goToPage: nextPage } });
+                setTimeout(() => {
+                  navigate('/manga', { state: { goToPage: nextPage } });
+                }, 400); // short delay to ensure progress is updated
               }}
             >
               Done! Go to Next Story

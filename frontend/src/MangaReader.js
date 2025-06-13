@@ -72,6 +72,24 @@ export default function MangaReader() {
     }
   }, [location.state]);
 
+  // Refetch progress every time the page changes
+  useEffect(() => {
+    async function refetchProgress() {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData && userData.user) {
+        const { data: progressData } = await supabase
+          .from("progress")
+          .select("page_index")
+          .eq("user_id", userData.user.id);
+        const maxUnlocked = progressData && progressData.length > 0
+          ? Math.max(...progressData.map(p => p.page_index)) + 1
+          : 1;
+        setUnlocked(maxUnlocked);
+      }
+    }
+    refetchProgress();
+  }, [page]);
+
   if (loading || pages.length === 0) {
     return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading pages...</div>;
   }
