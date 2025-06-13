@@ -232,7 +232,7 @@ export default function MangaReader() {
             }}
             disabled={isLocked}
           >
-            {isLocked ? "Locked" : "Start Coding"}
+            {isLocked ? "Locked" : "Submit"}
           </button>
           {isLocked && (
             <div style={{
