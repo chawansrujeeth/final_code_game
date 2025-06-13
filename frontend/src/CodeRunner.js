@@ -19,9 +19,9 @@ export default function CodeRunner() {
   const [loading, setLoading] = useState(false);
   const [testcase, setTestcase] = useState(null);
   const [testcaseLoading, setTestcaseLoading] = useState(true);
+  const [accepted, setAccepted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     async function fetchTestcaseById(id) {
@@ -105,74 +105,86 @@ export default function CodeRunner() {
   };
 
   if (testcaseLoading) {
-    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading test case...</div>;
+    return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading challenge...</div>;
   }
 
+  // Toggle: Go to Story
+  const handleToggleStory = () => {
+    const pageIndex = location.state && typeof location.state.page_index === 'number' ? location.state.page_index : 0;
+    navigate('/manga', { state: { goToPage: pageIndex } });
+  };
+
   return (
-    <div style={{ maxWidth: 600, margin: "2rem auto" }}>
-      <h2>Online Code Runner</h2>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Language:
-          <select
-            value={languageId}
-            onChange={(e) => setLanguageId(Number(e.target.value))}
-          >
-            {languageOptions.map((lang) => (
-              <option key={lang.id} value={lang.id}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <br />
-        <label>
-          Source Code:
-          <br />
-          <textarea
-            rows={10}
-            cols={60}
-            value={sourceCode}
-            onChange={(e) => setSourceCode(e.target.value)}
-            required
-          />
-        </label>
-        <br />
-        <button type="submit" disabled={loading}>
-          {loading ? "Running..." : "Run Code"}
-        </button>
-      </form>
-      {result && (
-        <div style={{ marginTop: "1rem" }}>
-          <h3>Result:</h3>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '80vh', padding: '40px 0', background: '#f7f8fa' }}>
+      {/* Left: Code Editor and Controls */}
+      <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 16px rgba(0,0,0,0.08)', padding: 32, minWidth: 420, maxWidth: 540, marginRight: 32, flex: '1 1 420px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 26, color: '#3a3a3a' }}>Submit Your Solution</h2>
+          <button onClick={handleToggleStory} style={{ background: '#eee', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 600, cursor: 'pointer', color: '#7c3aed' }}>Go to Story</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontWeight: 600, fontSize: 15 }}>Language:</label>
+            <select
+              value={languageId}
+              onChange={(e) => setLanguageId(Number(e.target.value))}
+              style={{ marginLeft: 12, padding: '6px 12px', fontSize: 15, borderRadius: 6, border: '1px solid #ccc', background: '#fafaff' }}
+            >
+              {languageOptions.map((lang) => (
+                <option key={lang.id} value={lang.id}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontWeight: 600, fontSize: 15, display: 'block', marginBottom: 6 }}>Source Code:</label>
+            <textarea
+              rows={16}
+              cols={60}
+              value={sourceCode}
+              onChange={(e) => setSourceCode(e.target.value)}
+              required
+              style={{ width: '100%', fontSize: 15, fontFamily: 'monospace', borderRadius: 8, border: '1px solid #ccc', padding: 12, resize: 'vertical', minHeight: 220 }}
+            />
+          </div>
+          <button type="submit" disabled={loading} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 32px', fontWeight: 700, fontSize: 17, cursor: 'pointer', marginTop: 8 }}>
+            {loading ? "Submitting..." : "Submit"}
+          </button>
           {accepted && (
             <button
-              style={{
-                marginTop: 16,
-                background: "#2196f3",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "12px 24px",
-                fontSize: 18,
-                fontWeight: "bold",
-                cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
-              }}
+              type="button"
+              style={{ marginLeft: 18, background: "#2196f3", color: "#fff", border: "none", borderRadius: 8, padding: "10px 32px", fontWeight: 700, fontSize: 17, cursor: "pointer" }}
               onClick={() => {
-                // Go to next story page
                 const nextPage = location.state && typeof location.state.page_index === 'number' ? location.state.page_index + 1 : 1;
                 setTimeout(() => {
                   navigate('/manga', { state: { goToPage: nextPage } });
-                }, 400); // short delay to ensure progress is updated
+                }, 400);
               }}
             >
               Done! Go to Next Story
             </button>
           )}
+        </form>
+        {result && (
+          <div style={{ marginTop: "1.5rem", background: '#f6f6fa', borderRadius: 8, padding: 18, border: '1px solid #e0e0e0' }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>Result:</h3>
+            <pre style={{ fontSize: 14, margin: 0 }}>{JSON.stringify(result, null, 2)}</pre>
+          </div>
+        )}
+      </div>
+      {/* Right: Expected Input/Output */}
+      <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 16px rgba(0,0,0,0.08)', padding: 32, minWidth: 320, maxWidth: 400, flex: '1 1 320px' }}>
+        <h3 style={{ marginTop: 0, color: '#3a3a3a' }}>Challenge Details</h3>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Expected Input:</div>
+          <pre style={{ background: '#f3f3f7', borderRadius: 6, padding: 10, fontSize: 15, minHeight: 40 }}>{testcase.input || 'N/A'}</pre>
         </div>
-      )}
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Expected Output:</div>
+          <pre style={{ background: '#f3f3f7', borderRadius: 6, padding: 10, fontSize: 15, minHeight: 40 }}>{testcase.expected_output || 'N/A'}</pre>
+        </div>
+      </div>
     </div>
   );
 }
