@@ -132,6 +132,10 @@ export default function MangaReader() {
             bottom: 12px !important;
             right: 12px !important;
           }
+          .manga-img-container {
+            width: 98vw !important;
+            max-width: 100vw !important;
+          }
         }
       `}</style>
       <div style={{
@@ -142,18 +146,20 @@ export default function MangaReader() {
         alignItems: "center",
         justifyContent: "center"
       }}>
-        <div style={{
-          position: "relative",
-          boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
-          background: isLocked ? "#eee" : "#fff",
-          borderRadius: 8,
-          overflow: "hidden",
-          opacity: isLocked ? 0.6 : 1,
-          width: 700,
-          height: "80vh",
-          display: "flex",
-          flexDirection: "column"
-        }}>
+        <div
+          style={{
+            position: "relative",
+            boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
+            background: isLocked ? "#eee" : "#fff",
+            borderRadius: 8,
+            overflow: "hidden",
+            opacity: isLocked ? 0.6 : 1,
+            width: "min(95vw, 900px)",
+            height: "80vh",
+            display: "flex",
+            flexDirection: "column"
+          }}
+        >
           <div style={{ overflowY: "auto", height: "100%" }}>
             <img
               className="manga-img"
@@ -162,8 +168,7 @@ export default function MangaReader() {
               style={{
                 display: "block",
                 width: "100%",
-                height: "auto",
-                minWidth: 600
+                height: "auto"
               }}
             />
           </div>
