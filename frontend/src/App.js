@@ -5,7 +5,6 @@ import MangaReader from "./MangaReader";
 import LandingHome from "./LandingHome";
 import Navbar from "./Navbar";
 import Profile from "./Profile";
-import Login from "./Login";
 import Footer from "./Footer";
 import Auth from "./Auth";
 import { supabase } from "./supabaseClient";
