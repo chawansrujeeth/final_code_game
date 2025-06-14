@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 
@@ -20,6 +20,8 @@ const Duel = ({ user }) => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [winner, setWinner] = useState(null);
+  const [timer, setTimer] = useState(20 * 60); // 20 minutes in seconds
+  const timerRef = useRef();
 
   useEffect(() => {
     const sock = io(SOCKET_URL);
@@ -54,6 +56,30 @@ const Duel = ({ user }) => {
     };
   }, [user]);
 
+  // Timer countdown
+  useEffect(() => {
+    if (!duelInfo || winner) return;
+    timerRef.current = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          // Time's up: declare draw or no winner
+          if (!winner) setWinner('Time Up! No winner');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [duelInfo, winner]);
+
+  // Format timer
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -69,6 +95,12 @@ const Duel = ({ user }) => {
       // If correct, emit duel_submission
       if (res.data && res.data.status && res.data.status.id === 3 && res.data.stdout && (!res.data.expected_output || res.data.stdout.trim() === res.data.expected_output.trim())) {
         socket.emit('duel_submission', { roomId: duelInfo.roomId, user: user.username });
+      } else {
+        // If wrong, emit duel_submission for the other user as winner
+        const otherUser = duelInfo.users.find(u => u !== user.username);
+        if (otherUser) {
+          socket.emit('duel_submission', { roomId: duelInfo.roomId, user: otherUser });
+        }
       }
     } catch (err) {
       setResult({ error: err.message });
@@ -76,17 +108,24 @@ const Duel = ({ user }) => {
     setLoading(false);
   };
 
+  if (!user) {
+    return <div style={{ padding: 24 }}>Loading user info...</div>;
+  }
+
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Real-Time Coding Duel</h2>
-      <p>Status: {status}</p>
+    <div style={{ padding: 24, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
+      <h2 style={{ color: '#7c3aed', textAlign: 'center', marginBottom: 8 }}>Real-Time Coding Duel</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span>Status: <b>{status}</b></span>
+        {duelInfo && <span style={{ fontWeight: 700, color: '#e53935', fontSize: 18 }}>⏰ {formatTime(timer)}</span>}
+      </div>
       {duelInfo && (
-        <div style={{ border: '1px solid #ccc', padding: 16, marginTop: 16 }}>
-          <h3>Room: {duelInfo.roomId}</h3>
-          <p>Players: {duelInfo.users.join(' vs ')}</p>
-          <h4>Problem: {duelInfo.problem.title}</h4>
-          <p>{duelInfo.problem.description}</p>
-          <p>Difficulty: {duelInfo.problem.difficulty}</p>
+        <div style={{ border: '1px solid #ccc', borderRadius: 12, padding: 24, marginTop: 8, background: '#f8f8ff', boxShadow: '0 2px 12px rgba(124,58,237,0.07)' }}>
+          <h3 style={{ color: '#3a3a3a', marginBottom: 6 }}>Room: <span style={{ color: '#7c3aed' }}>{duelInfo.roomId}</span></h3>
+          <p style={{ margin: 0, fontWeight: 600 }}>Players: <span style={{ color: '#2196f3' }}>{duelInfo.users.join(' vs ')}</span></p>
+          <h4 style={{ marginTop: 18, color: '#7c3aed' }}>Problem: {duelInfo.problem.title}</h4>
+          <p style={{ fontSize: 16 }}>{duelInfo.problem.description}</p>
+          <p style={{ fontWeight: 600 }}>Difficulty: <span style={{ color: '#ff9800' }}>{duelInfo.problem.difficulty}</span></p>
           {/* Code Editor and Submission */}
           <form onSubmit={handleSubmit} style={{ marginTop: 24 }}>
             <div style={{ marginBottom: 12 }}>
@@ -108,7 +147,7 @@ const Duel = ({ user }) => {
                 style={{ width: '100%', fontFamily: 'monospace', fontSize: 15, borderRadius: 6, border: '1px solid #ccc', padding: 10 }}
               />
             </div>
-            <button type="submit" disabled={loading} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 32px', fontWeight: 700, fontSize: 17, cursor: 'pointer' }}>
+            <button type="submit" disabled={loading || !!winner || timer === 0} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 32px', fontWeight: 700, fontSize: 17, cursor: loading || !!winner || timer === 0 ? 'not-allowed' : 'pointer' }}>
               {loading ? 'Submitting...' : 'Submit'}
             </button>
           </form>
@@ -119,8 +158,8 @@ const Duel = ({ user }) => {
             </div>
           )}
           {winner && (
-            <div style={{ marginTop: 18, fontWeight: 700, color: winner === user.username ? 'green' : 'red' }}>
-              {winner === user.username ? 'You win!' : `${winner} wins!`}
+            <div style={{ marginTop: 18, fontWeight: 700, color: winner === user.username ? 'green' : (winner === 'Time Up! No winner' ? '#e53935' : '#e53935'), fontSize: 20 }}>
+              {winner === user.username ? 'You win!' : (winner === 'Time Up! No winner' ? 'Time Up! No winner' : `${winner} wins!`)}
             </div>
           )}
         </div>
