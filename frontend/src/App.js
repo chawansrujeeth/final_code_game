@@ -29,21 +29,35 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    async function fetchUserAndProfile() {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        // Fetch profile
-        const { data: profile, error } = await supabase
+    let mounted = true;
+
+    async function fetchUserAndProfile(userObj) {
+      if (userObj) {
+        const { data: profile } = await supabase
           .from("profiles")
           .select("name")
-          .eq("user_id", data.user.id)
+          .eq("user_id", userObj.id)
           .maybeSingle();
-        setUser({ ...data.user, name: profile?.name || data.user.email });
+        if (mounted) setUser({ ...userObj, name: profile?.name || userObj.email });
       } else {
-        setUser(false);
+        if (mounted) setUser(false);
       }
     }
-    fetchUserAndProfile();
+
+    // Initial check
+    supabase.auth.getUser().then(({ data }) => {
+      fetchUserAndProfile(data.user);
+    });
+
+    // Listen for auth state changes
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      fetchUserAndProfile(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      listener?.subscription.unsubscribe();
+    };
   }, []);
 
   return (
