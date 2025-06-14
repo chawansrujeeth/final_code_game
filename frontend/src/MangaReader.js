@@ -154,8 +154,8 @@ export default function MangaReader() {
             borderRadius: 8,
             overflow: "hidden",
             opacity: isLocked ? 0.6 : 1,
-            width: "98vw",
-            height: "80vh",
+            width: "90vw",
+            height: "85vh",
             display: "flex",
             flexDirection: "column",
             margin: "1vw auto"
