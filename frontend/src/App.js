@@ -26,6 +26,26 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    async function fetchUserAndProfile() {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        // Fetch profile
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("user_id", data.user.id)
+          .single();
+        setUser({ ...data.user, name: profile?.name || data.user.email });
+      } else {
+        setUser(null);
+      }
+    }
+    fetchUserAndProfile();
+  }, []);
+
   return (
     <Router>
       <Navbar />
@@ -36,7 +56,11 @@ function App() {
           <Route path="/code" element={<CodeRunner />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/login" element={<Auth />} />
-          <Route path="/duel" element={<Duel user={{ id: 'test1', level: 1, username: 'TestUser1' }} />} />
+          <Route path="/duel" element={
+            user === null
+              ? <div style={{ padding: 24 }}>Loading user info...</div>
+              : <Duel user={user} />
+          } />
         </Routes>
       </div>
       <Footer />
