@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import CodeRunner from "./CodeRunner";
 import MangaReader from "./MangaReader";
 import LandingHome from "./LandingHome";
@@ -33,14 +33,14 @@ function App() {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
         // Fetch profile
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from("profiles")
           .select("name")
           .eq("user_id", data.user.id)
-          .single();
+          .maybeSingle();
         setUser({ ...data.user, name: profile?.name || data.user.email });
       } else {
-        setUser(null);
+        setUser(false);
       }
     }
     fetchUserAndProfile();
@@ -59,7 +59,9 @@ function App() {
           <Route path="/duel" element={
             user === null
               ? <div style={{ padding: 24 }}>Loading user info...</div>
-              : <Duel user={user} />
+              : user === false
+                ? <Navigate to="/login" />
+                : <Duel user={user} />
           } />
         </Routes>
       </div>
