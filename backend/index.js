@@ -70,6 +70,26 @@ const io = new Server(server, {
 let waitingUsers = [];
 let duels = {};
 
+// Hardcoded problems array
+const problems = [
+  {
+    id: 1,
+    title: 'Sum Two Numbers',
+    description: 'Write a program that reads two integers from input and prints their sum.',
+    difficulty: 'easy',
+    input: '2 3',
+    expected_output: '5'
+  },
+  {
+    id: 2,
+    title: 'Print Hello',
+    description: 'Print "Hello, World!" to the output.',
+    difficulty: 'easy',
+    input: '',
+    expected_output: 'Hello, World!'
+  }
+];
+
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
@@ -104,8 +124,8 @@ function matchUsers() {
     duels[roomId] = { users: [user1, user2], started: false };
     user1.socket.join(roomId);
     user2.socket.join(roomId);
-    // Assign a problem (placeholder)
-    const problem = { id: 1, title: 'Sample Problem', description: 'Solve X', difficulty: 'easy' };
+    // Assign a random problem from the array
+    const problem = problems[Math.floor(Math.random() * problems.length)];
     io.to(roomId).emit('duel_start', { roomId, users: [user1.username, user2.username], problem });
     duels[roomId].started = true;
   }

@@ -91,6 +91,7 @@ export default function Navbar() {
           </Link>
           <div className="navbar-links" style={linksContainer}>
             <Link to="/" style={linkStyle("/")}>Home</Link>
+            <Link to="/duel" style={linkStyle("/duel")}>Duel</Link>
             {user && <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>}
             {!user && <Link to="/login" style={linkStyle("/login")}>Login</Link>}
             {user && <button onClick={handleLogout} style={{
