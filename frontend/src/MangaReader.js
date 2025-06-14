@@ -137,6 +137,13 @@ export default function MangaReader() {
             max-width: 100vw !important;
             height: auto !important;
             overflow-y: unset !important;
+            display: block !important;
+            flex-direction: unset !important;
+            margin: 0 auto !important;
+          }
+          .manga-img-scroll {
+            overflow-y: unset !important;
+            height: auto !important;
           }
         }
       `}</style>
