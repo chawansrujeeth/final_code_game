@@ -118,7 +118,7 @@ export default function MangaReader() {
             min-width: 0 !important;
             min-height: 0 !important;
             max-width: 98vw !important;
-            max-height: 60vh !important;
+            max-height: none !important;
           }
           .manga-btn {
             width: 36px !important;
@@ -135,6 +135,8 @@ export default function MangaReader() {
           .manga-img-container {
             width: 98vw !important;
             max-width: 100vw !important;
+            height: auto !important;
+            overflow-y: unset !important;
           }
         }
       `}</style>
@@ -147,6 +149,7 @@ export default function MangaReader() {
         justifyContent: "center"
       }}>
         <div
+          className="manga-img-container"
           style={{
             position: "relative",
             boxShadow: "0 4px 32px rgba(0,0,0,0.12)",
@@ -161,7 +164,7 @@ export default function MangaReader() {
             margin: "1vw auto"
           }}
         >
-          <div style={{ overflowY: "auto", height: "100%" }}>
+          <div style={{ overflowY: "auto", height: "100%" }} className="manga-img-scroll">
             <img
               className="manga-img"
               src={currentPage.background_url}
