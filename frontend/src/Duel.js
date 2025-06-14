@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 
-const SOCKET_URL = 'http://localhost:5051'; // Change if backend runs elsewhere
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5051'; // Change if backend runs elsewhere
 
 const languageOptions = [
   { id: 71, name: 'Python 3' },
