@@ -33,7 +33,7 @@ const Duel = ({ user }) => {
       sock.emit('join_matchmaking', {
         userId: user?.id || Math.random().toString(36).slice(2),
         level: user?.level || 1,
-        username: user?.username || 'Guest',
+        username: user?.email || 'Guest',
       });
     });
 
@@ -94,10 +94,10 @@ const Duel = ({ user }) => {
       setResult(res.data);
       // If correct, emit duel_submission
       if (res.data && res.data.status && res.data.status.id === 3 && res.data.stdout && (!res.data.expected_output || res.data.stdout.trim() === res.data.expected_output.trim())) {
-        socket.emit('duel_submission', { roomId: duelInfo.roomId, user: user.username });
+        socket.emit('duel_submission', { roomId: duelInfo.roomId, user: user.email });
       } else {
         // If wrong, emit duel_submission for the other user as winner
-        const otherUser = duelInfo.users.find(u => u !== user.username);
+        const otherUser = duelInfo.users.find(u => u !== user.email);
         if (otherUser) {
           socket.emit('duel_submission', { roomId: duelInfo.roomId, user: otherUser });
         }
@@ -158,8 +158,8 @@ const Duel = ({ user }) => {
             </div>
           )}
           {winner && (
-            <div style={{ marginTop: 18, fontWeight: 700, color: winner === user.username ? 'green' : (winner === 'Time Up! No winner' ? '#e53935' : '#e53935'), fontSize: 20 }}>
-              {winner === user.username ? 'You win!' : (winner === 'Time Up! No winner' ? 'Time Up! No winner' : `${winner} wins!`)}
+            <div style={{ marginTop: 18, fontWeight: 700, color: winner === user.email ? 'green' : (winner === 'Time Up! No winner' ? '#e53935' : '#e53935'), fontSize: 20 }}>
+              {winner === user.email ? 'You win!' : (winner === 'Time Up! No winner' ? 'Time Up! No winner' : `${winner} wins!`)}
             </div>
           )}
         </div>
