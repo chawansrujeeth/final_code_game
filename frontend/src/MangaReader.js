@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import CodeRunnerSection from "./CodeRunnerSection";
 
 export default function MangaReader() {
   const [pages, setPages] = useState([]);
@@ -13,6 +14,8 @@ export default function MangaReader() {
   const [justUnlocked, setJustUnlocked] = useState(false);
   const [muted, setMuted] = useState(false);
   const audioRef = useRef();
+  const [sections, setSections] = useState([]); // story sections for current page
+  const [sectionProgress, setSectionProgress] = useState([]); // which checkpoints are solved
 
   // Replace this with your actual Supabase public URL
   const MUSIC_URL = "https://nrgtgbxetvqlrckfsfgu.supabase.co/storage/v1/object/sign/music/lofi-background-music-337568.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kNDExZWVhMS1lNDc3LTQxZjItOTFlZi0wY2JmYTRlMWJhNGUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy9sb2ZpLWJhY2tncm91bmQtbXVzaWMtMzM3NTY4Lm1wMyIsImlhdCI6MTc0OTgwNzU2OCwiZXhwIjoxNzgxMzQzNTY4fQ.Omxc_iB8M-31hGijzaRmTikGfUYDi8u7lnjXqtYe9JE";
@@ -95,6 +98,24 @@ export default function MangaReader() {
     refetchProgress();
   }, [page]);
 
+  // Fetch sections for the current page
+  useEffect(() => {
+    async function fetchSections() {
+      if (!pages.length) return;
+      const pageId = pages[page]?.id || (page + 1); // fallback if id missing
+      const { data, error } = await supabase
+        .from("story_sections")
+        .select("id, section_index, image_url, testcase_id")
+        .eq("page_id", pageId)
+        .order("section_index", { ascending: true });
+      if (!error && data) {
+        setSections(data);
+        setSectionProgress(Array(data.length).fill(false));
+      }
+    }
+    fetchSections();
+  }, [pages, page]);
+
   if (loading || pages.length === 0) {
     return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading pages...</div>;
   }
@@ -108,6 +129,15 @@ export default function MangaReader() {
   const handleDone = () => {
     setPage((prev) => Math.min(prev + 1, pages.length - 1));
     setJustUnlocked(false);
+  };
+
+  // Handler for when a checkpoint is solved
+  const handleCheckpointSolved = (idx) => {
+    setSectionProgress((prev) => {
+      const updated = [...prev];
+      updated[idx] = true;
+      return updated;
+    });
   };
 
   return (
@@ -172,16 +202,34 @@ export default function MangaReader() {
           }}
         >
           <div style={{ overflowY: "auto", height: "100%" }} className="manga-img-scroll">
-            <img
-              className="manga-img"
-              src={currentPage.background_url}
-              alt="Manga Page"
-              style={{
-                display: "block",
-                width: "100%",
-                height: "auto"
-              }}
-            />
+            {sections.map((section, idx) => (
+              <div key={section.id} style={{ marginBottom: 32 }}>
+                <img
+                  className="manga-img"
+                  src={section.image_url}
+                  alt={`Section ${idx + 1}`}
+                  style={{ display: "block", width: "100%", height: "auto" }}
+                />
+                {/* Checkpoint: only show if previous is solved or it's the first */}
+                {((idx === 0) || sectionProgress[idx - 1]) && !sectionProgress[idx] && (
+                  <CodeRunnerSection
+                    testcaseId={section.testcase_id}
+                    onAccepted={() => handleCheckpointSolved(idx)}
+                  />
+                )}
+              </div>
+            ))}
+            {/* Go to Next Story button if all checkpoints are solved */}
+            {sections.length > 0 && sectionProgress.every(Boolean) && (
+              <button
+                style={{
+                  margin: "32px auto 0 auto", display: "block", background: "#4caf50", color: "#fff", border: "none", borderRadius: 8, padding: "14px 36px", fontSize: 20, fontWeight: "bold", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+                }}
+                onClick={handleDone}
+              >
+                Go to Next Story
+              </button>
+            )}
           </div>
           {/* Previous Button */}
           {!isFirst && (

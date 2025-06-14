@@ -2,6 +2,8 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 app.use(cors());
@@ -56,8 +58,61 @@ app.post('/run', async (req, res) => {
   }
 });
 
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Store waiting users and active duels
+let waitingUsers = [];
+let duels = {};
+
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+
+  // User requests to join matchmaking
+  socket.on('join_matchmaking', (userData) => {
+    // userData: { userId, level, username }
+    waitingUsers.push({ socket, ...userData });
+    matchUsers();
+  });
+
+  // Handle duel submission
+  socket.on('duel_submission', ({ roomId, user }) => {
+    if (duels[roomId] && !duels[roomId].winner) {
+      duels[roomId].winner = user;
+      io.to(roomId).emit('duel_result', { winner: user });
+    }
+  });
+
+  // Handle user disconnect
+  socket.on('disconnect', () => {
+    waitingUsers = waitingUsers.filter(u => u.socket.id !== socket.id);
+    // Optionally: handle disconnect from active duel
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+function matchUsers() {
+  // Simple: match first two users of similar level (expand as needed)
+  if (waitingUsers.length >= 2) {
+    const [user1, user2] = waitingUsers.splice(0, 2);
+    const roomId = `duel_${user1.userId}_${user2.userId}_${Date.now()}`;
+    duels[roomId] = { users: [user1, user2], started: false };
+    user1.socket.join(roomId);
+    user2.socket.join(roomId);
+    // Assign a problem (placeholder)
+    const problem = { id: 1, title: 'Sample Problem', description: 'Solve X', difficulty: 'easy' };
+    io.to(roomId).emit('duel_start', { roomId, users: [user1.username, user2.username], problem });
+    duels[roomId].started = true;
+  }
+}
+
 const PORT = process.env.PORT || 5051;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 

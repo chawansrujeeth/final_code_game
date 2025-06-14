@@ -10,6 +10,7 @@ import Auth from "./Auth";
 import { supabase } from "./supabaseClient";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Duel from "./Duel";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -35,6 +36,7 @@ function App() {
           <Route path="/code" element={<CodeRunner />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/login" element={<Auth />} />
+          <Route path="/duel" element={<Duel user={{ id: 'test1', level: 1, username: 'TestUser1' }} />} />
         </Routes>
       </div>
       <Footer />
