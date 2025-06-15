@@ -64,8 +64,15 @@ app.post('/run', async (req, res) => {
       }
       return res.json(result);
     } catch (err) {
-      // Only try next key if error is 500
-      if (err.response && err.response.status === 500) {
+      // Only try next key if error is 500, 429, or 403
+      if (
+        err.response &&
+        (
+          err.response.status === 500 ||
+          err.response.status === 429 ||
+          err.response.status === 403
+        )
+      ) {
         lastError = err;
         continue;
       } else {
