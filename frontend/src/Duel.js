@@ -9,6 +9,7 @@ const languageOptions = [
   { id: 63, name: 'JavaScript (Node.js)' },
   { id: 54, name: 'C++' },
 ];
+
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5051';
 
 const Duel = ({ user }) => {
@@ -22,6 +23,7 @@ const Duel = ({ user }) => {
   const [winner, setWinner] = useState(null);
   const [timer, setTimer] = useState(20 * 60); // 20 minutes in seconds
   const timerRef = useRef();
+  const [counterStatus, setCounterStatus] = useState(null);
 
   useEffect(() => {
     const sock = io(SOCKET_URL);
@@ -108,6 +110,20 @@ const Duel = ({ user }) => {
     setLoading(false);
   };
 
+  useEffect(() => {
+    async function fetchCounterStatus() {
+      try {
+        const res = await axios.get(`${API_URL}/judge0-counter-status`);
+        setCounterStatus(res.data);
+      } catch (err) {
+        setCounterStatus({ error: 'Unable to fetch counter status' });
+      }
+    }
+    fetchCounterStatus();
+    const interval = setInterval(fetchCounterStatus, 5000); // Refresh every 5s
+    return () => clearInterval(interval);
+  }, []);
+
   if (!user) {
     return <div style={{ padding: 24 }}>Loading user info...</div>;
   }
@@ -118,6 +134,21 @@ const Duel = ({ user }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span>Status: <b>{status}</b></span>
         {duelInfo && <span style={{ fontWeight: 700, color: '#e53935', fontSize: 18 }}>⏰ {formatTime(timer)}</span>}
+      </div>
+      {/* Judge0 Counter Status Display */}
+      <div style={{ background: '#f3f0ff', border: '1px solid #d1c4e9', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <b>Judge0 API Key Usage:</b>
+        {counterStatus && !counterStatus.error ? (
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {counterStatus.keys.map((k, i) => (
+              <li key={k.key} style={{ color: counterStatus.currentKeyIndex === i ? '#7c3aed' : '#333', fontWeight: counterStatus.currentKeyIndex === i ? 700 : 400 }}>
+                {k.key}: {k.used} / {k.limit} {counterStatus.currentKeyIndex === i ? '(active)' : ''}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span style={{ color: 'red' }}>{counterStatus?.error || 'Loading...'}</span>
+        )}
       </div>
       {duelInfo && (
         <div style={{ border: '1px solid #ccc', borderRadius: 12, padding: 24, marginTop: 8, background: '#f8f8ff', boxShadow: '0 2px 12px rgba(124,58,237,0.07)' }}>
