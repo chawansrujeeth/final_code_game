@@ -9,9 +9,33 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions';
+// Load multiple Judge0 keys from environment variables
+const JUDGE0_KEYS = [
+  process.env.JUDGE0_KEY_1,
+  process.env.JUDGE0_KEY_2,
+  process.env.JUDGE0_KEY_3
+].filter(Boolean); // Remove any undefined keys
+
 const JUDGE0_HOST = 'judge0-ce.p.rapidapi.com';
-const JUDGE0_KEY = process.env.JUDGE0_KEY || 'YOUR_RAPIDAPI_KEY'; // Replace with your key or use .env
+const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions';
+
+// Keep a counter for each key
+let submissionCounters = Array(JUDGE0_KEYS.length).fill(0);
+const SUBMISSION_LIMIT_PER_KEY = 40; // Use 40 to be safe
+
+// Reset submission counters every day at midnight UTC
+function scheduleCounterReset() {
+  const now = new Date();
+  const nextMidnight = new Date(now);
+  nextMidnight.setUTCHours(24, 0, 0, 0); // Next midnight UTC
+  const msUntilMidnight = nextMidnight - now;
+  setTimeout(() => {
+    submissionCounters = Array(JUDGE0_KEYS.length).fill(0);
+    scheduleCounterReset(); // Schedule next reset
+    console.log('Judge0 submission counters reset!');
+  }, msUntilMidnight);
+}
+scheduleCounterReset();
 
 // Health check
 app.get('/', (req, res) => {
@@ -21,6 +45,13 @@ app.get('/', (req, res) => {
 // Run code endpoint
 app.post('/run', async (req, res) => {
   const { source_code, language_id, stdin, expected_output, cpu_time_limit } = req.body;
+  // Find the first available key
+  let keyIndex = submissionCounters.findIndex(count => count < SUBMISSION_LIMIT_PER_KEY);
+  if (keyIndex === -1) {
+    return res.status(429).json({ error: "Submission limit reached. Try again later." });
+  }
+  const JUDGE0_KEY = JUDGE0_KEYS[keyIndex];
+  submissionCounters[keyIndex]++;
   try {
     // Submit code to Judge0
     const submission = await axios.post(JUDGE0_URL, {
