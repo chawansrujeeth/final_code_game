@@ -19,24 +19,6 @@ const JUDGE0_KEYS = [
 const JUDGE0_HOST = 'judge0-ce.p.rapidapi.com';
 const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions';
 
-// Keep a counter for each key
-let submissionCounters = Array(JUDGE0_KEYS.length).fill(0);
-const SUBMISSION_LIMIT_PER_KEY = 40; // Use 40 to be safe
-
-// Reset submission counters every day at midnight UTC
-function scheduleCounterReset() {
-  const now = new Date();
-  const nextMidnight = new Date(now);
-  nextMidnight.setUTCHours(24, 0, 0, 0); // Next midnight UTC
-  const msUntilMidnight = nextMidnight - now;
-  setTimeout(() => {
-    submissionCounters = Array(JUDGE0_KEYS.length).fill(0);
-    scheduleCounterReset(); // Schedule next reset
-    console.log('Judge0 submission counters reset!');
-  }, msUntilMidnight);
-}
-scheduleCounterReset();
-
 // Health check
 app.get('/', (req, res) => {
   res.send('Backend is running');
@@ -45,48 +27,66 @@ app.get('/', (req, res) => {
 // Run code endpoint
 app.post('/run', async (req, res) => {
   const { source_code, language_id, stdin, expected_output, cpu_time_limit } = req.body;
-  // Find the first available key
-  let keyIndex = submissionCounters.findIndex(count => count < SUBMISSION_LIMIT_PER_KEY);
-  if (keyIndex === -1) {
-    return res.status(429).json({ error: "Submission limit reached. Try again later." });
-  }
-  const JUDGE0_KEY = JUDGE0_KEYS[keyIndex];
-  submissionCounters[keyIndex]++;
-  try {
-    // Submit code to Judge0
-    const submission = await axios.post(JUDGE0_URL, {
-      source_code,
-      language_id,
-      stdin: stdin || '',
-      expected_output: expected_output || '',
-      cpu_time_limit: cpu_time_limit || 2,
-    }, {
-      headers: {
-        'X-RapidAPI-Key': JUDGE0_KEY,
-        'X-RapidAPI-Host': JUDGE0_HOST,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const token = submission.data.token;
-
-    // Poll for result
-    let result;
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      const resPoll = await axios.get(`${JUDGE0_URL}/${token}`, {
+  let lastError = null;
+  for (let i = 0; i < JUDGE0_KEYS.length; i++) {
+    const JUDGE0_KEY = JUDGE0_KEYS[i];
+    try {
+      // Submit code to Judge0
+      const submission = await axios.post(JUDGE0_URL, {
+        source_code,
+        language_id,
+        stdin: stdin || '',
+        expected_output: expected_output || '',
+        cpu_time_limit: cpu_time_limit || 2,
+      }, {
         headers: {
           'X-RapidAPI-Key': JUDGE0_KEY,
           'X-RapidAPI-Host': JUDGE0_HOST,
+          'Content-Type': 'application/json',
         },
       });
-      result = resPoll.data;
-      if (result.status && result.status.id >= 3) break; // 3: Done
+
+      const token = submission.data.token;
+
+      // Poll for result
+      let result;
+      for (let j = 0; j < 10; j++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const resPoll = await axios.get(`${JUDGE0_URL}/${token}`, {
+          headers: {
+            'X-RapidAPI-Key': JUDGE0_KEY,
+            'X-RapidAPI-Host': JUDGE0_HOST,
+          },
+        });
+        result = resPoll.data;
+        if (result.status && result.status.id >= 3) break; // 3: Done
+      }
+      return res.json(result);
+    } catch (err) {
+      // Only try next key if error is 500
+      if (err.response && err.response.status === 500) {
+        lastError = err;
+        continue;
+      } else {
+        // For other errors, return immediately
+        return res.status(500).json({ error: err.message });
+      }
     }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
+  // If all keys fail
+  return res.status(500).json({ error: lastError?.message || "All Judge0 keys failed" });
+});
+
+// Debug endpoint to view Judge0 submission counters
+app.get('/judge0-counter-status', (req, res) => {
+  res.json({
+    keys: JUDGE0_KEYS.map((key, i) => ({
+      key: `JUDGE0_KEY_${i+1}`,
+      used: submissionCounters[i],
+      limit: SUBMISSION_LIMIT_PER_KEY
+    })),
+    currentKeyIndex: submissionCounters.findIndex(count => count < SUBMISSION_LIMIT_PER_KEY)
+  });
 });
 
 const server = http.createServer(app);
