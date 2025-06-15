@@ -135,21 +135,6 @@ const Duel = ({ user }) => {
         <span>Status: <b>{status}</b></span>
         {duelInfo && <span style={{ fontWeight: 700, color: '#e53935', fontSize: 18 }}>⏰ {formatTime(timer)}</span>}
       </div>
-      {/* Judge0 Counter Status Display */}
-      <div style={{ background: '#f3f0ff', border: '1px solid #d1c4e9', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-        <b>Judge0 API Key Usage:</b>
-        {counterStatus && !counterStatus.error ? (
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {counterStatus.keys.map((k, i) => (
-              <li key={k.key} style={{ color: counterStatus.currentKeyIndex === i ? '#7c3aed' : '#333', fontWeight: counterStatus.currentKeyIndex === i ? 700 : 400 }}>
-                {k.key}: {k.used} / {k.limit} {counterStatus.currentKeyIndex === i ? '(active)' : ''}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span style={{ color: 'red' }}>{counterStatus?.error || 'Loading...'}</span>
-        )}
-      </div>
       {duelInfo && (
         <div style={{ border: '1px solid #ccc', borderRadius: 12, padding: 24, marginTop: 8, background: '#f8f8ff', boxShadow: '0 2px 12px rgba(124,58,237,0.07)' }}>
           <h3 style={{ color: '#3a3a3a', marginBottom: 6 }}>Room: <span style={{ color: '#7c3aed' }}>{duelInfo.roomId}</span></h3>
