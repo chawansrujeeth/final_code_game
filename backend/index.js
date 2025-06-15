@@ -15,6 +15,7 @@ const JUDGE0_KEYS = [
   process.env.JUDGE0_KEY_2,
   process.env.JUDGE0_KEY_3
 ].filter(Boolean); // Remove any undefined keys
+console.log('Loaded Judge0 keys:', JUDGE0_KEYS);
 
 const JUDGE0_HOST = 'judge0-ce.p.rapidapi.com';
 const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions';
