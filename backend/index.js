@@ -69,13 +69,15 @@ app.post('/run', async (req, res) => {
         lastError = err;
         continue;
       } else {
-        // For other errors, return immediately
-        return res.status(500).json({ error: err.message });
+        // For other errors, log and return immediately
+        console.error('Judge0 error:', err?.response?.data || err);
+        return res.status(500).json({ error: err.message, details: err?.response?.data });
       }
     }
   }
   // If all keys fail
-  return res.status(500).json({ error: lastError?.message || "All Judge0 keys failed" });
+  console.error('All Judge0 keys failed. Last error:', lastError?.response?.data || lastError);
+  return res.status(500).json({ error: lastError?.message || "All Judge0 keys failed", details: lastError?.response?.data });
 });
 
 // Debug endpoint to view Judge0 submission counters
