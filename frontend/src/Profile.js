@@ -91,7 +91,11 @@ export default function Profile() {
       name: form.name,
       age: form.age,
       state: form.state,
-      codeforces_handle: form.codeforces_handle
+      codeforces_handle: form.codeforces_handle,
+      cf_verify_problem_contest_id: verifyProblem ? verifyProblem.contestId : null,
+      cf_verify_problem_index: verifyProblem ? verifyProblem.index : null,
+      cf_verify_problem_name: verifyProblem ? verifyProblem.name : null,
+      cf_verify_start_time: verifyStartTime || null
     });
     if (upsertError) {
       setError("Failed to save profile. Try again.");
