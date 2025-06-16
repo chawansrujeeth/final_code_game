@@ -16,9 +16,15 @@ export default function Profile() {
   const [cfVerified, setCfVerified] = useState(false);
   const [cfVerifying, setCfVerifying] = useState(false);
   const [cfVerifyMsg, setCfVerifyMsg] = useState("");
-
-  // Example easy problem for verification
-  const VERIFY_PROBLEM = { contestId: 1, index: "A", name: "Theatre Square" };
+  const EASY_PROBLEMS = [
+    { contestId: 1, index: "A", name: "Theatre Square" },
+    { contestId: 4, index: "A", name: "Watermelon" },
+    { contestId: 71, index: "A", name: "Way Too Long Words" },
+    { contestId: 231, index: "A", name: "Team" },
+    { contestId: 158, index: "A", name: "Next Round" }
+  ];
+  const [verifyProblem, setVerifyProblem] = useState(null);
+  const [verifyStartTime, setVerifyStartTime] = useState(null);
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -88,7 +94,15 @@ export default function Profile() {
     setSaving(false);
   };
 
-  // Add a function to verify Codeforces handle
+  const startVerification = () => {
+    // Pick a random problem
+    const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+    setVerifyProblem(problem);
+    setVerifyStartTime(Date.now());
+    setCfVerified(false);
+    setCfVerifyMsg("");
+  };
+
   const verifyCodeforcesHandle = async () => {
     setCfVerifying(true);
     setCfVerifyMsg("");
@@ -98,21 +112,27 @@ export default function Profile() {
       setCfVerifying(false);
       return;
     }
+    if (!verifyProblem || !verifyStartTime) {
+      setCfVerifyMsg("Click 'Start Verification' to get your problem.");
+      setCfVerifying(false);
+      return;
+    }
     try {
       // Fetch recent submissions
-      const res = await axios.get(`https://codeforces.com/api/user.status?handle=${form.codeforces_handle}&count=10`);
+      const res = await axios.get(`https://codeforces.com/api/user.status?handle=${form.codeforces_handle}&count=20`);
       const submissions = res.data.result;
-      // Check if any submission is for the verify problem
+      // Check if any submission is for the verify problem and after verifyStartTime
       const found = submissions.find(sub =>
         sub.problem &&
-        sub.problem.contestId === VERIFY_PROBLEM.contestId &&
-        sub.problem.index === VERIFY_PROBLEM.index
+        sub.problem.contestId === verifyProblem.contestId &&
+        sub.problem.index === verifyProblem.index &&
+        sub.creationTimeSeconds * 1000 > verifyStartTime
       );
       if (found) {
         setCfVerified(true);
         setCfVerifyMsg("Handle verified! You have submitted to the verification problem.");
       } else {
-        setCfVerifyMsg(`No recent submission found for problem ${VERIFY_PROBLEM.contestId}${VERIFY_PROBLEM.index}. Please submit any solution to this problem on Codeforces, then click Verify again.`);
+        setCfVerifyMsg(`No recent submission found for problem ${verifyProblem.contestId}${verifyProblem.index} after you started verification. Please submit any solution to this problem on Codeforces, then click Verify again.`);
       }
     } catch (err) {
       setCfVerifyMsg("Could not verify handle. Please check the handle and try again.");
@@ -172,11 +192,21 @@ export default function Profile() {
               />
               {form.codeforces_handle && (
                 <>
-                  <button type="button" onClick={verifyCodeforcesHandle} disabled={cfVerifying} style={{ marginLeft: 8, padding: '6px 14px', fontSize: 14 }}>
+                  <button type="button" onClick={startVerification} style={{ marginLeft: 8, padding: '6px 14px', fontSize: 14, background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6 }}>
+                    Start Verification
+                  </button>
+                  {verifyProblem && (
+                    <a href={`https://codeforces.com/contest/${verifyProblem.contestId}/problem/${verifyProblem.index}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8, padding: '6px 14px', fontSize: 14, background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none' }}>
+                      Go to Problem: {verifyProblem.contestId}{verifyProblem.index} ({verifyProblem.name})
+                    </a>
+                  )}
+                  <button type="button" onClick={verifyCodeforcesHandle} disabled={cfVerifying || !verifyProblem} style={{ marginLeft: 8, padding: '6px 14px', fontSize: 14 }}>
                     {cfVerifying ? "Verifying..." : "Verify"}
                   </button>
                   <div style={{ fontSize: 13, color: cfVerified ? 'green' : '#555', marginTop: 4 }}>
-                    {cfVerifyMsg || `To verify, submit any solution to Codeforces problem ${VERIFY_PROBLEM.contestId}${VERIFY_PROBLEM.index} (${VERIFY_PROBLEM.name}) and click Verify.`}
+                    {cfVerifyMsg || (verifyProblem ?
+                      <>Submit any solution to the problem above <b>after</b> clicking Start Verification, then click Verify.</>
+                      : "Click 'Start Verification' to get your problem.")}
                   </div>
                 </>
               )}
