@@ -34,11 +34,20 @@ export default function Profile() {
         // Fetch profile
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("name, age, state, codeforces_handle")
+          .select("name, age, state, codeforces_handle, cf_verify_problem_contest_id, cf_verify_problem_index, cf_verify_problem_name, cf_verify_start_time")
           .eq("user_id", userData.user.id)
           .single();
         setProfile(profileData);
         setProfileLoading(false);
+        // Restore verification session if present
+        if (profileData && profileData.cf_verify_problem_contest_id && profileData.cf_verify_problem_index && profileData.cf_verify_start_time) {
+          setVerifyProblem({
+            contestId: profileData.cf_verify_problem_contest_id,
+            index: profileData.cf_verify_problem_index,
+            name: profileData.cf_verify_problem_name || ''
+          });
+          setVerifyStartTime(Number(profileData.cf_verify_start_time));
+        }
         // Fetch submissions
         const { data, error } = await supabase
           .from("submissions")
@@ -94,13 +103,23 @@ export default function Profile() {
     setSaving(false);
   };
 
-  const startVerification = () => {
+  const startVerification = async () => {
     // Pick a random problem
     const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+    const startTime = Date.now();
     setVerifyProblem(problem);
-    setVerifyStartTime(Date.now());
+    setVerifyStartTime(startTime);
     setCfVerified(false);
     setCfVerifyMsg("");
+    // Save to Supabase
+    if (user) {
+      await supabase.from('profiles').update({
+        cf_verify_problem_contest_id: problem.contestId,
+        cf_verify_problem_index: problem.index,
+        cf_verify_problem_name: problem.name,
+        cf_verify_start_time: startTime
+      }).eq('user_id', user.id);
+    }
   };
 
   const verifyCodeforcesHandle = async () => {
