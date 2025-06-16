@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import axios from "axios";
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -7,11 +8,17 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [form, setForm] = useState({ name: '', age: '', state: '' });
+  const [form, setForm] = useState({ name: '', age: '', state: '', codeforces_handle: '' });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const [cfVerified, setCfVerified] = useState(false);
+  const [cfVerifying, setCfVerifying] = useState(false);
+  const [cfVerifyMsg, setCfVerifyMsg] = useState("");
+
+  // Example easy problem for verification
+  const VERIFY_PROBLEM = { contestId: 1, index: "A", name: "Theatre Square" };
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -21,7 +28,7 @@ export default function Profile() {
         // Fetch profile
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("name, age, state")
+          .select("name, age, state, codeforces_handle")
           .eq("user_id", userData.user.id)
           .single();
         setProfile(profileData);
@@ -33,6 +40,15 @@ export default function Profile() {
           .eq("user_id", userData.user.id)
           .order("created_at", { ascending: false });
         if (!error && data) setSubmissions(data);
+        // Set form values if profile exists
+        if (profileData) {
+          setForm({
+            name: profileData.name || '',
+            age: profileData.age || '',
+            state: profileData.state || '',
+            codeforces_handle: profileData.codeforces_handle || ''
+          });
+        }
       }
       setLoading(false);
     }
@@ -59,16 +75,49 @@ export default function Profile() {
       user_id: user.id,
       name: form.name,
       age: form.age,
-      state: form.state
+      state: form.state,
+      codeforces_handle: form.codeforces_handle
     });
     if (upsertError) {
       setError("Failed to save profile. Try again.");
     } else {
-      setProfile({ name: form.name, age: form.age, state: form.state });
+      setProfile({ name: form.name, age: form.age, state: form.state, codeforces_handle: form.codeforces_handle });
       setMessage("Profile saved successfully!");
       setEditing(false);
     }
     setSaving(false);
+  };
+
+  // Add a function to verify Codeforces handle
+  const verifyCodeforcesHandle = async () => {
+    setCfVerifying(true);
+    setCfVerifyMsg("");
+    setCfVerified(false);
+    if (!form.codeforces_handle) {
+      setCfVerifyMsg("Enter your Codeforces handle first.");
+      setCfVerifying(false);
+      return;
+    }
+    try {
+      // Fetch recent submissions
+      const res = await axios.get(`https://codeforces.com/api/user.status?handle=${form.codeforces_handle}&count=10`);
+      const submissions = res.data.result;
+      // Check if any submission is for the verify problem
+      const found = submissions.find(sub =>
+        sub.problem &&
+        sub.problem.contestId === VERIFY_PROBLEM.contestId &&
+        sub.problem.index === VERIFY_PROBLEM.index
+      );
+      if (found) {
+        setCfVerified(true);
+        setCfVerifyMsg("Handle verified! You have submitted to the verification problem.");
+      } else {
+        setCfVerifyMsg(`No recent submission found for problem ${VERIFY_PROBLEM.contestId}${VERIFY_PROBLEM.index}. Please submit any solution to this problem on Codeforces, then click Verify again.`);
+      }
+    } catch (err) {
+      setCfVerifyMsg("Could not verify handle. Please check the handle and try again.");
+    }
+    setCfVerifying(false);
   };
 
   if (loading || profileLoading) return <div style={{ marginTop: 120, textAlign: "center" }}>Loading...</div>;
@@ -113,6 +162,25 @@ export default function Profile() {
                 style={{ padding: 8, fontSize: 16, width: 200 }}
               />
             </div>
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Codeforces Handle (optional)"
+                value={form.codeforces_handle}
+                onChange={e => setForm({ ...form, codeforces_handle: e.target.value })}
+                style={{ padding: 8, fontSize: 16, width: 200 }}
+              />
+              {form.codeforces_handle && (
+                <>
+                  <button type="button" onClick={verifyCodeforcesHandle} disabled={cfVerifying} style={{ marginLeft: 8, padding: '6px 14px', fontSize: 14 }}>
+                    {cfVerifying ? "Verifying..." : "Verify"}
+                  </button>
+                  <div style={{ fontSize: 13, color: cfVerified ? 'green' : '#555', marginTop: 4 }}>
+                    {cfVerifyMsg || `To verify, submit any solution to Codeforces problem ${VERIFY_PROBLEM.contestId}${VERIFY_PROBLEM.index} (${VERIFY_PROBLEM.name}) and click Verify.`}
+                  </div>
+                </>
+              )}
+            </div>
             <button type="submit" disabled={saving} style={{ padding: '8px 24px', fontSize: 16 }}>
               {saving ? 'Saving...' : 'Save Profile'}
             </button>
@@ -122,8 +190,14 @@ export default function Profile() {
             <div><b>Name:</b> {profile.name}</div>
             <div><b>Age:</b> {profile.age}</div>
             <div><b>State:</b> {profile.state}</div>
+            <div><b>Codeforces Handle:</b> {profile.codeforces_handle || <span style={{ color: '#aaa' }}>Not set</span>}</div>
+            {profile.codeforces_handle && (
+              <span style={{ marginLeft: 8, color: cfVerified ? 'green' : 'orange', fontWeight: 600 }}>
+                {cfVerified ? 'Verified' : 'Not Verified'}
+              </span>
+            )}
             <button onClick={() => {
-              setForm({ name: profile.name, age: profile.age, state: profile.state });
+              setForm({ name: profile.name, age: profile.age, state: profile.state, codeforces_handle: profile.codeforces_handle });
               setEditing(true);
               setMessage("");
               setError("");

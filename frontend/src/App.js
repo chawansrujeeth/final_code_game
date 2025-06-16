@@ -11,6 +11,7 @@ import { supabase } from "./supabaseClient";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Duel from "./Duel";
+import DuelCF from "./DuelCF";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -76,6 +77,13 @@ function App() {
               : user === false
                 ? <Navigate to="/login" />
                 : <Duel user={user} />
+          } />
+          <Route path="/duel_cf" element={
+            user === null
+              ? <div style={{ padding: 24 }}>Loading user info...</div>
+              : user === false
+                ? <Navigate to="/login" />
+                : <DuelCF user={user} />
           } />
         </Routes>
       </div>
