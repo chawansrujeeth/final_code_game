@@ -10,10 +10,6 @@ const EASY_PROBLEMS = [
   { contestId: 158, index: "A", name: "Next Round" }
 ];
 
-function randomRoomId() {
-  return 'room_' + Math.random().toString(36).substr(2, 9);
-}
-
 const DuelCF = ({ user }) => {
   const [handle, setHandle] = useState("");
   const [roomId, setRoomId] = useState(null);
@@ -37,77 +33,78 @@ const DuelCF = ({ user }) => {
     fetchProfile();
   }, [user]);
 
-  // Join or create a room
-  const findDuel = async () => {
-    setStatus("Looking for an opponent...");
-    // Use a public channel for matchmaking
-    const matchChannel = supabase.channel('duel_matchmaking');
-    let foundRoom = null;
-    // Listen for open rooms
-    const onMsg = (payload) => {
-      if (payload.event === 'open_room' && !foundRoom) {
-        foundRoom = payload.payload.roomId;
-        setRoomId(foundRoom);
-        setStatus("Joining room: " + foundRoom);
-        matchChannel.unsubscribe();
-      }
-    };
-    matchChannel.on('broadcast', { event: 'open_room' }, onMsg);
-    await matchChannel.subscribe();
-    // Broadcast that you want to join a room
-    matchChannel.send({ type: 'broadcast', event: 'find_room', payload: { handle } });
-    // Wait for a short time, then create your own room if none found
-    setTimeout(async () => {
-      if (!foundRoom) {
-        const newRoom = randomRoomId();
-        setRoomId(newRoom);
-        setStatus("Created room: " + newRoom + ". Waiting for opponent...");
-        // Broadcast your open room
-        matchChannel.send({ type: 'broadcast', event: 'open_room', payload: { roomId: newRoom, handle } });
-        matchChannel.unsubscribe();
-      }
-    }, 2000);
+  // Table-based matchmaking
+  const joinRoom = async () => {
+    setStatus("Joining a room...");
+    // 1. Look for a waiting room
+    const { data: rooms, error } = await supabase
+      .from('duel_rooms')
+      .select('*')
+      .eq('status', 'waiting')
+      .is('player2_id', null)
+      .limit(1);
+    if (rooms && rooms.length > 0) {
+      // Join as player2
+      const room = rooms[0];
+      const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+      const startTime = Date.now();
+      await supabase.from('duel_rooms').update({
+        player2_id: user.id,
+        player2_handle: handle,
+        status: 'active',
+        problem,
+        start_time: startTime
+      }).eq('id', room.id);
+      setRoomId(room.id);
+      setStatus("Joined room: " + room.id);
+    } else {
+      // Create a new room as player1
+      const { data: newRoom, error: insertErr } = await supabase.from('duel_rooms').insert({
+        player1_id: user.id,
+        player1_handle: handle,
+        status: 'waiting',
+        problem: null,
+        start_time: null
+      }).select().single();
+      setRoomId(newRoom.id);
+      setStatus("Created room: " + newRoom.id + ". Waiting for opponent...");
+    }
   };
 
-  // Room channel logic
+  // Subscribe to room updates
   useEffect(() => {
-    if (!roomId || !handle) return;
-    // Join the room channel
-    const channel = supabase.channel(roomId);
+    if (!roomId) return;
+    const channel = supabase.channel(`duel_room_${roomId}`);
     channelRef.current = channel;
     let unsubscribed = false;
-    // Initial state
-    let localState = { users: [{ handle, id: user.id }], problem: null, startTime: null };
-    setRoomState(localState);
-    // Listen for state updates
-    channel.on('broadcast', { event: 'room_state' }, (payload) => {
-      if (!unsubscribed) setRoomState(payload.payload);
-    });
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        // Announce yourself to the room
-        channel.send({ type: 'broadcast', event: 'join', payload: { handle, id: user.id } });
+    // Listen for room updates
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'duel_rooms', filter: `id=eq.${roomId}` }, (payload) => {
+      if (!unsubscribed && payload.new) {
+        const room = payload.new;
+        const users = [
+          { handle: room.player1_handle, id: room.player1_id },
+          ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
+        ];
+        setRoomState({ users, problem: room.problem, startTime: room.start_time });
       }
     });
-    // Listen for join events
-    channel.on('broadcast', { event: 'join' }, (payload) => {
-      const joinedUser = payload.payload;
-      if (!localState.users.find(u => u.id === joinedUser.id)) {
-        localState = { ...localState, users: [...localState.users, joinedUser] };
-        // If two users, assign problem and start time
-        if (localState.users.length === 2 && !localState.problem) {
-          const prob = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
-          localState = { ...localState, problem: prob, startTime: Date.now() };
-        }
-        // Broadcast updated state
-        channel.send({ type: 'broadcast', event: 'room_state', payload: localState });
+    channel.subscribe();
+    // Initial fetch
+    (async () => {
+      const { data: room } = await supabase.from('duel_rooms').select('*').eq('id', roomId).single();
+      if (room) {
+        const users = [
+          { handle: room.player1_handle, id: room.player1_id },
+          ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
+        ];
+        setRoomState({ users, problem: room.problem, startTime: room.start_time });
       }
-    });
+    })();
     return () => {
       unsubscribed = true;
       channel.unsubscribe();
     };
-  }, [roomId, handle, user]);
+  }, [roomId]);
 
   // Start timer when duel starts (problem assigned)
   useEffect(() => {
@@ -139,11 +136,11 @@ const DuelCF = ({ user }) => {
       {!roomId ? (
         <div style={{ textAlign: 'center' }}>
           <button
-            onClick={findDuel}
+            onClick={joinRoom}
             disabled={!handle}
             style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '14px 40px', fontWeight: 700, fontSize: 22, cursor: handle ? 'pointer' : 'not-allowed', boxShadow: '0 2px 12px rgba(124,58,237,0.08)' }}
           >
-            Find Duel
+            Join Room
           </button>
           {!handle && <div style={{ color: '#e53935', marginTop: 16, fontSize: 16 }}>Set your Codeforces handle in your profile first.</div>}
         </div>
