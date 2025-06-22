@@ -34,11 +34,12 @@ export default function Profile() {
         // Fetch profile
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("name, age, state, codeforces_handle, cf_verify_problem_contest_id, cf_verify_problem_index, cf_verify_problem_name, cf_verify_start_time")
+          .select("name, age, state, codeforces_handle, cf_verified, cf_verify_problem_contest_id, cf_verify_problem_index, cf_verify_problem_name, cf_verify_start_time")
           .eq("user_id", userData.user.id)
           .single();
         setProfile(profileData);
         setProfileLoading(false);
+        setCfVerified(!!profileData?.cf_verified);
         // Restore verification session if present
         if (profileData && profileData.cf_verify_problem_contest_id && profileData.cf_verify_problem_index && profileData.cf_verify_start_time) {
           setVerifyProblem({
@@ -92,6 +93,7 @@ export default function Profile() {
       age: form.age,
       state: form.state,
       codeforces_handle: form.codeforces_handle,
+      cf_verified: cfVerified,
       cf_verify_problem_contest_id: verifyProblem ? verifyProblem.contestId : null,
       cf_verify_problem_index: verifyProblem ? verifyProblem.index : null,
       cf_verify_problem_name: verifyProblem ? verifyProblem.name : null,
@@ -100,7 +102,7 @@ export default function Profile() {
     if (upsertError) {
       setError("Failed to save profile. Try again.");
     } else {
-      setProfile({ name: form.name, age: form.age, state: form.state, codeforces_handle: form.codeforces_handle });
+      setProfile({ name: form.name, age: form.age, state: form.state, codeforces_handle: form.codeforces_handle, cf_verified: cfVerified });
       setMessage("Profile saved successfully!");
       setEditing(false);
     }
@@ -121,7 +123,8 @@ export default function Profile() {
         cf_verify_problem_contest_id: problem.contestId,
         cf_verify_problem_index: problem.index,
         cf_verify_problem_name: problem.name,
-        cf_verify_start_time: startTime
+        cf_verify_start_time: startTime,
+        cf_verified: false
       }).eq('user_id', user.id);
     }
   };
@@ -154,6 +157,10 @@ export default function Profile() {
       if (found) {
         setCfVerified(true);
         setCfVerifyMsg("Handle verified! You have submitted to the verification problem.");
+        // Update Supabase to mark as verified
+        if (user) {
+          await supabase.from('profiles').update({ cf_verified: true }).eq('user_id', user.id);
+        }
       } else {
         setCfVerifyMsg(`No recent submission found for problem ${verifyProblem.contestId}${verifyProblem.index} after you started verification. Please submit any solution to this problem on Codeforces, then click Verify again.`);
       }
