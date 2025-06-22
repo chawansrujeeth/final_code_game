@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 
-const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "http://localhost:5052";
+const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
 
 const DuelCF = ({ user }) => {
   const [socket, setSocket] = useState(null);
