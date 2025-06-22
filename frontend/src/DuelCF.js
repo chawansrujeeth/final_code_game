@@ -71,7 +71,7 @@ const DuelCF = ({ user }) => {
     }
   };
 
-  // Subscribe to room updates
+  // Subscribe to room updates as soon as roomId is set
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase.channel(`duel_room_${roomId}`);
@@ -89,7 +89,7 @@ const DuelCF = ({ user }) => {
       }
     });
     channel.subscribe();
-    // Initial fetch
+    // Always fetch the latest room state after subscribing
     (async () => {
       const { data: room } = await supabase.from('duel_rooms').select('*').eq('id', roomId).single();
       if (room) {
