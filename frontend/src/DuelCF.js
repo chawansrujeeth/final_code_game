@@ -13,11 +13,13 @@ const EASY_PROBLEMS = [
 const DuelCF = ({ user }) => {
   const [handle, setHandle] = useState("");
   const [roomId, setRoomId] = useState(null);
-  const [roomState, setRoomState] = useState(null); // { users: [], problem, startTime }
+  const [roomState, setRoomState] = useState(null); // { users: [], problem, startTime, status }
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
   const channelRef = useRef(null);
   const [timer, setTimer] = useState(600); // 10 min
   const [intervalId, setIntervalId] = useState(null);
+  const [subscribed, setSubscribed] = useState(false);
 
   // Fetch user's Codeforces handle from profile
   useEffect(() => {
@@ -33,9 +35,59 @@ const DuelCF = ({ user }) => {
     fetchProfile();
   }, [user]);
 
+  // Subscribe to room updates as soon as roomId is set
+  useEffect(() => {
+    if (!roomId) return;
+    setLoading(true);
+    setSubscribed(false);
+    const channel = supabase.channel(`duel_room_${roomId}`);
+    channelRef.current = channel;
+    let unsubscribed = false;
+    // Listen for room updates
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'duel_rooms', filter: `id=eq.${roomId}` }, async (payload) => {
+      if (!unsubscribed && payload.new) {
+        const room = payload.new;
+        const users = [
+          { handle: room.player1_handle, id: room.player1_id },
+          ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
+        ];
+        setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
+        // Always fetch latest state after update
+        const { data: latest } = await supabase.from('duel_rooms').select('*').eq('id', roomId).single();
+        if (latest) {
+          const users2 = [
+            { handle: latest.player1_handle, id: latest.player1_id },
+            ...(latest.player2_id ? [{ handle: latest.player2_handle, id: latest.player2_id }] : [])
+          ];
+          setRoomState({ users: users2, problem: latest.problem, startTime: latest.start_time, status: latest.status });
+        }
+      }
+    });
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        setSubscribed(true);
+        // Initial fetch
+        const { data: room } = await supabase.from('duel_rooms').select('*').eq('id', roomId).single();
+        if (room) {
+          const users = [
+            { handle: room.player1_handle, id: room.player1_id },
+            ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
+          ];
+          setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
+        }
+        setLoading(false);
+      }
+    });
+    return () => {
+      unsubscribed = true;
+      channel.unsubscribe();
+    };
+  }, [roomId]);
+
   // Table-based matchmaking
   const joinRoom = async () => {
     setStatus("Joining a room...");
+    setLoading(true);
     // 1. Look for a waiting room
     const { data: rooms, error } = await supabase
       .from('duel_rooms')
@@ -49,19 +101,23 @@ const DuelCF = ({ user }) => {
       const room = rooms[0];
       newRoomId = room.id;
       setRoomId(newRoomId); // Subscribe BEFORE updating
-      // Wait a tick to ensure subscription is set up
-      setTimeout(async () => {
-        const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
-        const startTime = Date.now();
-        await supabase.from('duel_rooms').update({
-          player2_id: user.id,
-          player2_handle: handle,
-          status: 'active',
-          problem,
-          start_time: startTime
-        }).eq('id', room.id);
-        setStatus("Joined room: " + room.id);
-      }, 200);
+      // Wait for subscription to be ready
+      const waitForSub = () => new Promise(res => {
+        const check = () => subscribed ? res() : setTimeout(check, 50);
+        check();
+      });
+      await waitForSub();
+      const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+      const startTime = Date.now();
+      await supabase.from('duel_rooms').update({
+        player2_id: user.id,
+        player2_handle: handle,
+        status: 'active',
+        problem,
+        start_time: startTime
+      }).eq('id', room.id);
+      setStatus("Joined room: " + room.id);
+      setLoading(false);
     } else {
       // Create a new room as player1
       const { data: newRoom, error: insertErr } = await supabase.from('duel_rooms').insert({
@@ -74,43 +130,9 @@ const DuelCF = ({ user }) => {
       newRoomId = newRoom.id;
       setRoomId(newRoomId); // Subscribe immediately
       setStatus("Created room: " + newRoomId + ". Waiting for opponent...");
+      setLoading(false);
     }
   };
-
-  // Subscribe to room updates as soon as roomId is set
-  useEffect(() => {
-    if (!roomId) return;
-    const channel = supabase.channel(`duel_room_${roomId}`);
-    channelRef.current = channel;
-    let unsubscribed = false;
-    // Listen for room updates
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'duel_rooms', filter: `id=eq.${roomId}` }, (payload) => {
-      if (!unsubscribed && payload.new) {
-        const room = payload.new;
-        const users = [
-          { handle: room.player1_handle, id: room.player1_id },
-          ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
-        ];
-        setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
-      }
-    });
-    channel.subscribe();
-    // Always fetch the latest room state after subscribing
-    (async () => {
-      const { data: room } = await supabase.from('duel_rooms').select('*').eq('id', roomId).single();
-      if (room) {
-        const users = [
-          { handle: room.player1_handle, id: room.player1_id },
-          ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
-        ];
-        setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
-      }
-    })();
-    return () => {
-      unsubscribed = true;
-      channel.unsubscribe();
-    };
-  }, [roomId]);
 
   // Start timer when duel starts (problem assigned)
   useEffect(() => {
@@ -139,7 +161,8 @@ const DuelCF = ({ user }) => {
       <div style={{ marginBottom: 24, textAlign: 'center', fontSize: 18 }}>
         <b>Your Handle:</b> <span style={{ color: '#2196f3', fontWeight: 600 }}>{handle || '[not set]'}</span>
       </div>
-      {!roomId ? (
+      {loading && <div style={{ textAlign: 'center', color: '#888', fontSize: 18, margin: '24px 0' }}>Loading room...</div>}
+      {!roomId && !loading ? (
         <div style={{ textAlign: 'center' }}>
           <button
             onClick={joinRoom}
