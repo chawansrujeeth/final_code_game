@@ -36,10 +36,10 @@ function App() {
       if (userObj) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("name")
+          .select("name, codeforces_handle")
           .eq("user_id", userObj.id)
           .maybeSingle();
-        if (mounted) setUser({ ...userObj, name: profile?.name || userObj.email });
+        if (mounted) setUser({ ...userObj, name: profile?.name || userObj.email, codeforces_handle: profile?.codeforces_handle });
       } else {
         if (mounted) setUser(false);
       }
