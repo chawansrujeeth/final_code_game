@@ -43,20 +43,25 @@ const DuelCF = ({ user }) => {
       .eq('status', 'waiting')
       .is('player2_id', null)
       .limit(1);
+    let newRoomId = null;
     if (rooms && rooms.length > 0) {
       // Join as player2
       const room = rooms[0];
-      const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
-      const startTime = Date.now();
-      await supabase.from('duel_rooms').update({
-        player2_id: user.id,
-        player2_handle: handle,
-        status: 'active',
-        problem,
-        start_time: startTime
-      }).eq('id', room.id);
-      setRoomId(room.id);
-      setStatus("Joined room: " + room.id);
+      newRoomId = room.id;
+      setRoomId(newRoomId); // Subscribe BEFORE updating
+      // Wait a tick to ensure subscription is set up
+      setTimeout(async () => {
+        const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+        const startTime = Date.now();
+        await supabase.from('duel_rooms').update({
+          player2_id: user.id,
+          player2_handle: handle,
+          status: 'active',
+          problem,
+          start_time: startTime
+        }).eq('id', room.id);
+        setStatus("Joined room: " + room.id);
+      }, 200);
     } else {
       // Create a new room as player1
       const { data: newRoom, error: insertErr } = await supabase.from('duel_rooms').insert({
@@ -66,8 +71,9 @@ const DuelCF = ({ user }) => {
         problem: null,
         start_time: null
       }).select().single();
-      setRoomId(newRoom.id);
-      setStatus("Created room: " + newRoom.id + ". Waiting for opponent...");
+      newRoomId = newRoom.id;
+      setRoomId(newRoomId); // Subscribe immediately
+      setStatus("Created room: " + newRoomId + ". Waiting for opponent...");
     }
   };
 
@@ -85,7 +91,7 @@ const DuelCF = ({ user }) => {
           { handle: room.player1_handle, id: room.player1_id },
           ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
         ];
-        setRoomState({ users, problem: room.problem, startTime: room.start_time });
+        setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
       }
     });
     channel.subscribe();
@@ -97,7 +103,7 @@ const DuelCF = ({ user }) => {
           { handle: room.player1_handle, id: room.player1_id },
           ...(room.player2_id ? [{ handle: room.player2_handle, id: room.player2_id }] : [])
         ];
-        setRoomState({ users, problem: room.problem, startTime: room.start_time });
+        setRoomState({ users, problem: room.problem, startTime: room.start_time, status: room.status });
       }
     })();
     return () => {
@@ -108,7 +114,7 @@ const DuelCF = ({ user }) => {
 
   // Start timer when duel starts (problem assigned)
   useEffect(() => {
-    if (roomState && roomState.problem && roomState.startTime) {
+    if (roomState && roomState.problem && roomState.startTime && roomState.status === 'active') {
       // Calculate time left based on startTime
       const updateTimer = () => {
         const now = Date.now();
@@ -125,7 +131,7 @@ const DuelCF = ({ user }) => {
       setTimer(600);
       if (intervalId) clearInterval(intervalId);
     }
-  }, [roomState && roomState.problem, roomState && roomState.startTime]);
+  }, [roomState && roomState.problem, roomState && roomState.startTime, roomState && roomState.status]);
 
   return (
     <div style={{ padding: 32, maxWidth: 600, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
@@ -154,7 +160,7 @@ const DuelCF = ({ user }) => {
               <span key={u.id} style={{ color: u.handle === handle ? '#2196f3' : '#7c3aed', fontWeight: 700, margin: '0 8px' }}>{u.handle}</span>
             )).reduce((prev, curr) => [prev, <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span>, curr])}
           </div>
-          {roomState && roomState.problem ? (
+          {roomState && roomState.problem && roomState.status === 'active' ? (
             <>
               <div style={{ marginBottom: 18 }}>
                 <a
