@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.CF_DUEL_PORT || 5052;
+const PORT = process.env.PORT || process.env.CF_DUEL_PORT || 5052;
 server.listen(PORT, () => {
   console.log(`Codeforces Duel server running on port ${PORT}`);
 }); 
