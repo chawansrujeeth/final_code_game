@@ -11,6 +11,7 @@ const DuelCF = ({ user }) => {
   const [duelStarted, setDuelStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [winner, setWinner] = useState(null);
   const timerRef = useRef();
 
   // Fetch user's Codeforces handle from profile
@@ -68,6 +69,12 @@ const DuelCF = ({ user }) => {
       setStatus("Duel started!");
       setTimer(600 - Math.floor((Date.now() - data.startTime) / 1000));
       setLoading(false);
+      setWinner(null);
+    });
+    sock.on("cf_duel_winner", (data) => {
+      setWinner(data.winner);
+      setStatus(`Winner: ${data.winner}`);
+      setDuelStarted(false);
     });
     sock.on("disconnect", () => {
       setStatus("Disconnected from server");
@@ -138,9 +145,20 @@ const DuelCF = ({ user }) => {
           <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
             ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
           </div>
+          <div style={{ fontSize: 15, color: '#e53935', marginBottom: 10 }}>
+            Note: Refreshing the page will remove you from the duel and count as a forfeit.
+          </div>
           <div style={{ fontSize: 17, marginBottom: 18, color: '#555' }}>
-            Duel started! Solve the problem on Codeforces. <br />
-            <span style={{ color: '#888', fontSize: 15 }}>(First to solve wins. Winner display coming soon!)</span>
+            {winner ? (
+              <span style={{ color: winner === handle ? '#43a047' : '#e53935', fontWeight: 700, fontSize: 20 }}>
+                {winner === handle ? '🎉 You won!' : `🏆 Winner: ${winner}`}
+              </span>
+            ) : (
+              <>
+                Duel started! Solve the problem on Codeforces. <br />
+                <span style={{ color: '#888', fontSize: 15 }}>(First to solve wins. Winner display coming soon!)</span>
+              </>
+            )}
           </div>
         </div>
       ) : null}

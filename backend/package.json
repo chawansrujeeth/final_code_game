@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "socket.io": "^4.7.2",
-    "http": "^0.0.1-security"
+    "http": "^0.0.1-security",
+    "axios": "^1.6.7"
   }
 }
