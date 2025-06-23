@@ -21,6 +21,8 @@ const DuelCF = ({ user }) => {
   const [opponent, setOpponent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const timerRef = useRef();
+  const [myCode, setMyCode] = useState("");
+  const [opponentCode, setOpponentCode] = useState("");
 
   // Fetch user's Codeforces handle from profile
   const [handle, setHandle] = useState("");
