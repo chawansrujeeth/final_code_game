@@ -3,6 +3,14 @@ import { io } from "socket.io-client";
 
 const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
 
+function debounce(fn, ms) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
 const DuelCF = ({ user }) => {
   const [socket, setSocket] = useState(null);
   const [duelInfo, setDuelInfo] = useState(null);
@@ -75,6 +83,8 @@ const DuelCF = ({ user }) => {
       // Set opponent
       const opp = data.users.find(h => h !== handle);
       setOpponent(opp || "");
+      setMyCode("");
+      setOpponentCode("");
     });
     sock.on("cf_duel_winner", (data) => {
       setWinner(data.winner);
@@ -91,6 +101,11 @@ const DuelCF = ({ user }) => {
     sock.on("connect_error", (err) => {
       setError("Could not connect to duel server: " + err.message);
       setDuelState("idle");
+    });
+    // Code sync events
+    sock.on("cf_code_receive", ({ code, from }) => {
+      // Only update if from opponent
+      if (from === opponent) setOpponentCode(code);
     });
   };
 
@@ -120,9 +135,28 @@ const DuelCF = ({ user }) => {
     setTimer(600);
   };
 
+  // Debounced code send
+  const sendCodeUpdate = useRef(debounce((code) => {
+    if (socket && duelInfo) {
+      socket.emit("cf_code_update", {
+        roomId: duelInfo.roomId,
+        code,
+        from: handle
+      });
+    }
+  }, 500)).current;
+
+  // On my code change, send to server
+  useEffect(() => {
+    if (duelState === "started" && duelInfo) {
+      sendCodeUpdate(myCode);
+    }
+    // eslint-disable-next-line
+  }, [myCode]);
+
   // UI for each state
   return (
-    <div style={{ padding: 32, maxWidth: 500, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
+    <div style={{ padding: 32, maxWidth: 900, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
       <h2 style={{ color: '#7c3aed', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Codeforces Duel</h2>
       <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 18 }}>
         <b>Your Handle:</b> <span style={{ color: '#2196f3', fontWeight: 600 }}>{handle || '[not set]'}</span>
@@ -151,34 +185,61 @@ const DuelCF = ({ user }) => {
       )}
       {/* Matched/Ready (show both handles, prepping to start) */}
       {duelState === "started" && duelInfo && !winner && (
-        <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 4px 32px rgba(0,0,0,0.10)', padding: 36, minHeight: 220, textAlign: 'center', position: 'relative', transition: 'all 0.3s' }}>
-          <div style={{ marginBottom: 18, fontSize: 18, fontWeight: 600, color: '#7c3aed' }}>
-            Opponent: <span style={{ color: '#e53935', fontWeight: 700 }}>{opponent}</span>
+        <>
+          <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 4px 32px rgba(0,0,0,0.10)', padding: 36, minHeight: 220, textAlign: 'center', position: 'relative', transition: 'all 0.3s', marginBottom: 32 }}>
+            <div style={{ marginBottom: 18, fontSize: 18, fontWeight: 600, color: '#7c3aed' }}>
+              Opponent: <span style={{ color: '#e53935', fontWeight: 700 }}>{opponent}</span>
+            </div>
+            <div style={{ marginBottom: 18, fontSize: 18 }}>
+              <b>Players:</b> <span style={{ color: '#2196f3', fontWeight: 700 }}>{handle}</span> <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span> <span style={{ color: '#e53935', fontWeight: 700 }}>{opponent}</span>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <a
+                href={`https://codeforces.com/contest/${duelInfo.problem.contestId}/problem/${duelInfo.problem.index}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#2196f3', fontWeight: 700, fontSize: 22, textDecoration: 'none', letterSpacing: 1 }}
+              >
+                {duelInfo.problem.contestId}{duelInfo.problem.index} - {duelInfo.problem.name}
+              </a>
+            </div>
+            <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
+              ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
+            </div>
+            <div style={{ fontSize: 15, color: '#e53935', marginBottom: 10 }}>
+              Note: Refreshing the page will remove you from the duel and count as a forfeit.
+            </div>
+            <div style={{ fontSize: 17, marginBottom: 18, color: '#555' }}>
+              Duel started! Solve the problem on Codeforces.<br />
+              <span style={{ color: '#888', fontSize: 15 }}>(First to solve wins. Winner display coming soon!)</span>
+            </div>
           </div>
-          <div style={{ marginBottom: 18, fontSize: 18 }}>
-            <b>Players:</b> <span style={{ color: '#2196f3', fontWeight: 700 }}>{handle}</span> <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span> <span style={{ color: '#e53935', fontWeight: 700 }}>{opponent}</span>
+          {/* Code Editor Section */}
+          <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'flex-start', marginBottom: 32 }}>
+            {/* Your Editor */}
+            <div style={{ flex: 1, background: '#f7f8fa', borderRadius: 12, boxShadow: '0 2px 12px rgba(124,58,237,0.06)', padding: 18, minWidth: 320 }}>
+              <div style={{ fontWeight: 700, color: '#2196f3', marginBottom: 8, fontSize: 17 }}>Your Code</div>
+              <textarea
+                rows={18}
+                value={myCode}
+                onChange={e => setMyCode(e.target.value)}
+                style={{ width: '100%', fontFamily: 'monospace', fontSize: 15, borderRadius: 8, border: '1px solid #bbb', padding: 12, minHeight: 260, background: '#fff' }}
+                placeholder="Write your code here..."
+              />
+            </div>
+            {/* Opponent's Editor */}
+            <div style={{ flex: 1, background: '#f7f8fa', borderRadius: 12, boxShadow: '0 2px 12px rgba(237,58,58,0.06)', padding: 18, minWidth: 320 }}>
+              <div style={{ fontWeight: 700, color: '#e53935', marginBottom: 8, fontSize: 17 }}>{opponent}'s Code</div>
+              <textarea
+                rows={18}
+                value={opponentCode}
+                readOnly
+                style={{ width: '100%', fontFamily: 'monospace', fontSize: 15, borderRadius: 8, border: '1px solid #bbb', padding: 12, minHeight: 260, background: '#f9f9f9', color: '#888' }}
+                placeholder="Waiting for opponent's code..."
+              />
+            </div>
           </div>
-          <div style={{ marginBottom: 18 }}>
-            <a
-              href={`https://codeforces.com/contest/${duelInfo.problem.contestId}/problem/${duelInfo.problem.index}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#2196f3', fontWeight: 700, fontSize: 22, textDecoration: 'none', letterSpacing: 1 }}
-            >
-              {duelInfo.problem.contestId}{duelInfo.problem.index} - {duelInfo.problem.name}
-            </a>
-          </div>
-          <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
-            ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
-          </div>
-          <div style={{ fontSize: 15, color: '#e53935', marginBottom: 10 }}>
-            Note: Refreshing the page will remove you from the duel and count as a forfeit.
-          </div>
-          <div style={{ fontSize: 17, marginBottom: 18, color: '#555' }}>
-            Duel started! Solve the problem on Codeforces.<br />
-            <span style={{ color: '#888', fontSize: 15 }}>(First to solve wins. Winner display coming soon!)</span>
-          </div>
-        </div>
+        </>
       )}
       {/* Duel ended, show winner and play again */}
       {duelState === "ended" && duelInfo && (

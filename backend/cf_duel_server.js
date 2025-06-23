@@ -78,6 +78,17 @@ io.on('connection', (socket) => {
       }
     }
   });
+
+  socket.on('cf_code_update', ({ roomId, code, from }) => {
+    // Broadcast to the other user in the room
+    if (rooms[roomId]) {
+      rooms[roomId].users.forEach(s => {
+        if (s !== socket) {
+          s.emit('cf_code_receive', { code, from });
+        }
+      });
+    }
+  });
 });
 
 // Poll Codeforces API for first to solve
