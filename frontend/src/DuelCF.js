@@ -150,9 +150,14 @@ const DuelCF = ({ user }) => {
           </div>
           <div style={{ fontSize: 17, marginBottom: 18, color: '#555' }}>
             {winner ? (
-              <span style={{ color: winner === handle ? '#43a047' : '#e53935', fontWeight: 700, fontSize: 20 }}>
-                {winner === handle ? '🎉 You won!' : `🏆 Winner: ${winner}`}
-              </span>
+              <>
+                <span style={{ color: winner === handle ? '#43a047' : '#e53935', fontWeight: 700, fontSize: 20 }}>
+                  {winner === handle ? '🎉 You won!' : `🏆 Winner: ${winner}`}
+                </span>
+                <div style={{ marginTop: 10, fontSize: 17, color: '#333', fontWeight: 600 }}>
+                  Duel ended! {winner} won the duel.
+                </div>
+              </>
             ) : (
               <>
                 Duel started! Solve the problem on Codeforces. <br />
