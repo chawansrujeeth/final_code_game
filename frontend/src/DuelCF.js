@@ -143,22 +143,21 @@ const DuelCF = ({ user }) => {
     // const updateOpponentCode = useRef(debounce((code) => {
     //   setOpponentCode(code);
     // }, 300)).current;
-
-    // Attach cf_code_receive handler to the current socket
-    useEffect(() => {
-      if (!socket) return;
-      const handler = ({ code, from }) => {
-        if (from === opponentRef.current) {
-          updateOpponentCode(code);
-        }
-      };
-      socket.on("cf_code_receive", handler);
-      return () => {
-        socket.off("cf_code_receive", handler);
-      };
-    }, [socket, updateOpponentCode]);
-
   };
+
+  // Attach cf_code_receive handler to the current socket
+  useEffect(() => {
+    if (!socket) return;
+    const handler = ({ code, from }) => {
+      if (from === opponentRef.current) {
+        updateOpponentCode(code);
+      }
+    };
+    socket.on("cf_code_receive", handler);
+    return () => {
+      socket.off("cf_code_receive", handler);
+    };
+  }, [socket, updateOpponentCode]);
 
   // Timer countdown
   useEffect(() => {
