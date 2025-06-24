@@ -122,6 +122,11 @@ const DuelCF = ({ user }) => {
       setOpponent(opp || "");
       setMyCode("");
       setOpponentCode("");
+      // DEBUG: Log sample test cases if present
+      console.log('[DEBUG] duelInfo.problem:', data.problem);
+      if (data.problem && data.problem.sample) {
+        console.log('[DEBUG] duelInfo.problem.sample:', data.problem.sample);
+      }
     });
     sock.on("cf_duel_winner", (data) => {
       setWinner(data.winner);
@@ -227,6 +232,7 @@ const DuelCF = ({ user }) => {
     try {
       const res = await fetch(`/api/cf-samples?contestId=${contestId}&index=${index}`);
       const data = await res.json();
+      console.log('[DEBUG] fetchCFSamples:', { contestId, index, data }); // DEBUG
       if (data.samples) return data.samples;
       setError("Failed to fetch test cases: " + (data.error || 'Unknown error'));
       return [];
@@ -436,6 +442,7 @@ const DuelCF = ({ user }) => {
             <div style={{ margin: '18px 0', background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
               <div>
                 <b>Sample Input:</b>
+                {console.log('[DEBUG] Rendering sample input:', duelInfo?.problem?.sample)} {/* DEBUG */}
                 <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem?.sample?.input || '[none found]'}</pre>
               </div>
               <div style={{ marginTop: 10 }}>

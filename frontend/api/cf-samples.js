@@ -1,7 +1,6 @@
 // /api/cf-samples.js
 // Vercel/Next.js API route for scraping Codeforces sample test cases
 
-import cheerio from 'cheerio';
 // Use node-fetch for server-side fetch compatibility
 import fetch from 'node-fetch';
 
@@ -13,31 +12,23 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const url = `https://codeforces.com/contest/${contestId}/problem/${index}`;
-    // Add User-Agent header to mimic a browser
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; cf-sample-fetcher/1.0)'
-      }
-    });
+    const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
+    // Use BACKEND_URL env variable for backend base URL
+    const backendBaseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = `${backendBaseUrl}/get-sample?url=${encodeURIComponent(problemUrl)}`;
+    const response = await fetch(backendUrl);
     if (!response.ok) {
-      res.status(response.status).json({ error: `Failed to fetch Codeforces page: ${response.statusText}` });
+      res.status(response.status).json({ error: `Backend error: ${response.statusText}` });
       return;
     }
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    const inputs = $('.sample-test .input pre').map((i, el) => $(el).text().replace(/\r/g, ''));
-    const outputs = $('.sample-test .output pre').map((i, el) => $(el).text().replace(/\r/g, ''));
-    const samples = [];
-    for (let i = 0; i < inputs.length; ++i) {
-      samples.push({ input: inputs[i], output: outputs[i] || '' });
-    }
-    if (!samples.length) {
-      res.status(404).json({ error: 'No sample test cases found. Codeforces may have changed their page structure or blocked the request.' });
+    const data = await response.json();
+    if (!data.input || !data.output) {
+      res.status(404).json({ error: 'No sample test cases found from backend.' });
       return;
     }
-    res.status(200).json({ samples });
+    // Return in the same format as before
+    res.status(200).json({ samples: [{ input: data.input, output: data.output }] });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to fetch samples' });
+    res.status(500).json({ error: err.message || 'Failed to fetch samples from backend' });
   }
 }
