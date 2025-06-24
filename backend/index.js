@@ -185,6 +185,11 @@ async function matchUsers() {
     user2.socket.join(roomId);
     // Assign a random Codeforces problem with sample using Python script
     getRandomCFDuelProblemWithPython().then(problem => {
+      // Print the sample input/output to the server console for debugging
+      if (problem && problem.sample) {
+        console.log('--- Sample Input ---\n' + problem.sample.input);
+        console.log('--- Sample Output ---\n' + problem.sample.output);
+      }
       io.to(roomId).emit('duel_start', {
         roomId,
         users: [user1.username, user2.username],
