@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const getRandomSample = require('./cf_random_sample');
 const { getRandomCFDuelProblem } = require('./cf_random_util');
+const { getSampleFromPython } = require('./cf_python_sample');
 
 const app = express();
 app.use(cors());
@@ -103,6 +104,18 @@ app.get('/judge0-counter-status', (req, res) => {
 
 // Add Codeforces random sample endpoint
 app.get('/api/cf-random-sample', getRandomSample);
+
+// Add endpoint to get sample using Python script
+app.get('/api/cf-python-sample', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'Missing problem URL' });
+  try {
+    const sample = await getSampleFromPython(url);
+    res.json(sample);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {
