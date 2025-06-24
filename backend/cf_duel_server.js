@@ -2,13 +2,16 @@ const { Server } = require('socket.io');
 const http = require('http');
 const axios = require('axios');
 
-const EASY_PROBLEMS = [
-  { contestId: 1, index: "A", name: "Theatre Square" },
-  { contestId: 4, index: "A", name: "Watermelon" },
-  { contestId: 71, index: "A", name: "Way Too Long Words" },
-  { contestId: 231, index: "A", name: "Team" },
-  { contestId: 158, index: "A", name: "Next Round" }
-];
+// Fetch a random problem from Codeforces API
+async function getRandomCFProblem() {
+  // Get all problems from Codeforces API
+  const res = await axios.get('https://codeforces.com/api/problemset.problems');
+  const problems = res.data.result.problems;
+  // Filter for problems with rating 800-1200 and contestId < 1000 (easy, classic)
+  const easyProblems = problems.filter(p => p.rating && p.rating <= 1200 && p.rating >= 800 && p.contestId < 1000);
+  const random = easyProblems[Math.floor(Math.random() * easyProblems.length)];
+  return random;
+}
 
 const server = http.createServer();
 const io = new Server(server, {
@@ -26,11 +29,12 @@ function randomRoomId() {
 }
 
 io.on('connection', (socket) => {
-  socket.on('join_cf_matchmaking', ({ userId, handle }) => {
+  socket.on('join_cf_matchmaking', async ({ userId, handle }) => {
     if (waiting && waiting.userId !== userId) {
       // Pair with waiting user
       const roomId = randomRoomId();
-      const problem = EASY_PROBLEMS[Math.floor(Math.random() * EASY_PROBLEMS.length)];
+      // Fetch a random problem from Codeforces
+      const problem = await getRandomCFProblem();
       const startTime = Date.now();
       rooms[roomId] = {
         users: [waiting.socket, socket],
@@ -40,18 +44,15 @@ io.on('connection', (socket) => {
       };
       waiting.socket.join(roomId);
       socket.join(roomId);
-      // Emit duel_start to both
       io.to(roomId).emit('cf_duel_start', {
         roomId,
         users: [waiting.handle, handle],
         problem,
         startTime
       });
-      // Start polling Codeforces API for winner
       pollForWinner(roomId);
       waiting = null;
     } else {
-      // Wait for another user
       waiting = { socket, userId, handle };
       socket.emit('cf_waiting', { msg: 'Waiting for opponent...' });
     }
