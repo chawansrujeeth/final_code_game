@@ -60,6 +60,12 @@ const DuelCF = ({ user }) => {
     fetchProfile();
   }, [user]);
 
+  const updateOpponentCode = useRef(
+    debounce((code) => {
+      setOpponentCode(code);
+    }, 300)
+  ).current;
+
   // Connect to backend and handle matchmaking
   const joinDuel = () => {
     setError("");
@@ -129,9 +135,9 @@ const DuelCF = ({ user }) => {
     //   }
     // });
     // Optional: Debounce opponent updates to avoid flooding
-    const updateOpponentCode = useRef(debounce((code) => {
-      setOpponentCode(code);
-    }, 300)).current;
+    // const updateOpponentCode = useRef(debounce((code) => {
+    //   setOpponentCode(code);
+    // }, 300)).current;
 
     sock.on("cf_code_receive", ({ code, from }) => {
       if (from === opponent) {
