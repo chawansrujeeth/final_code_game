@@ -15,14 +15,13 @@ async function getSampleFromPython(problemUrl) {
       if (code !== 0) {
         return reject(new Error(error || 'Python script failed'));
       }
-      // Parse output for sample input/output
-      const inputMatch = output.match(/=== First Sample Input ===\n([\s\S]*?)\n===/);
-      const outputMatch = output.match(/=== First Sample Output ===\n([\s\S]*)/);
-      resolve({
-        input: inputMatch ? inputMatch[1].trim() : null,
-        output: outputMatch ? outputMatch[1].trim() : null,
-        raw: output
-      });
+      try {
+        // Parse the JSON output from the Python script
+        const parsed = JSON.parse(output);
+        resolve(parsed);
+      } catch (e) {
+        return reject(new Error('Failed to parse Python output as JSON: ' + e.message));
+      }
     });
   });
 }
