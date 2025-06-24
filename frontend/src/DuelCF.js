@@ -3,6 +3,8 @@ import { io } from "socket.io-client";
 import MonacoEditor from "@monaco-editor/react";
 
 const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
+// Backend base URL for API calls
+const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5051';
 
 function debounce(fn, ms) {
   let timer;
@@ -213,7 +215,7 @@ const DuelCF = ({ user }) => {
   // Fetch sample test cases from backend API (not browser DOMParser)
   async function fetchCFSamples(contestId, index) {
     try {
-      const res = await fetch(`/api/cf-samples?contestId=${contestId}&index=${index}`);
+      const res = await fetch(`${BACKEND_BASE_URL}/cf-samples?contestId=${contestId}&index=${index}`);
       const data = await res.json();
       if (data.samples) return data.samples;
       setError("Failed to fetch test cases: " + (data.error || 'Unknown error'));
