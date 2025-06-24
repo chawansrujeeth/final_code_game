@@ -147,14 +147,21 @@ const DuelCF = ({ user }) => {
     // }, 300)).current;
   };
 
+  const socketRef = useRef(null);
+  const duelInfoRef = useRef(null);
+  const handleRef = useRef("");
+
   // Debounced code send
   const sendCodeUpdate = useRef(debounce((code) => {
-    if (socket && duelInfo) {
-      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfo.roomId, code, from: handle });
-      socket.emit("cf_code_update", {
-        roomId: duelInfo.roomId,
+    const socketVal = socketRef.current;
+    const duelInfoVal = duelInfoRef.current;
+    const handleVal = handleRef.current;
+    if (socketVal && duelInfoVal) {
+      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfoVal.roomId, code, from: handleVal });
+      socketVal.emit("cf_code_update", {
+        roomId: duelInfoVal.roomId,
         code,
-        from: handle
+        from: handleVal
       });
     }
   }, 500)).current;
@@ -231,6 +238,10 @@ const DuelCF = ({ user }) => {
       }
     };
   }, [socket]);
+
+  useEffect(() => { socketRef.current = socket; }, [socket]);
+  useEffect(() => { duelInfoRef.current = duelInfo; }, [duelInfo]);
+  useEffect(() => { handleRef.current = handle; }, [handle]);
 
   // UI for each state
   return (
