@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { load } = require('cheerio');
+const { getSampleFromPython } = require('./cf_python_sample');
 
 const HEADERS = {
   'User-Agent':
@@ -82,13 +83,19 @@ async function getRandomSample(req, res) {
       console.warn('CF API failed, falling back to scrape:', apiErr.message);
       urls = await getListViaScrape();
     }
-
     const chosen = urls[Math.floor(Math.random() * urls.length)];
-    const { input, output } = await scrapeFirstSample(chosen);
-
+    // Use robust Python parser for sample extraction
+    let sample;
+    try {
+      sample = await getSampleFromPython(chosen);
+    } catch (err) {
+      // fallback to JS scraping if Python fails
+      const { input, output } = await scrapeFirstSample(chosen);
+      sample = { input, output };
+    }
     res.status(200).json({
       url: chosen,
-      sample: { input, output },
+      sample,
     });
   } catch (err) {
     console.error(err);
