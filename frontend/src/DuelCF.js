@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import MonacoEditor from "@monaco-editor/react";
 
@@ -151,20 +151,23 @@ const DuelCF = ({ user }) => {
   const duelInfoRef = useRef(null);
   const handleRef = useRef("");
 
-  // Debounced code send
-  const sendCodeUpdate = useRef(debounce((code) => {
-    const socketVal = socketRef.current;
-    const duelInfoVal = duelInfoRef.current;
-    const handleVal = handleRef.current;
-    if (socketVal && duelInfoVal) {
-      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfoVal.roomId, code, from: handleVal });
-      socketVal.emit("cf_code_update", {
-        roomId: duelInfoVal.roomId,
-        code,
-        from: handleVal
-      });
-    }
-  }, 500)).current;
+  // Debounced code send (robust version)
+  const sendCodeUpdate = useCallback(
+    debounce((code) => {
+      const socketVal = socketRef.current;
+      const duelInfoVal = duelInfoRef.current;
+      const handleVal = handleRef.current;
+      if (socketVal && duelInfoVal) {
+        console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfoVal.roomId, code, from: handleVal });
+        socketVal.emit("cf_code_update", {
+          roomId: duelInfoVal.roomId,
+          code,
+          from: handleVal
+        });
+      }
+    }, 500),
+    []
+  );
 
   // Attach cf_code_receive handler to the current socket
   useEffect(() => {
@@ -214,7 +217,7 @@ const DuelCF = ({ user }) => {
       sendCodeUpdate(myCode);
     }
     // eslint-disable-next-line
-  }, [myCode]);
+  }, [myCode, duelState, duelInfo, sendCodeUpdate]);
 
   // Clean up timeout on unmount
   useEffect(() => {
