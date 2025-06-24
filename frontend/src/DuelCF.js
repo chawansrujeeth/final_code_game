@@ -343,6 +343,23 @@ const DuelCF = ({ user }) => {
   useEffect(() => { duelInfoRef.current = duelInfo; }, [duelInfo]);
   useEffect(() => { handleRef.current = handle; }, [handle]);
 
+  // Fetch random Codeforces problem and sample from backend
+  const [cfSample, setCfSample] = useState(null);
+  const [cfSampleLoading, setCfSampleLoading] = useState(false);
+  const fetchRandomCFSample = async () => {
+    setCfSampleLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/cf-random-sample`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setCfSample(data);
+    } catch (err) {
+      setError("Failed to fetch random CF sample: " + (err.message || err));
+    }
+    setCfSampleLoading(false);
+  };
+
   // UI for each state
   return (
     <div style={{ padding: 32, maxWidth: 900, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
@@ -362,6 +379,28 @@ const DuelCF = ({ user }) => {
             Join Duel
           </button>
           {!handle && <div style={{ color: '#e53935', marginTop: 16, fontSize: 16 }}>Set your Codeforces handle in your profile first.</div>}
+          <div style={{ marginTop: 32 }}>
+            <button
+              onClick={fetchRandomCFSample}
+              disabled={cfSampleLoading}
+              style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontWeight: 700, fontSize: 18, cursor: cfSampleLoading ? 'not-allowed' : 'pointer', marginBottom: 12 }}
+            >
+              {cfSampleLoading ? 'Loading...' : 'Get Random CF Problem & Sample'}
+            </button>
+            {cfSample && (
+              <div style={{ marginTop: 18, background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
+                <a href={cfSample.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2196f3', fontWeight: 700, fontSize: 18, textDecoration: 'none' }}>{cfSample.url}</a>
+                <div style={{ marginTop: 10 }}>
+                  <b>Sample Input:</b>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.sample.input || '[none found]'}</pre>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <b>Sample Output:</b>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.sample.output || '[none found]'}</pre>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
       {/* Waiting for opponent */}

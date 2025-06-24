@@ -4,6 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 const http = require('http');
 const { Server } = require('socket.io');
+const getRandomSample = require('./cf_random_sample');
+const { getRandomCFDuelProblem } = require('./cf_random_util');
 
 const app = express();
 app.use(cors());
@@ -99,6 +101,9 @@ app.get('/judge0-counter-status', (req, res) => {
   });
 });
 
+// Add Codeforces random sample endpoint
+app.get('/api/cf-random-sample', getRandomSample);
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -157,7 +162,7 @@ io.on('connection', (socket) => {
   });
 });
 
-function matchUsers() {
+async function matchUsers() {
   // Simple: match first two users of similar level (expand as needed)
   if (waitingUsers.length >= 2) {
     const [user1, user2] = waitingUsers.splice(0, 2);
@@ -165,10 +170,20 @@ function matchUsers() {
     duels[roomId] = { users: [user1, user2], started: false };
     user1.socket.join(roomId);
     user2.socket.join(roomId);
-    // Assign a random problem from the array
-    const problem = problems[Math.floor(Math.random() * problems.length)];
-    io.to(roomId).emit('duel_start', { roomId, users: [user1.username, user2.username], problem });
-    duels[roomId].started = true;
+    // Assign a random Codeforces problem with sample
+    getRandomCFDuelProblem().then(problem => {
+      io.to(roomId).emit('duel_start', {
+        roomId,
+        users: [user1.username, user2.username],
+        problem
+      });
+      duels[roomId].started = true;
+      duels[roomId].problem = problem;
+    }).catch(err => {
+      io.to(roomId).emit('duel_error', { error: 'Failed to fetch Codeforces problem: ' + err.message });
+      // Optionally: clean up duel state
+      delete duels[roomId];
+    });
   }
 }
 
