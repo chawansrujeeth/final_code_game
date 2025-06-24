@@ -421,8 +421,8 @@ const DuelCF = ({ user }) => {
             <div style={{ marginBottom: 18, fontSize: 18 }}>
               <b>Players:</b> <span style={{ color: '#2196f3', fontWeight: 700 }}>{handle}</span> <span style={{ color: '#aaa', fontWeight: 400 }}>vs</span> <span style={{ color: '#e53935', fontWeight: 700 }}>{opponent}</span>
             </div>
-            <div style={{ marginBottom: 18 }}>
-              <a
+            <div style={{ marginBottom: 18, fontSize: 18 }}>
+              <b>Problem:</b> <a
                 href={`https://codeforces.com/contest/${duelInfo.problem.contestId}/problem/${duelInfo.problem.index}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -431,6 +431,19 @@ const DuelCF = ({ user }) => {
                 {duelInfo.problem.contestId}{duelInfo.problem.index} - {duelInfo.problem.name}
               </a>
             </div>
+            {/* Show sample input/output for the duel problem */}
+            {duelInfo.problem.sample && (
+              <div style={{ margin: '18px 0', background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
+                <div>
+                  <b>Sample Input:</b>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.sample.input || '[none found]'}</pre>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <b>Sample Output:</b>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.sample.output || '[none found]'}</pre>
+                </div>
+              </div>
+            )}
             <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
               ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
             </div>
