@@ -20,6 +20,12 @@ const languageOptions = [
   { id: "javascript", name: "JavaScript (Node.js)" },
 ];
 
+const judge0LangMap = {
+  python: 71,      // Python 3
+  cpp: 54,         // C++ (GCC 9.2.0)
+  javascript: 63   // JavaScript (Node.js 12.14.0)
+};
+
 const DuelCF = ({ user }) => {
   const [socket, setSocket] = useState(null);
   const [duelInfo, setDuelInfo] = useState(null);
@@ -36,6 +42,10 @@ const DuelCF = ({ user }) => {
   const [editorLanguage, setEditorLanguage] = useState("python");
   const opponentCodeTimeout = useRef(null);
   const latestOpponentCode = useRef("");
+
+  // React state for submission status and verdict
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verdict, setVerdict] = useState("");
 
   // Fetch user's Codeforces handle from profile
   const [handle, setHandle] = useState("");
