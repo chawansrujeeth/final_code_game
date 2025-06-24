@@ -26,6 +26,7 @@ const DuelCF = ({ user }) => {
   const [winner, setWinner] = useState(null);
   const [duelState, setDuelState] = useState("idle"); // idle, waiting, matched, started, ended
   const [opponent, setOpponent] = useState("");
+  const opponentRef = useRef("");
   const [statusMsg, setStatusMsg] = useState("");
   const timerRef = useRef();
   const [myCode, setMyCode] = useState("");
@@ -78,6 +79,10 @@ const DuelCF = ({ user }) => {
       setError("Set your Codeforces handle in your profile first.");
       setDuelState("idle");
       return;
+    }
+    // Disconnect previous socket if any
+    if (socket) {
+      socket.disconnect();
     }
     const sock = io(CF_SOCKET_URL);
     setSocket(sock);
@@ -140,7 +145,7 @@ const DuelCF = ({ user }) => {
     // }, 300)).current;
 
     sock.on("cf_code_receive", ({ code, from }) => {
-      if (from === opponent) {
+      if (from === opponentRef.current) {
         updateOpponentCode(code);
       }
     });
@@ -201,6 +206,20 @@ const DuelCF = ({ user }) => {
       }
     };
   }, []);
+
+  // Update opponent ref when opponent state changes
+  useEffect(() => {
+    opponentRef.current = opponent;
+  }, [opponent]);
+
+  // Clean up socket on unmount or when a new socket is created
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
 
   // UI for each state
   return (
@@ -341,4 +360,4 @@ const DuelCF = ({ user }) => {
   );
 };
 
-export default DuelCF; 
+export default DuelCF;
