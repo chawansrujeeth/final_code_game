@@ -43,16 +43,28 @@ async function scrapeFirstSample(problemUrl) {
   const html = await res.text();
   const $ = load(html);
 
-  // Get all sample inputs and outputs (not just the first)
-  const inputs = [];
-  const outputs = [];
-  $('.sample-test .input pre').each((_, el) => {
-    inputs.push($(el).text().trim());
+  // Try both selectors for robustness
+  let inputs = [];
+  let outputs = [];
+  $('.sample-test .input pre, .sample-test .input > pre').each((_, el) => {
+    inputs.push($(el).text().replace(/\r/g, '').trim());
   });
-  $('.sample-test .output pre').each((_, el) => {
-    outputs.push($(el).text().trim());
+  $('.sample-test .output pre, .sample-test .output > pre').each((_, el) => {
+    outputs.push($(el).text().replace(/\r/g, '').trim());
   });
-  // Return the first sample, or null if not found
+
+  // Fallback: try just .input and .output if above fails
+  if (inputs.length === 0) {
+    $('.sample-test .input').each((_, el) => {
+      inputs.push($(el).text().replace(/\r/g, '').trim());
+    });
+  }
+  if (outputs.length === 0) {
+    $('.sample-test .output').each((_, el) => {
+      outputs.push($(el).text().replace(/\r/g, '').trim());
+    });
+  }
+
   return {
     input: inputs[0] || null,
     output: outputs[0] || null,
