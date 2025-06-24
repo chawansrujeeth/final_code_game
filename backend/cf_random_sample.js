@@ -43,12 +43,22 @@ async function scrapeFirstSample(problemUrl) {
   const html = await res.text();
   const $ = load(html);
 
-  const sample = $('.sample-test').first();
-  if (!sample.length) return { input: null, output: null };
-
-  const input = sample.find('div.input pre').first().text().trim() || null;
-  const output = sample.find('div.output pre').first().text().trim() || null;
-  return { input, output };
+  // Get all sample inputs and outputs (not just the first)
+  const inputs = [];
+  const outputs = [];
+  $('.sample-test .input pre').each((_, el) => {
+    inputs.push($(el).text().trim());
+  });
+  $('.sample-test .output pre').each((_, el) => {
+    outputs.push($(el).text().trim());
+  });
+  // Return the first sample, or null if not found
+  return {
+    input: inputs[0] || null,
+    output: outputs[0] || null,
+    allInputs: inputs,
+    allOutputs: outputs
+  };
 }
 
 async function getRandomSample(req, res) {
