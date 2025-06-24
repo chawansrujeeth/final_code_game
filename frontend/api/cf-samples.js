@@ -15,7 +15,8 @@ export default async function handler(req, res) {
     const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
     // Use BACKEND_URL env variable for backend base URL
     const backendBaseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    const backendUrl = `${backendBaseUrl}/get-sample?url=${encodeURIComponent(problemUrl)}`;
+    // Use the new endpoint that wraps random_cf_sample.py
+    const backendUrl = `${backendBaseUrl}/get-sample-random?url=${encodeURIComponent(problemUrl)}`;
     console.log('[DEBUG] Calling backendUrl:', backendUrl); // DEBUG
     const response = await fetch(backendUrl);
     console.log('[DEBUG] Backend response status:', response.status); // DEBUG

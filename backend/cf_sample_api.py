@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
+import subprocess
+import sys
 
 app = Flask(__name__)
 
@@ -39,6 +41,24 @@ def get_sample():
         "input": sample_in,
         "output": sample_out
     })
+
+@app.route('/get-sample-random', methods=['GET'])
+def get_sample_random():
+    url = request.args.get('url')
+    if not url:
+        return jsonify({"error": "Missing problem URL"}), 400
+    try:
+        # Call random_cf_sample.py as a subprocess
+        result = subprocess.run(
+            [sys.executable, 'random_cf_sample.py', url],
+            capture_output=True, text=True, cwd='.'
+        )
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or 'Failed to run random_cf_sample.py'}), 500
+        # Output is JSON
+        return result.stdout, 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
