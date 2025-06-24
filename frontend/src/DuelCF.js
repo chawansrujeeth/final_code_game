@@ -116,12 +116,14 @@ const DuelCF = ({ user }) => {
     });
     // Code sync events
     sock.on("cf_code_receive", ({ code, from }) => {
+      console.log('[DEBUG] Received cf_code_receive:', { code, from, opponent });
       if (from === opponent) {
         latestOpponentCode.current = code;
         if (opponentCodeTimeout.current) {
           clearTimeout(opponentCodeTimeout.current);
         }
         opponentCodeTimeout.current = setTimeout(() => {
+          console.log('[DEBUG] Updating opponentCode after delay:', latestOpponentCode.current);
           setOpponentCode(latestOpponentCode.current);
         }, 10000); // 10 seconds delay
       }
@@ -157,6 +159,7 @@ const DuelCF = ({ user }) => {
   // Debounced code send
   const sendCodeUpdate = useRef(debounce((code) => {
     if (socket && duelInfo) {
+      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfo.roomId, code, from: handle });
       socket.emit("cf_code_update", {
         roomId: duelInfo.roomId,
         code,
