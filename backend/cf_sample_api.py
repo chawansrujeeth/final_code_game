@@ -45,19 +45,23 @@ def get_sample():
 @app.route('/get-sample-random', methods=['GET'])
 def get_sample_random():
     url = request.args.get('url')
+    print(f'[DEBUG] /get-sample-random called with url: {url}', flush=True)
     if not url:
+        print('[DEBUG] Missing problem URL', flush=True)
         return jsonify({"error": "Missing problem URL"}), 400
     try:
-        # Call random_cf_sample.py as a subprocess
-        result = subprocess.run(
-            [sys.executable, 'random_cf_sample.py', url],
-            capture_output=True, text=True, cwd='.'
-        )
+        cmd = [sys.executable, 'random_cf_sample.py', url]
+        print(f'[DEBUG] Running command: {cmd}', flush=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd='.')
+        print(f'[DEBUG] Subprocess returncode: {result.returncode}', flush=True)
+        print(f'[DEBUG] Subprocess stdout: {result.stdout}', flush=True)
+        print(f'[DEBUG] Subprocess stderr: {result.stderr}', flush=True)
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip() or 'Failed to run random_cf_sample.py'}), 500
         # Output is JSON
         return result.stdout, 200, {'Content-Type': 'application/json'}
     except Exception as e:
+        print(f'[DEBUG] Exception in /get-sample-random: {e}', flush=True)
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

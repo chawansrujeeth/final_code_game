@@ -110,9 +110,26 @@ const DuelCF = ({ user }) => {
       setStatusMsg(data.msg || "Waiting for opponent...");
       setDuelState("waiting");
     });
-    sock.on("cf_duel_start", (data) => {
+    sock.on("cf_duel_start", async (data) => {
       console.log('[DEBUG] cf_duel_start received:', data);
-      setDuelInfo(data);
+      // Fetch sample test case for the problem
+      let sample = undefined;
+      try {
+        console.log('[DEBUG] Fetching sample for duel problem:', data.problem);
+        const res = await fetch(`/api/cf-samples?contestId=${data.problem.contestId}&index=${data.problem.index}`);
+        const apiData = await res.json();
+        console.log('[DEBUG] API response for sample:', apiData);
+        if (apiData.samples && apiData.samples.length > 0) {
+          sample = apiData.samples[0];
+          console.log('[DEBUG] Sample fetched for duel problem:', sample);
+        } else {
+          console.log('[DEBUG] No sample found for duel problem:', apiData);
+        }
+      } catch (err) {
+        console.log('[DEBUG] Error fetching sample for duel problem:', err);
+      }
+      // Attach sample to problem
+      setDuelInfo({ ...data, problem: { ...data.problem, sample } });
       setDuelState("started");
       setStatusMsg("Duel started!");
       setTimer(600 - Math.floor((Date.now() - data.startTime) / 1000));

@@ -20,10 +20,12 @@ export default async function handler(req, res) {
     console.log('[DEBUG] Calling backendUrl:', backendUrl); // DEBUG
     const response = await fetch(backendUrl);
     console.log('[DEBUG] Backend response status:', response.status); // DEBUG
+    const rawText = await response.text();
+    console.log('[DEBUG] Backend raw response text:', rawText); // DEBUG
     let data = null;
     try {
-      data = await response.json();
-      console.log('[DEBUG] Backend response data:', data); // DEBUG
+      data = JSON.parse(rawText);
+      console.log('[DEBUG] Backend response data (parsed):', data); // DEBUG
     } catch (jsonErr) {
       console.log('[DEBUG] Error parsing backend JSON:', jsonErr);
     }
