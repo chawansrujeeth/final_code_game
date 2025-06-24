@@ -52,7 +52,11 @@ def get_sample_random():
     try:
         cmd = [sys.executable, 'random_cf_sample.py', url]
         print(f'[DEBUG] Running command: {cmd}', flush=True)
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd='.')
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd='.', timeout=20)
+        except subprocess.TimeoutExpired:
+            print('[DEBUG] Subprocess timed out', flush=True)
+            return jsonify({"error": "random_cf_sample.py timed out"}), 504
         print(f'[DEBUG] Subprocess returncode: {result.returncode}', flush=True)
         print(f'[DEBUG] Subprocess stdout: {result.stdout}', flush=True)
         print(f'[DEBUG] Subprocess stderr: {result.stderr}', flush=True)
@@ -65,4 +69,6 @@ def get_sample_random():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    import os
+    port = int(os.environ.get('PORT', 5051))
+    app.run(host='0.0.0.0', port=port)
