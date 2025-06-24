@@ -115,19 +115,30 @@ const DuelCF = ({ user }) => {
       setDuelState("idle");
     });
     // Code sync events
+    // sock.on("cf_code_receive", ({ code, from }) => {
+    //   console.log('[DEBUG] Received cf_code_receive:', { code, from, opponent });
+    //   if (from === opponent) {
+    //     latestOpponentCode.current = code;
+    //     if (opponentCodeTimeout.current) {
+    //       clearTimeout(opponentCodeTimeout.current);
+    //     }
+    //     opponentCodeTimeout.current = setTimeout(() => {
+    //       console.log('[DEBUG] Updating opponentCode after delay:', latestOpponentCode.current);
+    //       setOpponentCode(latestOpponentCode.current);
+    //     }, 10000); // 10 seconds delay
+    //   }
+    // });
+    // Optional: Debounce opponent updates to avoid flooding
+    const updateOpponentCode = useRef(debounce((code) => {
+      setOpponentCode(code);
+    }, 300)).current;
+
     sock.on("cf_code_receive", ({ code, from }) => {
-      console.log('[DEBUG] Received cf_code_receive:', { code, from, opponent });
       if (from === opponent) {
-        latestOpponentCode.current = code;
-        if (opponentCodeTimeout.current) {
-          clearTimeout(opponentCodeTimeout.current);
-        }
-        opponentCodeTimeout.current = setTimeout(() => {
-          console.log('[DEBUG] Updating opponentCode after delay:', latestOpponentCode.current);
-          setOpponentCode(latestOpponentCode.current);
-        }, 10000); // 10 seconds delay
+        updateOpponentCode(code);
       }
     });
+
   };
 
   // Timer countdown
