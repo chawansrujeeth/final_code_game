@@ -212,10 +212,10 @@ const DuelCF = ({ user }) => {
     setTimer(600);
   };
 
-  // Fetch sample test cases from backend API (not browser DOMParser)
+  // Fetch sample test cases from frontend API route (legacy, not backend)
   async function fetchCFSamples(contestId, index) {
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/cf-samples?contestId=${contestId}&index=${index}`);
+      const res = await fetch(`/api/cf-samples?contestId=${contestId}&index=${index}`);
       const data = await res.json();
       if (data.samples) return data.samples;
       setError("Failed to fetch test cases: " + (data.error || 'Unknown error'));

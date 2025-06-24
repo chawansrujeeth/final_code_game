@@ -172,9 +172,6 @@ function matchUsers() {
   }
 }
 
-const cfSamplesRouter = require('./cf_samples');
-app.use('/cf-samples', cfSamplesRouter);
-
 const PORT = process.env.PORT || 5051;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
