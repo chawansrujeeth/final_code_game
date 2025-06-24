@@ -112,18 +112,16 @@ const DuelCF = ({ user }) => {
     });
     sock.on("cf_duel_start", async (data) => {
       console.log('[DEBUG] cf_duel_start received:', data);
-      // Fetch sample test case for the problem
+      // Fetch sample test case for the problem from backend by URL
       let sample = undefined;
       try {
-        console.log('[DEBUG] Fetching sample for duel problem:', data.problem);
-        const res = await fetch(`/api/cf-samples?contestId=${data.problem.contestId}&index=${data.problem.index}`);
-        const apiData = await res.json();
-        console.log('[DEBUG] API response for sample:', apiData);
-        if (apiData.samples && apiData.samples.length > 0) {
-          sample = apiData.samples[0];
+        const problemUrl = `https://codeforces.com/contest/${data.problem.contestId}/problem/${data.problem.index}`;
+        const samples = await fetchSamplesByUrl(problemUrl);
+        if (samples.length > 0) {
+          sample = samples[0];
           console.log('[DEBUG] Sample fetched for duel problem:', sample);
         } else {
-          console.log('[DEBUG] No sample found for duel problem:', apiData);
+          console.log('[DEBUG] No sample found for duel problem:', samples);
         }
       } catch (err) {
         console.log('[DEBUG] Error fetching sample for duel problem:', err);
@@ -260,6 +258,28 @@ const DuelCF = ({ user }) => {
     }
   }
 
+  // Fetch sample test cases from backend by room_id (new)
+  async function fetchRoomSamples(roomId) {
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/get-samples?room_id=${encodeURIComponent(roomId)}`);
+      const data = await res.json();
+      if (data.samples) return data.samples;
+      setError("Failed to fetch room test cases: " + (data.error || 'Unknown error'));
+      return [];
+    } catch (err) {
+      setError("Failed to fetch room test cases: " + err.message);
+      return [];
+    }
+  }
+
+  // Fetch samples from backend by problem URL
+  async function fetchSamplesByUrl(problemUrl) {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/get-samples?url=${encodeURIComponent(problemUrl)}`);
+    const data = await res.json();
+    if (data.samples) return data.samples;
+    return [];
+  }
+
   // Submit code to Judge0 and check verdict, then check Codeforces submission
   async function handleSubmit() {
     setIsSubmitting(true);
@@ -270,8 +290,11 @@ const DuelCF = ({ user }) => {
       setIsSubmitting(false);
       return;
     }
+    let samples = [];
+    // Build the problem URL as used by the extension
     const { contestId, index } = duelInfo.problem;
-    const samples = await fetchCFSamples(contestId, index);
+    const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
+    samples = await fetchSamplesByUrl(problemUrl);
     if (!samples.length) {
       setError("No sample test cases found.");
       setIsSubmitting(false);
@@ -299,35 +322,10 @@ const DuelCF = ({ user }) => {
       if (output !== expected) {
         setVerdict(`Wrong Answer on sample ${i + 1}`);
         allPassed = false;
-        setIsSubmitting(false);
-        return;
+        break;
       }
     }
-    // If all Judge0 samples passed, check Codeforces submission
-    // Fetch latest submissions for this handle and problem
-    try {
-      const cfResp = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=20`);
-      const cfData = await cfResp.json();
-      if (cfData.status !== "OK") throw new Error("CF API error");
-      // Find a submission for this contestId and index with verdict OK
-      const found = cfData.result.find(sub =>
-        sub.problem &&
-        sub.problem.contestId == contestId &&
-        sub.problem.index == index &&
-        sub.verdict === "OK"
-      );
-      if (found) {
-        setVerdict("Accepted on all samples and Codeforces! You are the winner!");
-        // Optionally, emit winner to server
-        if (socket && duelInfo && handle) {
-          socket.emit("cf_duel_winner", { roomId: duelInfo.roomId, winner: handle });
-        }
-      } else {
-        setVerdict("Passed all samples, but no Accepted submission found on Codeforces. Submit your solution on Codeforces!");
-      }
-    } catch (err) {
-      setError("Failed to check Codeforces submission: " + (err.message || err));
-    }
+    if (allPassed) setVerdict("All samples passed!");
     setIsSubmitting(false);
   }
 

@@ -14,6 +14,9 @@ HEADERS = {
     )
 }
 
+# Store latest samples by problem URL
+latest_samples_by_url = {}
+
 def scrape_first_sample(problem_url):
     try:
         resp = requests.get(problem_url, headers=HEADERS, timeout=10)
@@ -67,6 +70,26 @@ def get_sample_random():
     except Exception as e:
         print(f'[DEBUG] Exception in /get-sample-random: {e}', flush=True)
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/receive-samples', methods=['POST'])
+def receive_samples():
+    data = request.get_json()
+    samples = data.get('samples')
+    url = data.get('url')
+    if not url or not samples:
+        return jsonify({'error': 'Missing url or samples'}), 400
+    latest_samples_by_url[url] = samples
+    return jsonify({'status': 'ok', 'url': url})
+
+@app.route('/api/get-samples', methods=['GET'])
+def get_samples():
+    url = request.args.get('url')
+    if not url:
+        return jsonify({'error': 'Missing url'}), 400
+    samples = latest_samples_by_url.get(url)
+    if not samples:
+        return jsonify({'error': 'No samples found for this url'}), 404
+    return jsonify({'samples': samples, 'url': url})
 
 if __name__ == '__main__':
     import os
