@@ -432,18 +432,17 @@ const DuelCF = ({ user }) => {
               </a>
             </div>
             {/* Show sample input/output for the duel problem */}
-            {duelInfo.problem.sample && (
-              <div style={{ margin: '18px 0', background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
-                <div>
-                  <b>Sample Input:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.sample.input || '[none found]'}</pre>
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <b>Sample Output:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.sample.output || '[none found]'}</pre>
-                </div>
+            {/* Always show sample input/output boxes, even if missing */}
+            <div style={{ margin: '18px 0', background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
+              <div>
+                <b>Sample Input:</b>
+                <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem?.sample?.input || '[none found]'}</pre>
               </div>
-            )}
+              <div style={{ marginTop: 10 }}>
+                <b>Sample Output:</b>
+                <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem?.sample?.output || '[none found]'}</pre>
+              </div>
+            </div>
             <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
               ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
             </div>
