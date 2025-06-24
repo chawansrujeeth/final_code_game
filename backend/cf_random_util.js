@@ -98,4 +98,24 @@ async function getRandomCFDuelProblem() {
   return { ...chosen, sample };
 }
 
-module.exports = { getRandomCFDuelProblem };
+async function getRandomCFDuelProblemWithPython() {
+  let problems;
+  try {
+    problems = await getListViaApi();
+  } catch (apiErr) {
+    problems = await getListViaScrape();
+  }
+  const chosen = problems[Math.floor(Math.random() * problems.length)];
+  // Use Python script for sample extraction
+  const { getSampleFromPython } = require('./cf_python_sample');
+  let sample;
+  try {
+    sample = await getSampleFromPython(chosen.url);
+  } catch (err) {
+    // fallback to JS scraping if Python fails
+    sample = await scrapeFirstSample(chosen.url);
+  }
+  return { ...chosen, sample };
+}
+
+module.exports = { getRandomCFDuelProblem, getRandomCFDuelProblemWithPython };

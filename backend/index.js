@@ -5,7 +5,7 @@ require('dotenv').config();
 const http = require('http');
 const { Server } = require('socket.io');
 const getRandomSample = require('./cf_random_sample');
-const { getRandomCFDuelProblem } = require('./cf_random_util');
+const { getRandomCFDuelProblem, getRandomCFDuelProblemWithPython } = require('./cf_random_util');
 const { getSampleFromPython } = require('./cf_python_sample');
 
 const app = express();
@@ -183,8 +183,8 @@ async function matchUsers() {
     duels[roomId] = { users: [user1, user2], started: false };
     user1.socket.join(roomId);
     user2.socket.join(roomId);
-    // Assign a random Codeforces problem with sample
-    getRandomCFDuelProblem().then(problem => {
+    // Assign a random Codeforces problem with sample using Python script
+    getRandomCFDuelProblemWithPython().then(problem => {
       io.to(roomId).emit('duel_start', {
         roomId,
         users: [user1.username, user2.username],
