@@ -145,10 +145,23 @@ const DuelCF = ({ user }) => {
     // }, 300)).current;
   };
 
+  // Debounced code send
+  const sendCodeUpdate = useRef(debounce((code) => {
+    if (socket && duelInfo) {
+      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfo.roomId, code, from: handle });
+      socket.emit("cf_code_update", {
+        roomId: duelInfo.roomId,
+        code,
+        from: handle
+      });
+    }
+  }, 500)).current;
+
   // Attach cf_code_receive handler to the current socket
   useEffect(() => {
     if (!socket) return;
     const handler = ({ code, from }) => {
+      console.log('[DEBUG] Received cf_code_receive:', { code, from, opponent: opponentRef.current });
       if (from === opponentRef.current) {
         updateOpponentCode(code);
       }
@@ -184,18 +197,6 @@ const DuelCF = ({ user }) => {
     setStatusMsg("");
     setTimer(600);
   };
-
-  // Debounced code send
-  const sendCodeUpdate = useRef(debounce((code) => {
-    if (socket && duelInfo) {
-      console.log('[DEBUG] Sending cf_code_update:', { roomId: duelInfo.roomId, code, from: handle });
-      socket.emit("cf_code_update", {
-        roomId: duelInfo.roomId,
-        code,
-        from: handle
-      });
-    }
-  }, 500)).current;
 
   // On my code change, send to server
   useEffect(() => {

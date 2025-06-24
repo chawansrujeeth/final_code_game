@@ -80,10 +80,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('cf_code_update', ({ roomId, code, from }) => {
+    console.log('[DEBUG] cf_code_update received:', { roomId, code, from });
     // Broadcast to the other user in the room
     if (rooms[roomId]) {
       rooms[roomId].users.forEach(s => {
         if (s !== socket) {
+          console.log('[DEBUG] Emitting cf_code_receive to other user:', { code, from });
           s.emit('cf_code_receive', { code, from });
         }
       });
@@ -140,4 +142,4 @@ async function pollForWinner(roomId) {
 const PORT = process.env.PORT || 5051;
 server.listen(PORT, () => {
   console.log(`Codeforces Duel server running on port ${PORT}`);
-}); 
+});
