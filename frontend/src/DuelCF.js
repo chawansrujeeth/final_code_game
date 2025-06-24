@@ -99,6 +99,7 @@ const DuelCF = ({ user }) => {
       setDuelState("waiting");
     });
     sock.on("cf_duel_start", (data) => {
+      console.log('[DEBUG] cf_duel_start received:', data);
       setDuelInfo(data);
       setDuelState("started");
       setStatusMsg("Duel started!");
@@ -201,6 +202,7 @@ const DuelCF = ({ user }) => {
 
   // On my code change, send to server
   useEffect(() => {
+    console.log('[DEBUG] myCode changed:', myCode, 'duelState:', duelState, 'duelInfo:', duelInfo);
     if (duelState === "started" && duelInfo) {
       sendCodeUpdate(myCode);
     }
@@ -312,7 +314,10 @@ const DuelCF = ({ user }) => {
                 height="350px"
                 language={editorLanguage}
                 value={myCode}
-                onChange={value => setMyCode(value || "")}
+                onChange={value => {
+                  console.log('[DEBUG] MonacoEditor onChange:', value);
+                  setMyCode(value || "");
+                }}
                 theme="vs-light"
                 options={{ fontSize: 15, minimap: { enabled: false } }}
               />
