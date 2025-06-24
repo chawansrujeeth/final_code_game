@@ -238,6 +238,7 @@ const DuelCF = ({ user }) => {
       return [];
     } catch (err) {
       setError("Failed to fetch test cases: " + err.message);
+      console.log('[DEBUG] fetchCFSamples error:', err); // DEBUG
       return [];
     }
   }
