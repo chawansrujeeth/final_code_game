@@ -87,6 +87,7 @@ const DuelCF = ({ user }) => {
     const sock = io(CF_SOCKET_URL);
     setSocket(sock);
     sock.on("connect", () => {
+      console.log("[DEBUG] Socket connected!", sock.id);
       setStatusMsg("Connected! Joining matchmaking...");
       sock.emit("join_cf_matchmaking", {
         userId: user?.id || Math.random().toString(36).slice(2),
