@@ -210,6 +210,77 @@ const DuelCF = ({ user }) => {
     setTimer(600);
   };
 
+  // Submit code to Judge0 and check verdict, then check Codeforces submission
+  async function handleSubmit() {
+    setIsSubmitting(true);
+    setVerdict("");
+    setError("");
+    if (!duelInfo || !duelInfo.problem) {
+      setError("No problem info available.");
+      setIsSubmitting(false);
+      return;
+    }
+    const { contestId, index } = duelInfo.problem;
+    const samples = await fetchCFSamples(contestId, index);
+    if (!samples.length) {
+      setError("No sample test cases found.");
+      setIsSubmitting(false);
+      return;
+    }
+    let allPassed = true;
+    for (let i = 0; i < samples.length; ++i) {
+      const sample = samples[i];
+      // Prepare Judge0 submission
+      const resp = await fetch("https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source_code: myCode,
+          language_id: judge0LangMap[editorLanguage],
+          stdin: sample.input
+        })
+      });
+      const result = await resp.json();
+      let output = result.stdout || "";
+      output = output.replace(/\r/g, '').trim();
+      const expected = (sample.output || "").replace(/\r/g, '').trim();
+      if (output !== expected) {
+        setVerdict(`Wrong Answer on sample ${i + 1}`);
+        allPassed = false;
+        setIsSubmitting(false);
+        return;
+      }
+    }
+    // If all Judge0 samples passed, check Codeforces submission
+    // Fetch latest submissions for this handle and problem
+    try {
+      const cfResp = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=20`);
+      const cfData = await cfResp.json();
+      if (cfData.status !== "OK") throw new Error("CF API error");
+      // Find a submission for this contestId and index with verdict OK
+      const found = cfData.result.find(sub =>
+        sub.problem &&
+        sub.problem.contestId == contestId &&
+        sub.problem.index == index &&
+        sub.verdict === "OK"
+      );
+      if (found) {
+        setVerdict("Accepted on all samples and Codeforces! You are the winner!");
+        // Optionally, emit winner to server
+        if (socket && duelInfo && handle) {
+          socket.emit("cf_duel_winner", { roomId: duelInfo.roomId, winner: handle });
+        }
+      } else {
+        setVerdict("Passed all samples, but no Accepted submission found on Codeforces. Submit your solution on Codeforces!");
+      }
+    } catch (err) {
+      setError("Failed to check Codeforces submission: " + (err.message || err));
+    }
+    setIsSubmitting(false);
+  }
+
   // On my code change, send to server
   useEffect(() => {
     console.log('[DEBUG] myCode changed:', myCode, 'duelState:', duelState, 'duelInfo:', duelInfo);
@@ -335,6 +406,14 @@ const DuelCF = ({ user }) => {
                 theme="vs-light"
                 options={{ fontSize: 15, minimap: { enabled: false } }}
               />
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                style={{ marginTop: 16, background: '#43a047', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 28px', fontWeight: 700, fontSize: 18, cursor: isSubmitting ? 'not-allowed' : 'pointer', boxShadow: '0 2px 12px rgba(67,160,71,0.08)' }}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit'}
+              </button>
+              {verdict && <div style={{ marginTop: 14, fontSize: 17, fontWeight: 600, color: verdict.startsWith('Accepted') ? '#43a047' : '#e53935' }}>{verdict}</div>}
             </div>
             {/* Opponent's Editor */}
             <div style={{ flex: 1, background: '#f7f8fa', borderRadius: 12, boxShadow: '0 2px 12px rgba(237,58,58,0.06)', padding: 18, minWidth: 320 }}>
