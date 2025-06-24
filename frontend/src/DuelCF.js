@@ -210,6 +210,20 @@ const DuelCF = ({ user }) => {
     setTimer(600);
   };
 
+  // Fetch sample test cases from backend API (not browser DOMParser)
+  async function fetchCFSamples(contestId, index) {
+    try {
+      const res = await fetch(`/api/cf-samples?contestId=${contestId}&index=${index}`);
+      const data = await res.json();
+      if (data.samples) return data.samples;
+      setError("Failed to fetch test cases: " + (data.error || 'Unknown error'));
+      return [];
+    } catch (err) {
+      setError("Failed to fetch test cases: " + err.message);
+      return [];
+    }
+  }
+
   // Submit code to Judge0 and check verdict, then check Codeforces submission
   async function handleSubmit() {
     setIsSubmitting(true);
