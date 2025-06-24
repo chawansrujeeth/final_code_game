@@ -144,11 +144,19 @@ const DuelCF = ({ user }) => {
     //   setOpponentCode(code);
     // }, 300)).current;
 
-    sock.on("cf_code_receive", ({ code, from }) => {
-      if (from === opponentRef.current) {
-        updateOpponentCode(code);
-      }
-    });
+    // Attach cf_code_receive handler to the current socket
+    useEffect(() => {
+      if (!socket) return;
+      const handler = ({ code, from }) => {
+        if (from === opponentRef.current) {
+          updateOpponentCode(code);
+        }
+      };
+      socket.on("cf_code_receive", handler);
+      return () => {
+        socket.off("cf_code_receive", handler);
+      };
+    }, [socket, updateOpponentCode]);
 
   };
 
