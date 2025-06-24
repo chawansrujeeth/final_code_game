@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
+import MonacoEditor from "@monaco-editor/react";
 
 const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
 
@@ -10,6 +11,12 @@ function debounce(fn, ms) {
     timer = setTimeout(() => fn.apply(this, args), ms);
   };
 }
+
+const languageOptions = [
+  { id: "python", name: "Python 3" },
+  { id: "cpp", name: "C++" },
+  { id: "javascript", name: "JavaScript (Node.js)" },
+];
 
 const DuelCF = ({ user }) => {
   const [socket, setSocket] = useState(null);
@@ -23,6 +30,9 @@ const DuelCF = ({ user }) => {
   const timerRef = useRef();
   const [myCode, setMyCode] = useState("");
   const [opponentCode, setOpponentCode] = useState("");
+  const [editorLanguage, setEditorLanguage] = useState("python");
+  const opponentCodeTimeout = useRef(null);
+  const latestOpponentCode = useRef("");
 
   // Fetch user's Codeforces handle from profile
   const [handle, setHandle] = useState("");
@@ -106,8 +116,15 @@ const DuelCF = ({ user }) => {
     });
     // Code sync events
     sock.on("cf_code_receive", ({ code, from }) => {
-      // Only update if from opponent
-      if (from === opponent) setOpponentCode(code);
+      if (from === opponent) {
+        latestOpponentCode.current = code;
+        if (opponentCodeTimeout.current) {
+          clearTimeout(opponentCodeTimeout.current);
+        }
+        opponentCodeTimeout.current = setTimeout(() => {
+          setOpponentCode(latestOpponentCode.current);
+        }, 10000); // 10 seconds delay
+      }
     });
   };
 
@@ -155,6 +172,15 @@ const DuelCF = ({ user }) => {
     }
     // eslint-disable-next-line
   }, [myCode]);
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (opponentCodeTimeout.current) {
+        clearTimeout(opponentCodeTimeout.current);
+      }
+    };
+  }, []);
 
   // UI for each state
   return (
@@ -215,29 +241,43 @@ const DuelCF = ({ user }) => {
               Duel started! Solve the problem on Codeforces.<br />
               <span style={{ color: '#888', fontSize: 15 }}>(First to solve wins. Winner display coming soon!)</span>
             </div>
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>
+              <label htmlFor="language-select">Language: </label>
+              <select
+                id="language-select"
+                value={editorLanguage}
+                onChange={e => setEditorLanguage(e.target.value)}
+                style={{ marginLeft: 8, padding: '6px 12px', fontSize: 15, borderRadius: 6, border: '1px solid #ccc', background: '#fafaff' }}
+              >
+                {languageOptions.map(lang => (
+                  <option key={lang.id} value={lang.id}>{lang.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           {/* Code Editor Section */}
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'flex-start', marginBottom: 32 }}>
             {/* Your Editor */}
             <div style={{ flex: 1, background: '#f7f8fa', borderRadius: 12, boxShadow: '0 2px 12px rgba(124,58,237,0.06)', padding: 18, minWidth: 320 }}>
               <div style={{ fontWeight: 700, color: '#2196f3', marginBottom: 8, fontSize: 17 }}>Your Code</div>
-              <textarea
-                rows={18}
+              <MonacoEditor
+                height="350px"
+                language={editorLanguage}
                 value={myCode}
-                onChange={e => setMyCode(e.target.value)}
-                style={{ width: '100%', fontFamily: 'monospace', fontSize: 15, borderRadius: 8, border: '1px solid #bbb', padding: 12, minHeight: 260, background: '#fff' }}
-                placeholder="Write your code here..."
+                onChange={value => setMyCode(value || "")}
+                theme="vs-light"
+                options={{ fontSize: 15, minimap: { enabled: false } }}
               />
             </div>
             {/* Opponent's Editor */}
             <div style={{ flex: 1, background: '#f7f8fa', borderRadius: 12, boxShadow: '0 2px 12px rgba(237,58,58,0.06)', padding: 18, minWidth: 320 }}>
               <div style={{ fontWeight: 700, color: '#e53935', marginBottom: 8, fontSize: 17 }}>{opponent}'s Code</div>
-              <textarea
-                rows={18}
+              <MonacoEditor
+                height="350px"
+                language={editorLanguage}
                 value={opponentCode}
-                readOnly
-                style={{ width: '100%', fontFamily: 'monospace', fontSize: 15, borderRadius: 8, border: '1px solid #bbb', padding: 12, minHeight: 260, background: '#f9f9f9', color: '#888' }}
-                placeholder="Waiting for opponent's code..."
+                options={{ readOnly: true, fontSize: 15, minimap: { enabled: false } }}
+                theme="vs-light"
               />
             </div>
           </div>
