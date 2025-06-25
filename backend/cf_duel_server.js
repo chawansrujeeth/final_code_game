@@ -2,15 +2,24 @@ const { Server } = require('socket.io');
 const http = require('http');
 const axios = require('axios');
 
-// Fetch a random problem from Codeforces API
-async function getRandomCFProblem() {
-  // Get all problems from Codeforces API
-  const res = await axios.get('https://codeforces.com/api/problemset.problems');
-  const problems = res.data.result.problems;
-  // Filter for problems with rating 800-1200 and contestId < 1000 (easy, classic)
-  const easyProblems = problems.filter(p => p.rating && p.rating <= 1200 && p.rating >= 800 && p.contestId < 1000);
-  const random = easyProblems[Math.floor(Math.random() * easyProblems.length)];
-  return random;
+// Fetch a random problem from Supabase cf_problems table (only url and samples)
+async function getRandomSupabaseProblem() {
+  const { supabase } = require('./supabaseClient');
+  // Get total count
+  const { count, error: countError } = await supabase
+    .from('cf_problems')
+    .select('id', { count: 'exact', head: true });
+  if (countError) throw countError;
+  if (!count || count === 0) throw new Error('No problems in Supabase');
+  // Pick a random offset
+  const randomOffset = Math.floor(Math.random() * count);
+  const { data, error } = await supabase
+    .from('cf_problems')
+    .select('problem_url,samples')
+    .range(randomOffset, randomOffset)
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 const server = http.createServer();
@@ -33,8 +42,8 @@ io.on('connection', (socket) => {
     if (waiting && waiting.userId !== userId) {
       // Pair with waiting user
       const roomId = randomRoomId();
-      // Fetch a random problem from Codeforces
-      const problem = await getRandomCFProblem();
+      // Fetch a random problem from Supabase
+      const problem = await getRandomSupabaseProblem();
       const startTime = Date.now();
       rooms[roomId] = {
         users: [waiting.socket, socket],
