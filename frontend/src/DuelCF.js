@@ -112,22 +112,21 @@ const DuelCF = ({ user }) => {
     });
     sock.on("cf_duel_start", async (data) => {
       console.log('[DEBUG] cf_duel_start received:', data);
-      // Fetch sample test case for the problem from backend by URL
-      let sample = undefined;
+      // Fetch sample test cases for the problem from backend by URL
+      let samples = [];
       try {
         const problemUrl = `https://codeforces.com/contest/${data.problem.contestId}/problem/${data.problem.index}`;
-        const samples = await fetchSamplesByUrl(problemUrl);
+        samples = await fetchSamplesByUrl(problemUrl);
         if (samples.length > 0) {
-          sample = samples[0];
-          console.log('[DEBUG] Sample fetched for duel problem:', sample);
+          console.log('[DEBUG] Samples fetched for duel problem:', samples);
         } else {
           console.log('[DEBUG] No sample found for duel problem:', samples);
         }
       } catch (err) {
         console.log('[DEBUG] Error fetching sample for duel problem:', err);
       }
-      // Attach sample to problem
-      setDuelInfo({ ...data, problem: { ...data.problem, sample } });
+      // Attach samples array to problem
+      setDuelInfo({ ...data, problem: { ...data.problem, samples } });
       setDuelState("started");
       setStatusMsg("Duel started!");
       setTimer(600 - Math.floor((Date.now() - data.startTime) / 1000));
@@ -139,8 +138,8 @@ const DuelCF = ({ user }) => {
       setOpponentCode("");
       // DEBUG: Log sample test cases if present
       console.log('[DEBUG] duelInfo.problem:', data.problem);
-      if (data.problem && data.problem.sample) {
-        console.log('[DEBUG] duelInfo.problem.sample:', data.problem.sample);
+      if (samples && samples.length > 0) {
+        console.log('[DEBUG] duelInfo.problem.samples:', samples);
       }
     });
     sock.on("cf_duel_winner", (data) => {
@@ -444,15 +443,29 @@ const DuelCF = ({ user }) => {
             {/* Show sample input/output for the duel problem */}
             {/* Always show sample input/output boxes, even if missing */}
             <div style={{ margin: '18px 0', background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
-              <div>
-                <b>Sample Input:</b>
-                {console.log('[DEBUG] Rendering sample input:', duelInfo?.problem?.sample)} {/* DEBUG */}
-                <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem?.sample?.input || '[none found]'}</pre>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <b>Sample Output:</b>
-                <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem?.sample?.output || '[none found]'}</pre>
-              </div>
+              {duelInfo.problem?.samples && duelInfo.problem.samples.length > 0 ? (
+                <>
+                  <div>
+                    <b>Sample Input:</b>
+                    <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.samples[0].input || '[none found]'}</pre>
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <b>Sample Output:</b>
+                    <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{duelInfo.problem.samples[0].output || '[none found]'}</pre>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <b>Sample Input:</b>
+                    <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>[none found]</pre>
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <b>Sample Output:</b>
+                    <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>[none found]</pre>
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ fontSize: 22, marginBottom: 12, color: timer <= 30 ? '#e53935' : '#333', fontWeight: 700, letterSpacing: 1 }}>
               ⏰ Time Left: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(timer / 60).toString().padStart(2, '0')}:{(timer % 60).toString().padStart(2, '0')}</span>
