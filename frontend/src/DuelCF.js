@@ -296,6 +296,11 @@ const DuelCF = ({ user }) => {
       setVerdict(`Wrong Answer on sample 1`);
     } else {
       setVerdict("Sample 1 passed!");
+      // Notify backend that this user passed local Judge0 check
+      if (socket && duelInfo && duelInfo.roomId && handle) {
+        socket.emit('cf_local_pass', { roomId: duelInfo.roomId, handle });
+        console.log('[DEBUG] Notified backend of local Judge0 pass:', { roomId: duelInfo.roomId, handle });
+      }
     }
     setIsSubmitting(false);
   }

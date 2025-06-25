@@ -22,7 +22,7 @@ const io = new Server(server, {
 });
 
 let waiting = null; // { socket, userId, handle }
-let rooms = {}; // roomId: { users: [socket1, socket2], problem, startTime }
+let rooms = {}; // roomId: { users: [socket1, socket2], problem, startTime, localPassed: { handle1: false, handle2: false } }
 
 function randomRoomId() {
   return 'cfroom_' + Math.random().toString(36).substr(2, 9);
@@ -40,7 +40,8 @@ io.on('connection', (socket) => {
         users: [waiting.socket, socket],
         handles: [waiting.handle, handle],
         problem,
-        startTime
+        startTime,
+        localPassed: { [waiting.handle]: false, [handle]: false }
       };
       waiting.socket.join(roomId);
       socket.join(roomId);
@@ -92,6 +93,14 @@ io.on('connection', (socket) => {
       });
     }
   });
+
+  // New: Listen for local pass event from frontend
+  socket.on('cf_local_pass', ({ roomId, handle }) => {
+    if (rooms[roomId] && rooms[roomId].localPassed) {
+      rooms[roomId].localPassed[handle] = true;
+      console.log(`[DEBUG] Local Judge0 pass for ${handle} in room ${roomId}`);
+    }
+  });
 });
 
 // Poll Codeforces API for first to solve
@@ -121,12 +130,14 @@ async function pollForWinner(roomId) {
         sub.verdict === 'OK' &&
         sub.creationTimeSeconds * 1000 >= startTime
       );
-      if (solved1 && solved2) {
-        // Both solved, who first?
+      // Check localPassed for both users
+      const localPassed = rooms[roomId]?.localPassed || {};
+      if (solved1 && localPassed[handle1] && solved2 && localPassed[handle2]) {
+        // Both solved and passed locally, who first?
         winner = solved1.creationTimeSeconds < solved2.creationTimeSeconds ? handle1 : handle2;
-      } else if (solved1) {
+      } else if (solved1 && localPassed[handle1]) {
         winner = handle1;
-      } else if (solved2) {
+      } else if (solved2 && localPassed[handle2]) {
         winner = handle2;
       }
       if (winner) {
