@@ -272,32 +272,31 @@ const DuelCF = ({ user }) => {
       setIsSubmitting(false);
       return;
     }
-    let allPassed = true;
-    for (let i = 0; i < samples.length; ++i) {
-      const sample = samples[i];
-      // Prepare Judge0 submission
-      const resp = await fetch("https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          source_code: myCode,
-          language_id: judge0LangMap[editorLanguage],
-          stdin: sample.input
-        })
-      });
-      const result = await resp.json();
-      let output = result.stdout || "";
-      output = output.replace(/\r/g, '').trim();
-      const expected = (sample.output || "").replace(/\r/g, '').trim();
-      if (output !== expected) {
-        setVerdict(`Wrong Answer on sample ${i + 1}`);
-        allPassed = false;
-        break;
-      }
+    // Only test the first sample
+    const sample = samples[0];
+    // Prepare Judge0 submission
+    const resp = await fetch("https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-RapidAPI-Key": "3bff2b72famsh0ff77eb8ee5d792p14b51fjsnbb6a00e0b675",
+        "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
+      },
+      body: JSON.stringify({
+        source_code: myCode,
+        language_id: judge0LangMap[editorLanguage],
+        stdin: sample.input
+      })
+    });
+    const result = await resp.json();
+    let output = result.stdout || "";
+    output = output.replace(/\r/g, '').trim();
+    const expected = (sample.output || "").replace(/\r/g, '').trim();
+    if (output !== expected) {
+      setVerdict(`Wrong Answer on sample 1`);
+    } else {
+      setVerdict("Sample 1 passed!");
     }
-    if (allPassed) setVerdict("All samples passed!");
     setIsSubmitting(false);
   }
 
