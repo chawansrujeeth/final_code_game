@@ -251,29 +251,18 @@ const DuelCF = ({ user }) => {
     return [];
   }
 
-  // Submit code to Judge0 and check verdict, then check Codeforces submission
+  // Submit code to Judge0 and check verdict using Supabase samples, and also check Codeforces API for official submission
   async function handleSubmit() {
     setIsSubmitting(true);
     setVerdict("");
     setError("");
-    if (!duelInfo || !duelInfo.problem) {
-      setError("No problem info available.");
-      setIsSubmitting(false);
-      return;
-    }
-    let samples = [];
-    // Fetch samples from Flask backend using problem URL only on submit
-    const { contestId, index } = duelInfo.problem;
-    const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
-    samples = await fetchSamplesByUrl(problemUrl);
-    console.log('[DEBUG] Test cases fetched on submit:', samples);
-    if (!samples.length) {
-      setError("No sample test cases found.");
+    if (!cfSample || !cfSample.samples || !cfSample.samples.length) {
+      setError("No sample test cases found in Supabase.");
       setIsSubmitting(false);
       return;
     }
     // Only test the first sample
-    const sample = samples[0];
+    const sample = cfSample.samples[0];
     // Prepare Judge0 submission
     const resp = await fetch("https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true", {
       method: "POST",
@@ -294,13 +283,34 @@ const DuelCF = ({ user }) => {
     const expected = (sample.output || "").replace(/\r/g, '').trim();
     if (output !== expected) {
       setVerdict(`Wrong Answer on sample 1`);
+      setIsSubmitting(false);
+      return;
     } else {
-      setVerdict("Sample 1 passed!");
+      setVerdict("Sample 1 passed! Checking Codeforces submission...");
       // Notify backend that this user passed local Judge0 check
       if (socket && duelInfo && duelInfo.roomId && handle) {
         socket.emit('cf_local_pass', { roomId: duelInfo.roomId, handle });
         console.log('[DEBUG] Notified backend of local Judge0 pass:', { roomId: duelInfo.roomId, handle });
       }
+    }
+    // Check Codeforces API for official submission
+    try {
+      const { contest_id, index } = cfSample;
+      const res = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=20`);
+      const data = await res.json();
+      const found = data.result.find(sub =>
+        sub.problem &&
+        sub.problem.contestId == contest_id &&
+        sub.problem.index == index &&
+        sub.verdict === 'OK'
+      );
+      if (found) {
+        setVerdict("Accepted! Codeforces submission found.");
+      } else {
+        setVerdict("Sample 1 passed locally, but no Codeforces AC submission found yet.");
+      }
+    } catch (err) {
+      setVerdict("Sample 1 passed locally, but failed to check Codeforces API: " + (err.message || err));
     }
     setIsSubmitting(false);
   }
