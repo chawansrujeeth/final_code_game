@@ -4,7 +4,7 @@ import MonacoEditor from "@monaco-editor/react";
 
 const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
 // Backend base URL for API calls
-const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5051';
+const BACKEND_BASE_URL = 'https://final-code-game-1.onrender.com';
 
 function debounce(fn, ms) {
   let timer;
