@@ -266,6 +266,7 @@ const DuelCF = ({ user }) => {
     const { contestId, index } = duelInfo.problem;
     const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
     samples = await fetchSamplesByUrl(problemUrl);
+    console.log('[DEBUG] Test cases fetched on submit:', samples);
     if (!samples.length) {
       setError("No sample test cases found.");
       setIsSubmitting(false);
