@@ -4,6 +4,8 @@ import requests
 from bs4 import BeautifulSoup
 import subprocess
 import sys
+from supabase import create_client, Client
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +17,11 @@ HEADERS = {
         "Chrome/115.0.0.0 Safari/537.36"
     )
 }
+
+# Initialize Supabase client
+SUPABASE_URL = os.environ.get("REACT_APP_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("REACT_APP_SUPABASE_ANON_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Store latest samples by problem URL
 latest_samples_by_url = {}
@@ -80,20 +87,25 @@ def receive_samples():
     url = data.get('url')
     if not url or not samples:
         return jsonify({'error': 'Missing url or samples'}), 400
-    latest_samples_by_url[url] = samples
-    return jsonify({'status': 'ok', 'url': url})
+    # Save to Supabase (upsert)
+    res = supabase.table("cf_problems").upsert({
+        "problem_url": url,
+        "samples": samples
+    }, on_conflict="problem_url").execute()
+    return jsonify({'status': 'ok', 'url': url, 'data': res.data})
 
 @app.route('/api/get-samples', methods=['GET'])
 def get_samples():
     url = request.args.get('url')
     if not url:
         return jsonify({'error': 'Missing url'}), 400
-    samples = latest_samples_by_url.get(url)
-    if not samples:
+    # Fetch from Supabase
+    res = supabase.table("cf_problems").select("*").eq("problem_url", url).execute()
+    if not res.data or len(res.data) == 0:
         return jsonify({'error': 'No samples found for this url'}), 404
+    samples = res.data[0]['samples']
     return jsonify({'samples': samples, 'url': url})
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5051))
     app.run(host='0.0.0.0', port=port)
