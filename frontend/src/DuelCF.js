@@ -242,26 +242,14 @@ const DuelCF = ({ user }) => {
     setTimer(600);
   };
 
-  // Fetch sample test cases from frontend API route (legacy, not backend)
-  async function fetchCFSamples(contestId, index) {
-    try {
-      const res = await fetch(`/api/cf-samples?contestId=${contestId}&index=${index}`);
-      const data = await res.json();
-      console.log('[DEBUG] fetchCFSamples:', { contestId, index, data }); // DEBUG
-      if (data.samples) return data.samples;
-      setError("Failed to fetch test cases: " + (data.error || 'Unknown error'));
-      return [];
-    } catch (err) {
-      setError("Failed to fetch test cases: " + err.message);
-      console.log('[DEBUG] fetchCFSamples error:', err); // DEBUG
-      return [];
-    }
-  }
-
   // Fetch sample test cases from backend by room_id (new)
   async function fetchRoomSamples(roomId) {
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/get-samples?room_id=${encodeURIComponent(roomId)}`);
+      // Use the Flask backend and problem URL for consistency
+      if (!duelInfo || !duelInfo.problem) return [];
+      const { contestId, index } = duelInfo.problem;
+      const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
+      const res = await fetch(`${BACKEND_BASE_URL}/api/get-samples?url=${encodeURIComponent(problemUrl)}`);
       const data = await res.json();
       if (data.samples) return data.samples;
       setError("Failed to fetch room test cases: " + (data.error || 'Unknown error'));
@@ -291,7 +279,7 @@ const DuelCF = ({ user }) => {
       return;
     }
     let samples = [];
-    // Build the problem URL as used by the extension
+    // Always fetch samples from Flask backend using problem URL
     const { contestId, index } = duelInfo.problem;
     const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
     samples = await fetchSamplesByUrl(problemUrl);
