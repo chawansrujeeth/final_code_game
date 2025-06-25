@@ -112,21 +112,8 @@ const DuelCF = ({ user }) => {
     });
     sock.on("cf_duel_start", async (data) => {
       console.log('[DEBUG] cf_duel_start received:', data);
-      // Fetch sample test cases for the problem from backend by URL
-      let samples = [];
-      try {
-        const problemUrl = `https://codeforces.com/contest/${data.problem.contestId}/problem/${data.problem.index}`;
-        samples = await fetchSamplesByUrl(problemUrl);
-        if (samples.length > 0) {
-          console.log('[DEBUG] Samples fetched for duel problem:', samples);
-        } else {
-          console.log('[DEBUG] No sample found for duel problem:', samples);
-        }
-      } catch (err) {
-        console.log('[DEBUG] Error fetching sample for duel problem:', err);
-      }
-      // Attach samples array to problem
-      setDuelInfo({ ...data, problem: { ...data.problem, samples } });
+      // Do NOT fetch samples here anymore
+      setDuelInfo({ ...data, problem: { ...data.problem } });
       setDuelState("started");
       setStatusMsg("Duel started!");
       setTimer(600 - Math.floor((Date.now() - data.startTime) / 1000));
@@ -136,11 +123,8 @@ const DuelCF = ({ user }) => {
       setOpponent(opp || "");
       setMyCode("");
       setOpponentCode("");
-      // DEBUG: Log sample test cases if present
+      // DEBUG: Log duel problem
       console.log('[DEBUG] duelInfo.problem:', data.problem);
-      if (samples && samples.length > 0) {
-        console.log('[DEBUG] duelInfo.problem.samples:', samples);
-      }
     });
     sock.on("cf_duel_winner", (data) => {
       setWinner(data.winner);
@@ -278,7 +262,7 @@ const DuelCF = ({ user }) => {
       return;
     }
     let samples = [];
-    // Always fetch samples from Flask backend using problem URL
+    // Fetch samples from Flask backend using problem URL only on submit
     const { contestId, index } = duelInfo.problem;
     const problemUrl = `https://codeforces.com/contest/${contestId}/problem/${index}`;
     samples = await fetchSamplesByUrl(problemUrl);
