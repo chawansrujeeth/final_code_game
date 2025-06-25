@@ -341,19 +341,31 @@ const DuelCF = ({ user }) => {
   useEffect(() => { duelInfoRef.current = duelInfo; }, [duelInfo]);
   useEffect(() => { handleRef.current = handle; }, [handle]);
 
-  // Fetch random Codeforces problem and sample from backend
+  // Fetch random Codeforces problem and sample from Supabase
   const [cfSample, setCfSample] = useState(null);
   const [cfSampleLoading, setCfSampleLoading] = useState(false);
   const fetchRandomCFSample = async () => {
     setCfSampleLoading(true);
     setError("");
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/cf-random-sample`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const supabase = (await import("./supabaseClient")).supabase;
+      // Get total count
+      const { count, error: countError } = await supabase
+        .from("cf_problems")
+        .select("id", { count: "exact", head: true });
+      if (countError) throw countError;
+      if (!count || count === 0) throw new Error("No problems in database");
+      // Pick a random offset
+      const randomOffset = Math.floor(Math.random() * count);
+      const { data, error } = await supabase
+        .from("cf_problems")
+        .select("*")
+        .range(randomOffset, randomOffset)
+        .single();
+      if (error) throw error;
       setCfSample(data);
     } catch (err) {
-      setError("Failed to fetch random CF sample: " + (err.message || err));
+      setError("Failed to fetch random problem from Supabase: " + (err.message || err));
     }
     setCfSampleLoading(false);
   };
@@ -387,14 +399,14 @@ const DuelCF = ({ user }) => {
             </button>
             {cfSample && (
               <div style={{ marginTop: 18, background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
-                <a href={cfSample.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2196f3', fontWeight: 700, fontSize: 18, textDecoration: 'none' }}>{cfSample.url}</a>
+                <a href={cfSample.problem_url} target="_blank" rel="noopener noreferrer" style={{ color: '#2196f3', fontWeight: 700, fontSize: 18, textDecoration: 'none' }}>{cfSample.name || cfSample.problem_url}</a>
                 <div style={{ marginTop: 10 }}>
                   <b>Sample Input:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.sample.input || '[none found]'}</pre>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.samples?.[0]?.input || '[none found]'}</pre>
                 </div>
                 <div style={{ marginTop: 10 }}>
                   <b>Sample Output:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.sample.output || '[none found]'}</pre>
+                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.samples?.[0]?.output || '[none found]'}</pre>
                 </div>
               </div>
             )}
