@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Duel from "./Duel";
 import DuelCF from "./DuelCF";
+import TeamCFDuel from "./TeamCFDuel";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -84,6 +85,13 @@ function App() {
               : user === false
                 ? <Navigate to="/login" />
                 : <DuelCF user={user} />
+          } />
+          <Route path="/team_duel_cf" element={
+            user === null
+              ? <div style={{ padding: 24 }}>Loading user info...</div>
+              : user === false
+                ? <Navigate to="/login" />
+                : <TeamCFDuel user={user} />
           } />
         </Routes>
       </div>

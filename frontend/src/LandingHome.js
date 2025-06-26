@@ -51,14 +51,33 @@ export default function LandingHome() {
               fontWeight: 700,
               boxShadow: "0 4px 24px rgba(124,58,237,0.15)",
               cursor: "pointer",
-              transition: "background 0.2s"
+              transition: "background 0.2s",
+              marginRight: 16
             }}
             onClick={() => navigate("/manga")}
           >
             Start Game
           </button>
+          <button
+            className="landing-main-btn"
+            style={{
+              background: "#2196f3",
+              color: "#fff",
+              border: "none",
+              borderRadius: 32,
+              padding: "1rem 2.5rem",
+              fontSize: "1.3rem",
+              fontWeight: 700,
+              boxShadow: "0 4px 24px rgba(33,150,243,0.15)",
+              cursor: "pointer",
+              transition: "background 0.2s"
+            }}
+            onClick={() => navigate("/team_duel_cf")}
+          >
+            Team Duel (2v2)
+          </button>
         </main>
       </div>
     </>
   );
-} 
+}
