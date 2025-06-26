@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import MonacoEditor from "@monaco-editor/react";
 
-const CF_SOCKET_URL = process.env.REACT_APP_CF_SOCKET_URL || "https://final-code-game.onrender.com";
+const CF_SOCKET_URL = "https://final-code-game-2.onrender.com";
 
 function debounce(fn, ms) {
   let timer;
