@@ -8,6 +8,9 @@ const getRandomSample = require('./cf_random_sample');
 const { getRandomCFDuelProblem, getRandomCFDuelProblemWithPython } = require('./cf_random_util');
 const { getSampleFromPython } = require('./cf_python_sample');
 
+// Import friends API
+const friendsApi = require('./friends_api');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -116,6 +119,9 @@ app.get('/api/cf-python-sample', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Use friends API routes
+app.use('/api/friends', friendsApi);
 
 const server = http.createServer(app);
 const io = new Server(server, {
