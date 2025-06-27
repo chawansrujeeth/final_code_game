@@ -182,8 +182,13 @@ io.on("connection", (socket) => {
   });
 });
 
-// On server start, load state from Supabase
+// On server start, load state from Supabase and then start server
 (async () => {
   await loadLobbyFromSupabase();
   await loadRoomsFromSupabase();
+
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 })();
