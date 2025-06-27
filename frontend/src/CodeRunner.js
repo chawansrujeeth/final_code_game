@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { supabase } from "./supabaseClient";
 import { useLocation, useNavigate } from "react-router-dom";
+import MonacoEditor from "@monaco-editor/react";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import { useRef } from "react";
 
 const languageOptions = [
   { id: 71, name: "Python 3" },
@@ -12,7 +16,7 @@ const languageOptions = [
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5051";
 
-export default function CodeRunner() {
+export default function CodeRunner(props) {
   const [sourceCode, setSourceCode] = useState("");
   const [languageId, setLanguageId] = useState(71);
   const [result, setResult] = useState(null);
@@ -106,6 +110,60 @@ export default function CodeRunner() {
     setLoading(false);
   };
 
+  // Yjs collaborative setup
+  const editorRef = useRef(null);
+  const ydocRef = useRef(null);
+  const ytextRef = useRef(null);
+  const providerRef = useRef(null);
+  const [collabReady, setCollabReady] = useState(false);
+
+  useEffect(() => {
+    // Use a unique doc name per team/room, fallback to 'default-room'
+    const roomId = props.roomId || "default-room";
+    const teamId = props.teamId || "A";
+    const docName = `cfduel_${roomId}_${teamId}`;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+    const provider = new WebsocketProvider(
+      "wss://final-code-game-cobcode.onrender.com:5051",
+      docName,
+      ydoc
+    );
+    providerRef.current = provider;
+    const ytext = ydoc.getText("monaco");
+    ytextRef.current = ytext;
+    setCollabReady(true);
+    // Clean up on unmount
+    return () => {
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [props.roomId, props.teamId]);
+
+  // Monaco/Yjs binding
+  function handleEditorDidMount(editor, monaco) {
+    editorRef.current = editor;
+    if (!ytextRef.current) return;
+    // Set initial value
+    editor.setValue(ytextRef.current.toString());
+    // Update Monaco when Yjs changes
+    const updateMonaco = () => {
+      if (editor.getValue() !== ytextRef.current.toString()) {
+        const pos = editor.getPosition();
+        editor.setValue(ytextRef.current.toString());
+        if (pos) editor.setPosition(pos);
+      }
+    };
+    ytextRef.current.observe(updateMonaco);
+    // Update Yjs when Monaco changes
+    editor.onDidChangeModelContent(() => {
+      if (editor.getValue() !== ytextRef.current.toString()) {
+        ytextRef.current.delete(0, ytextRef.current.length);
+        ytextRef.current.insert(0, editor.getValue());
+      }
+    });
+  }
+
   if (testcaseLoading) {
     return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading challenge...</div>;
   }
@@ -144,14 +202,17 @@ export default function CodeRunner() {
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontWeight: 600, fontSize: 15, display: 'block', marginBottom: 6 }}>Source Code:</label>
-            <textarea
-              rows={16}
-              cols={60}
-              value={sourceCode}
-              onChange={(e) => setSourceCode(e.target.value)}
-              required
-              style={{ width: '100%', fontSize: 15, fontFamily: 'monospace', borderRadius: 8, border: '1px solid #ccc', padding: 12, resize: 'vertical', minHeight: 220 }}
-            />
+            {collabReady ? (
+              <MonacoEditor
+                height="350px"
+                defaultLanguage="python"
+                theme="vs-dark"
+                options={{ fontSize: 15, fontFamily: 'monospace', minimap: { enabled: false } }}
+                onMount={handleEditorDidMount}
+              />
+            ) : (
+              <div>Loading collaborative editor...</div>
+            )}
           </div>
           <button type="submit" disabled={loading} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 32px', fontWeight: 700, fontSize: 17, cursor: 'pointer', marginTop: 8 }}>
             {loading ? "Submitting..." : "Submit"}
