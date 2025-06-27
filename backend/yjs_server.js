@@ -1,9 +1,9 @@
 // yjs_server.js
-// Simple y-websocket server for collaborative editing (fixed for latest y-websocket)
+// Simple y-websocket server for collaborative editing (fixed import for latest y-websocket)
 
 const http = require('http');
 const WebSocket = require('ws');
-const { setupWSConnection } = require('y-websocket/bin/utils');
+const { setupWSConnection } = require('y-websocket');
 
 const port = process.env.YJS_PORT || 5051;
 
