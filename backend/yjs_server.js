@@ -3,7 +3,8 @@
 
 const http = require('http');
 const WebSocket = require('ws');
-const { setupWSConnection } = require('y-websocket');
+// y-websocket >=3 moved helpers to bin/utils
+const { setupWSConnection } = require('y-websocket/bin/utils');
 
 const port = process.env.PORT || process.env.YJS_PORT || 5051;
 
