@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import axios from "axios";
 
@@ -25,6 +25,12 @@ export default function Profile() {
   ];
   const [verifyProblem, setVerifyProblem] = useState(null);
   const [verifyStartTime, setVerifyStartTime] = useState(null);
+  // ---- Friends feature state ----
+  const [friends, setFriends] = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [friendLoading, setFriendLoading] = useState(false);
+  const [addHandle, setAddHandle] = useState('');
+  const [friendMessage, setFriendMessage] = useState('');
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -170,6 +176,81 @@ export default function Profile() {
     setCfVerifying(false);
   };
 
+  // ------- Friends feature helpers -------
+  const fetchFriends = useCallback(async () => {
+    if (!user) return;
+    setFriendLoading(true);
+    const { data: rows, error } = await supabase
+      .from('friends')
+      .select('*')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+    if (!error && rows) {
+      const accepted = [];
+      const incoming = [];
+      rows.forEach(r => {
+        if (r.status === 'accepted') {
+          accepted.push(r);
+        } else if (r.status === 'pending' && r.friend_id === user.id) {
+          incoming.push(r);
+        }
+      });
+      const ids = Array.from(new Set([...accepted, ...incoming].map(r => (r.user_id === user.id ? r.friend_id : r.user_id))));
+      if (ids.length) {
+        const { data: profs } = await supabase.from('profiles').select('user_id,name').in('user_id', ids);
+        const nameMap = {};
+        (profs || []).forEach(p => { nameMap[p.user_id] = p.name; });
+        accepted.forEach(r => {
+          r.friend_user_id = r.user_id === user.id ? r.friend_id : r.user_id;
+          r.friend_name = nameMap[r.friend_user_id] || r.friend_user_id;
+        });
+        incoming.forEach(r => {
+          r.requester_name = nameMap[r.user_id] || r.user_id;
+        });
+      }
+      setFriends(accepted);
+      setFriendRequests(incoming);
+    }
+    setFriendLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    fetchFriends();
+  }, [fetchFriends]);
+
+  const handleSendFriendRequest = async () => {
+    if (!addHandle.trim()) return;
+    setFriendLoading(true);
+    setFriendMessage('');
+    const handle = addHandle.trim();
+    const { data: prof, error } = await supabase.from('profiles').select('user_id').eq('codeforces_handle', handle).single();
+    if (error || !prof) {
+      setFriendMessage('User not found.');
+      setFriendLoading(false);
+      return;
+    }
+    if (prof.user_id === user.id) {
+      setFriendMessage("That's you!");
+      setFriendLoading(false);
+      return;
+    }
+    const { data: existing } = await supabase.from('friends').select('id,status').or(`and(user_id.eq.${user.id},friend_id.eq.${prof.user_id}),and(user_id.eq.${prof.user_id},friend_id.eq.${user.id})`).maybeSingle();
+    if (existing) {
+      setFriendMessage('Friend request already exists.');
+      setFriendLoading(false);
+      return;
+    }
+    await supabase.from('friends').insert({ user_id: user.id, friend_id: prof.user_id, status: 'pending' });
+    setFriendMessage('Friend request sent!');
+    setAddHandle('');
+    fetchFriends();
+    setFriendLoading(false);
+  };
+
+  const respondFriendRequest = async (reqId, accept) => {
+    await supabase.from('friends').update({ status: accept ? 'accepted' : 'declined' }).eq('id', reqId);
+    fetchFriends();
+  };
+
   if (loading || profileLoading) return <div style={{ marginTop: 120, textAlign: "center" }}>Loading...</div>;
   if (!user) return <div style={{ marginTop: 120, textAlign: "center" }}>Not logged in.</div>;
 
@@ -265,6 +346,53 @@ export default function Profile() {
           </div>
         )}
       </div>
+      {/* Friends Section */}
+      <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: 12, padding: 32, minWidth: 340, maxWidth: 900, marginTop: 32 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 12 }}>Friends</h3>
+        {friendLoading ? (
+          <div>Loading...</div>
+        ) : (
+          <>
+            {friends.length === 0 ? (
+              <div style={{ marginBottom: 12 }}>You have no friends yet.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, marginBottom: 12 }}>
+                {friends.map(f => (
+                  <li key={f.id} style={{ margin: '6px 0' }}>{f.friend_name || f.friend_user_id}</li>
+                ))}
+              </ul>
+            )}
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Friend's Codeforces handle"
+                value={addHandle}
+                onChange={e => setAddHandle(e.target.value)}
+                style={{ padding: '6px 10px', fontSize: 14, width: 240, marginRight: 8 }}
+              />
+              <button onClick={handleSendFriendRequest} disabled={friendLoading || !addHandle.trim()} style={{ padding: '6px 14px', fontSize: 14 }}>
+                Add Friend
+              </button>
+            </div>
+            {friendMessage && <div style={{ color: 'green', marginBottom: 12 }}>{friendMessage}</div>}
+            <h4 style={{ margin: '12px 0 6px' }}>Incoming Requests</h4>
+            {friendRequests.length === 0 ? (
+              <div>No pending requests.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {friendRequests.map(req => (
+                  <li key={req.id} style={{ margin: '6px 0' }}>
+                    {req.requester_name || 'Unknown'}
+                    <button onClick={() => respondFriendRequest(req.id, true)} style={{ margin: '0 6px', padding: '4px 10px' }}>Accept</button>
+                    <button onClick={() => respondFriendRequest(req.id, false)} style={{ padding: '4px 10px' }}>Decline</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
       <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: 12, padding: 32, minWidth: 340, maxWidth: 900, marginTop: 32 }}>
         <h3 style={{ marginTop: 0 }}>Your Submissions</h3>
         {submissions.length === 0 ? (
