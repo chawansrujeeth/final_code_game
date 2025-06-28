@@ -126,6 +126,17 @@ const TeamCFDuel = ({ user }) => {
       name: user?.username || user?.email || "anon",
       color,
     });
+    // inject local CSS for this client color
+    const styleId = `y-style-${provider.doc.clientID}`;
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.innerHTML = `
+        .yRemoteSelection-${provider.doc.clientID} { background-color: ${color}55; }
+        .yRemoteSelectionHead-${provider.doc.clientID} { border-left: 2px solid ${color}; }
+      `;
+      document.head.appendChild(style);
+    }
     // share initial language
     provider.awareness.setLocalStateField("lang", editorLanguage);
     setCollabReady(true);
@@ -139,10 +150,23 @@ const TeamCFDuel = ({ user }) => {
   useEffect(() => {
     if (!providerRef.current) return;
     const awareness = providerRef.current.awareness;
+    const addCssForClient = (clientId, clr) => {
+      const id = `y-style-${clientId}`;
+      if (!document.getElementById(id)) {
+        const st = document.createElement('style');
+        st.id = id;
+        st.innerHTML = `
+          .yRemoteSelection-${clientId} { background-color: ${clr}55; }
+          .yRemoteSelectionHead-${clientId} { border-left: 2px solid ${clr}; }
+        `;
+        document.head.appendChild(st);
+      }
+    };
     const handler = () => {
       const states = awareness.getStates();
       // find any lang that differs from ours and apply
       for (const state of states.values()) {
+        if (state.user && state.user.color) { addCssForClient(clientID, state.user.color); }
         if (state.lang && state.lang !== editorLanguage) {
           setEditorLanguage(state.lang);
           if (monacoRef.current && editorRef.current) {
