@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import MonacoEditor from "@monaco-editor/react";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import { supabase } from "./supabaseClient";
 
 // Update to new backend URL
 const CF_SOCKET_URL = "https://final-code-game-team.onrender.com";
@@ -32,6 +35,12 @@ const TeamCFDuel = ({ user }) => {
   const [selectedTeammates, setSelectedTeammates] = useState([]);
   const [inLobby, setInLobby] = useState(true);
   const teamCodeRef = useRef("");
+  const channelRef = useRef(null);
+  const editorRef = useRef(null);
+  const ydocRef = useRef(null);
+  const ytextRef = useRef(null);
+  const providerRef = useRef(null);
+  const [collabReady, setCollabReady] = useState(false);
 
   // Connect to socket and handle lobby/team events
   useEffect(() => {
@@ -44,9 +53,10 @@ const TeamCFDuel = ({ user }) => {
       // Try to reconnect to a team if possible
       sock.emit("reconnect_user", { userId: user?.id });
     });
-    sock.on("lobby_update", (lobbyList) => {
-      setLobby(lobbyList);
-    });
+    // Legacy socket lobby update (kept as fallback)
+    // sock.on("lobby_update", (lobbyList) => {
+    //   setLobby(lobbyList);
+    // });
     sock.on("team_assignment", ({ roomId, teamId, teamMembers, opponents }) => {
       setRoomId(roomId);
       setTeamId(teamId);
@@ -59,8 +69,75 @@ const TeamCFDuel = ({ user }) => {
       setTeamCode(code);
       teamCodeRef.current = code;
     });
-    return () => sock.disconnect();
+    // Setup Supabase presence for lobby users
+    if (user?.id && !channelRef.current) {
+      const ch = supabase.channel('lobby', {
+        config: {
+          presence: {
+            key: user.id,
+          },
+        },
+      });
+      channelRef.current = ch;
+      ch.on('presence', { event: 'sync' }, () => {
+        const state = ch.presenceState();
+        const people = Object.values(state).map(arr => arr[0]);
+        setLobby(people);
+      });
+      ch.subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await ch.track({ userId: user.id, name: user.name || user.email });
+        }
+      });
+    }
+
+    return () => {
+      sock.disconnect();
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+    };
   }, [user]);
+
+  // Setup Yjs provider when room & team IDs are ready
+  useEffect(() => {
+    if (!roomId || !teamId) return;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+    const providerUrl = process.env.REACT_APP_YJS_URL || "wss://final-code-game-cobcode.onrender.com:5051";
+    const docName = `teamduel_${roomId}_${teamId}`;
+    const provider = new WebsocketProvider(providerUrl, docName, ydoc);
+    providerRef.current = provider;
+    const ytext = ydoc.getText("monaco");
+    ytextRef.current = ytext;
+    setCollabReady(true);
+    return () => {
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [roomId, teamId]);
+
+  // Bind Monaco <-> Yjs
+  function handleEditorDidMount(editor, monaco) {
+    editorRef.current = editor;
+    if (!ytextRef.current) return;
+    editor.setValue(ytextRef.current.toString());
+    const updateMonaco = () => {
+      if (editor.getValue() !== ytextRef.current.toString()) {
+        const pos = editor.getPosition();
+        editor.setValue(ytextRef.current.toString());
+        if (pos) editor.setPosition(pos);
+      }
+    };
+    ytextRef.current.observe(updateMonaco);
+    editor.onDidChangeModelContent(() => {
+      if (editor.getValue() !== ytextRef.current.toString()) {
+        ytextRef.current.delete(0, ytextRef.current.length);
+        ytextRef.current.insert(0, editor.getValue());
+      }
+    });
+  }
 
   // Send code updates to team (with roomId/teamId)
   const sendCodeUpdate = useCallback(
@@ -161,14 +238,17 @@ const TeamCFDuel = ({ user }) => {
           ))}
         </select>
       </div>
-      <MonacoEditor
-        height="400px"
-        language={editorLanguage}
-        value={teamCode}
-        onChange={handleCodeChange}
-        theme="vs-light"
-        options={{ fontSize: 15, minimap: { enabled: false } }}
-      />
+      {collabReady ? (
+        <MonacoEditor
+          height="400px"
+          defaultLanguage={editorLanguage}
+          theme="vs-light"
+          options={{ fontSize: 15, minimap: { enabled: false } }}
+          onMount={handleEditorDidMount}
+        />
+      ) : (
+        <div>Loading collaborative editor...</div>
+      )}
       <div style={{ marginTop: 18, color: '#888', textAlign: 'center' }}>{statusMsg}</div>
     </div>
   );
