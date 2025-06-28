@@ -105,7 +105,8 @@ const TeamCFDuel = ({ user }) => {
     if (!roomId || !teamId) return;
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
-    const providerUrl = process.env.REACT_APP_YJS_URL || "wss://final-code-game-cobcode.onrender.com:5051";
+    // Determine Yjs websocket URL (use env or fallback to same host without explicit port)
+    const providerUrl = process.env.REACT_APP_YJS_URL || "wss://final-code-game-cobcode.onrender.com";
     const docName = `teamduel_${roomId}_${teamId}`;
     const provider = new WebsocketProvider(providerUrl, docName, ydoc);
     providerRef.current = provider;
