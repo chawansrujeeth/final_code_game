@@ -163,18 +163,15 @@ const TeamCFDuel = ({ user }) => {
       }
     };
     const handler = () => {
-      const states = awareness.getStates();
-      // find any lang that differs from ours and apply
-      for (const state of states.values()) {
-        if (state.user && state.user.color) { addCssForClient(clientID, state.user.color); }
-        if (state.lang && state.lang !== editorLanguage) {
-          setEditorLanguage(state.lang);
-          if (monacoRef.current && editorRef.current) {
-            monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), state.lang);
-          }
-          break;
+      awareness.getStates().forEach((st, id) => {
+      if (st.user && st.user.color) addCssForClient(id, st.user.color);
+      if (st.lang && st.lang !== editorLanguage) {
+        setEditorLanguage(st.lang);
+        if (monacoRef.current && editorRef.current) {
+          monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), st.lang);
         }
       }
+    });
     };
     awareness.on('change', handler);
     return () => awareness.off('change', handler);
