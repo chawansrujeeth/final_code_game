@@ -110,7 +110,11 @@ const TeamCFDuel = ({ user }) => {
     // Determine Yjs websocket URL (use env or fallback to same host without explicit port)
     const providerUrl = process.env.REACT_APP_YJS_URL || "wss://final-code-game-cobcode.onrender.com";
     const docName = `teamduel_${roomId}_${teamId}`;
+    console.log("[Yjs] connecting", providerUrl + "/" + docName);
     const provider = new WebsocketProvider(providerUrl, docName, ydoc);
+    provider.on('status', event => {
+      console.log('[Yjs] connection status', event.status);
+    });
     providerRef.current = provider;
     const ytext = ydoc.getText("monaco");
     ytextRef.current = ytext;
