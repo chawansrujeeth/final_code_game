@@ -34,6 +34,8 @@ const TeamCFDuel = ({ user }) => {
   const [teamMembers, setTeamMembers] = useState([]);
   const [opponents, setOpponents] = useState([]);
   const [lobby, setLobby] = useState([]);
+  // List of accepted friends (objects: { userId, name })
+  const [friends, setFriends] = useState([]);
   const [selectedTeammates, setSelectedTeammates] = useState([]);
   const [inLobby, setInLobby] = useState(true);
   const teamCodeRef = useRef("");
@@ -45,6 +47,39 @@ const TeamCFDuel = ({ user }) => {
   const ytextRef = useRef(null);
   const providerRef = useRef(null);
   const [collabReady, setCollabReady] = useState(false);
+
+  // ---- Friends helpers ----
+  const fetchFriends = useCallback(async () => {
+    if (!user?.id) return;
+    const { data: rows, error } = await supabase
+      .from('friends')
+      .select('user_id,friend_id,status')
+      .eq('status', 'accepted')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+    if (error) {
+      console.error('Error fetching friends', error);
+      return;
+    }
+    const ids = rows.map(r => (r.user_id === user.id ? r.friend_id : r.user_id));
+    if (ids.length) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('user_id,name')
+        .in('user_id', ids);
+      const frs = ids.map(id => ({
+        userId: id,
+        name: profs?.find(p => p.user_id === id)?.name || id,
+      }));
+      setFriends(frs);
+    } else {
+      setFriends([]);
+    }
+  }, [user]);
+
+  // Fetch friends once on mount / when user changes
+  useEffect(() => {
+    fetchFriends();
+  }, [fetchFriends]);
 
   // Connect to socket and handle lobby/team events
   useEffect(() => {
@@ -220,25 +255,35 @@ const TeamCFDuel = ({ user }) => {
     return (
       <div style={{ padding: 32, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
         <h2 style={{ color: '#7c3aed', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Team Duel Lobby</h2>
-        <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 18 }}>
-          <b>Lobby Users:</b> {lobby.length}
-        </div>
-        <ul style={{ listStyle: 'none', padding: 0, marginBottom: 18 }}>
-          {lobby.map(p => (
-            <li key={p.userId} style={{ margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <input
-                type="checkbox"
-                checked={selectedTeammates.includes(p.userId)}
-                disabled={p.userId === user?.id}
-                onChange={() => toggleTeammate(p.userId)}
-                style={{ marginRight: 8 }}
-              />
-              <span style={{ fontWeight: p.userId === user?.id ? 700 : 400 }}>
-                {p.name || p.userId} {p.userId === user?.id ? '(You)' : ''}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {
+          // Compute online friends (accepted & currently in lobby)
+        }
+        {(() => {
+          const onlineFriends = friends.filter(f => lobby.some(p => p.userId === f.userId));
+          return (
+            <>
+              <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 18 }}>
+                <b>Online Friends:</b> {onlineFriends.length} / {friends.length}
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, marginBottom: 18 }}>
+                {onlineFriends.map(fr => (
+                  <li key={fr.userId} style={{ margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedTeammates.includes(fr.userId)}
+                      disabled={fr.userId === user?.id}
+                      onChange={() => toggleTeammate(fr.userId)}
+                      style={{ marginRight: 8 }}
+                    />
+                    <span style={{ fontWeight: fr.userId === user?.id ? 700 : 400 }}>
+                      {fr.name || fr.userId} {fr.userId === user?.id ? '(You)' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          );
+        })()}
         <button
           onClick={handleCreateTeam}
           disabled={selectedTeammates.length !== 1}
