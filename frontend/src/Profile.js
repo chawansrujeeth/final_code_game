@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import axios from "axios";
 
@@ -31,6 +31,9 @@ export default function Profile() {
   const [friendLoading, setFriendLoading] = useState(false);
   const [addHandle, setAddHandle] = useState('');
   const [friendMessage, setFriendMessage] = useState('');
+  // online presence
+  const [onlineIds, setOnlineIds] = useState([]);
+  const presenceRef = useRef(null);
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -217,6 +220,28 @@ export default function Profile() {
     fetchFriends();
   }, [fetchFriends]);
 
+  // presence: track online users
+  useEffect(() => {
+    if (!user || presenceRef.current) return;
+    const ch = supabase.channel('online_users', {
+      config: { presence: { key: user.id } }
+    });
+    ch.on('presence', { event: 'sync' }, () => {
+      const state = ch.presenceState();
+      setOnlineIds(Object.keys(state));
+    });
+    ch.subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        await ch.track({ name: user.email });
+      }
+    });
+    presenceRef.current = ch;
+    return () => {
+      ch.unsubscribe();
+      presenceRef.current = null;
+    };
+  }, [user]);
+
   const handleSendFriendRequest = async () => {
     if (!addHandle.trim()) return;
     setFriendLoading(true);
@@ -358,7 +383,10 @@ export default function Profile() {
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, marginBottom: 12 }}>
                 {friends.map(f => (
-                  <li key={f.id} style={{ margin: '6px 0' }}>{f.friend_name || f.friend_user_id}</li>
+                  <li key={f.id} style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: onlineIds.includes(f.friend_user_id) ? 'limegreen' : '#bbb', display: 'inline-block', marginRight: 6 }}></span>
+                    {f.friend_name || f.friend_user_id}
+                  </li>
                 ))}
               </ul>
             )}
