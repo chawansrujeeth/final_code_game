@@ -4,6 +4,7 @@ import MonacoEditor from "@monaco-editor/react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
+import randomColor from "randomcolor";
 import { supabase } from "./supabaseClient";
 
 // Update to new backend URL
@@ -38,6 +39,7 @@ const TeamCFDuel = ({ user }) => {
   const teamCodeRef = useRef("");
   const channelRef = useRef(null);
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const bindingRef = useRef(null);
   const ydocRef = useRef(null);
   const ytextRef = useRef(null);
@@ -118,6 +120,14 @@ const TeamCFDuel = ({ user }) => {
     providerRef.current = provider;
     const ytext = ydoc.getText("monaco");
     ytextRef.current = ytext;
+    // Set local awareness state for colored cursors
+    const color = randomColor({ luminosity: "bright", seed: user?.id || Math.random() });
+    provider.awareness.setLocalStateField("user", {
+      name: user?.username || user?.email || "anon",
+      color,
+    });
+    // share initial language
+    provider.awareness.setLocalStateField("lang", editorLanguage);
     setCollabReady(true);
     return () => {
       provider.destroy();
@@ -125,8 +135,30 @@ const TeamCFDuel = ({ user }) => {
     };
   }, [roomId, teamId]);
 
+  // Listen for language changes from others
+  useEffect(() => {
+    if (!providerRef.current) return;
+    const awareness = providerRef.current.awareness;
+    const handler = () => {
+      const states = awareness.getStates();
+      // find any lang that differs from ours and apply
+      for (const state of states.values()) {
+        if (state.lang && state.lang !== editorLanguage) {
+          setEditorLanguage(state.lang);
+          if (monacoRef.current && editorRef.current) {
+            monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), state.lang);
+          }
+          break;
+        }
+      }
+    };
+    awareness.on('change', handler);
+    return () => awareness.off('change', handler);
+  }, [editorLanguage]);
+
   // Bind Monaco <-> Yjs using y-monaco (handles cursors & incremental updates)
   function handleEditorDidMount(editor, monaco) {
+    monacoRef.current = monaco;
     editorRef.current = editor;
     if (!ytextRef.current || !providerRef.current) return;
     bindingRef.current = new MonacoBinding(
@@ -213,7 +245,18 @@ const TeamCFDuel = ({ user }) => {
         <select
           id="language-select"
           value={editorLanguage}
-          onChange={e => setEditorLanguage(e.target.value)}
+          onChange={e => {
+            const newLang = e.target.value;
+            setEditorLanguage(newLang);
+            // update monaco model language locally
+            if (monacoRef.current && editorRef.current) {
+              monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), newLang);
+            }
+            // broadcast language change
+            if (providerRef.current) {
+              providerRef.current.awareness.setLocalStateField("lang", newLang);
+            }
+          }}
           style={{ marginLeft: 8, padding: '6px 12px', fontSize: 15, borderRadius: 6, border: '1px solid #ccc', background: '#fafaff' }}
         >
           {languageOptions.map(lang => (
