@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import MonacoEditor from "@monaco-editor/react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
+import { MonacoBinding } from "y-monaco";
 import { supabase } from "./supabaseClient";
 
 // Update to new backend URL
@@ -37,6 +38,7 @@ const TeamCFDuel = ({ user }) => {
   const teamCodeRef = useRef("");
   const channelRef = useRef(null);
   const editorRef = useRef(null);
+  const bindingRef = useRef(null);
   const ydocRef = useRef(null);
   const ytextRef = useRef(null);
   const providerRef = useRef(null);
@@ -119,43 +121,19 @@ const TeamCFDuel = ({ user }) => {
     };
   }, [roomId, teamId]);
 
-  // Bind Monaco <-> Yjs
+  // Bind Monaco <-> Yjs using y-monaco (handles cursors & incremental updates)
   function handleEditorDidMount(editor, monaco) {
     editorRef.current = editor;
-    if (!ytextRef.current) return;
-    editor.setValue(ytextRef.current.toString());
-    const updateMonaco = () => {
-      if (editor.getValue() !== ytextRef.current.toString()) {
-        const pos = editor.getPosition();
-        editor.setValue(ytextRef.current.toString());
-        if (pos) editor.setPosition(pos);
-      }
-    };
-    ytextRef.current.observe(updateMonaco);
-    editor.onDidChangeModelContent(() => {
-      if (editor.getValue() !== ytextRef.current.toString()) {
-        ytextRef.current.delete(0, ytextRef.current.length);
-        ytextRef.current.insert(0, editor.getValue());
-      }
-    });
+    if (!ytextRef.current || !providerRef.current) return;
+    bindingRef.current = new MonacoBinding(
+      ytextRef.current,
+      editor.getModel(),
+      new Set([editor]),
+      providerRef.current.awareness
+    );
   }
 
-  // Send code updates to team (with roomId/teamId)
-  const sendCodeUpdate = useCallback(
-    debounce((code) => {
-      if (socket && roomId && teamId) {
-        socket.emit("team_code_update", { code, roomId, teamId });
-      }
-    }, 300),
-    [socket, roomId, teamId]
-  );
-
-  // On code change, broadcast to team
-  const handleCodeChange = (value) => {
-    setTeamCode(value || "");
-    teamCodeRef.current = value || "";
-    sendCodeUpdate(value || "");
-  };
+  // sendCodeUpdate & handleCodeChange removed – Yjs now manages code sync
 
   // Select/deselect teammates
   const toggleTeammate = (userId) => {
