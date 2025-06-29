@@ -277,6 +277,63 @@ export default function GameLobby({ user }) {
           userId={user?.id}
           teammates={[{ userId: user.id, name: user.name || user.email }, ...accepted.map(id => ({ userId: id, name: friends.find(f => f.userId===id)?.name || id }))]}
         />
+
+        {/* Incoming invites popup */}
+        {invites.length > 0 && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              width: 280,
+              background: '#fff',
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+            }}
+          >
+            <h4 style={{ margin: '12px 16px 8px', color: '#7c3aed' }}>Invitations</h4>
+            <div style={{ maxHeight: 300, overflowY: 'auto', padding: '0 16px 16px' }}>
+              {invites.map((inv, idx) => (
+                <div key={idx} style={{ marginBottom: 12 }}>
+                  <div style={{ marginBottom: 4 }}>
+                    <strong>{inv.from.name || inv.from.userId}</strong> invited you
+                  </div>
+                  <div>
+                    <button
+                      onClick={() => handleRespondInvite(inv, true)}
+                      style={{
+                        background: '#16a34a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '4px 8px',
+                        marginRight: 8,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleRespondInvite(inv, false)}
+                      style={{
+                        background: '#dc2626',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
