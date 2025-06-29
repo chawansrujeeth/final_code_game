@@ -24,6 +24,7 @@ export default function GameLobby({ user }) {
   const [friends, setFriends] = useState([]);       // all accepted friends
   const [lobby, setLobby] = useState([]);           // online users in lobby (from socket)
   const [invited, setInvited] = useState([]);       // array<userId> invited to team
+  const [accepted, setAccepted] = useState([]);      // accepted teammates
   const [status, setStatus] = useState("");
 
   /* -------------------------- Fetch friend list -------------------------- */
@@ -78,6 +79,31 @@ export default function GameLobby({ user }) {
 
     sock.on("lobby_update", (list) => setLobby(list));
 
+    // Invitations
+    sock.on("team_invite", ({ from }) => {
+      const accept = window.confirm(`${from.name || from.userId} invited you to join their team. Accept?`);
+      sock.emit("invite_response", { to: from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: accept });
+      if (accept) {
+        setAccepted((prev) => (prev.includes(from.userId) ? prev : [...prev, from.userId]));
+      }
+    });
+
+    sock.on("invite_response", ({ from, accepted }) => {
+      setAccepted((prev) => {
+        if (accepted) {
+          return prev.includes(from.userId) ? prev : [...prev, from.userId];
+        } else {
+          return prev.filter((id) => id !== from.userId);
+        }
+      });
+    });
+
+    sock.on("kicked", () => {
+      alert('You were kicked from the team');
+      setAccepted([]);
+      setInvited([]);
+    });
+
     // Placeholder for when backend pairs two teams
     sock.on("team_created", ({ roomId }) => {
       setStatus(`Team created! Waiting for opponent in room ${roomId}…`);
@@ -91,11 +117,16 @@ export default function GameLobby({ user }) {
   /* ----------------------------- UI helpers ------------------------------ */
   const toggleInvite = (friendId) => {
     setInvited((prev) => {
-      const next = prev.includes(friendId)
-        ? prev.filter((id) => id !== friendId)
-        : [...prev, friendId];
-      // ensure we never exceed MAX_TEAM_SIZE – 1 (excluding self)
-      return next.slice(0, MAX_TEAM_SIZE - 1);
+      let next;
+      if (prev.includes(friendId)) {
+        next = prev.filter((id) => id !== friendId);
+        // Optionally notify cancellation
+      } else {
+        if (prev.length >= MAX_TEAM_SIZE - 1) return prev;
+        next = [...prev, friendId];
+        if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email } });
+      }
+      return next;
     });
   };
 
@@ -112,6 +143,12 @@ export default function GameLobby({ user }) {
 
     socket.emit("create_game_team", { team });
     setStatus("Creating team, waiting for opponent…");
+  };
+
+  const handleKick = (targetId) => {
+    if (socket) socket.emit("kick_player", { leader: user.id, target: targetId });
+    setAccepted((prev) => prev.filter((id) => id !== targetId));
+    setInvited((prev) => prev.filter((id) => id !== targetId));
   };
 
   /* ------------------------------- Render -------------------------------- */
@@ -191,6 +228,17 @@ export default function GameLobby({ user }) {
             )
           )}
         </div>
+
+        {user.id === (invited.length ? user.id : null) && accepted.length > 0 && (
+          <ul style={{ listStyle: 'none', padding: 0, textAlign: 'center', marginBottom: 16 }}>
+            {accepted.filter(id => id !== user.id).map(id => (
+              <li key={id} style={{ margin: '4px 0' }}>
+                {friends.find(f => f.userId === id)?.name || id}
+                <button onClick={() => handleKick(id)} style={{ marginLeft: 8, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 6px', cursor:'pointer' }}>Kick</button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div style={{ textAlign: "center", marginBottom: 18 }}>
           {invited.length}/{MAX_TEAM_SIZE - 1} teammates selected

@@ -145,6 +145,22 @@ io.on("connection", (socket) => {
     io.emit("lobby_update", getLobbyList());
   });
 
+  // Invitation relay
+  socket.on("invite_player", ({ to, from }) => {
+    const target = userSockets[to];
+    if (target) target.emit("team_invite", { from });
+  });
+
+  socket.on("invite_response", ({ to, from, accepted }) => {
+    const target = userSockets[to];
+    if (target) target.emit("invite_response", { from, accepted });
+  });
+
+  socket.on("kick_player", ({ leader, target }) => {
+    const tgt = userSockets[target];
+    if (tgt) tgt.emit("kicked", { by: leader });
+  });
+
   // Voice signalling for WebRTC (team voice chat)
   socket.on("voice-signal", ({ to, from, signal, room }) => {
     const target = userSockets[to];
