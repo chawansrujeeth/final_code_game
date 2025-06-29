@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import { supabase } from "./supabaseClient";
+import VoiceChat from "./VoiceChat";
 
 // Backend socket endpoint (re-use existing one)
 const SOCKET_URL = "https://final-code-game-team.onrender.com";
@@ -152,7 +153,7 @@ export default function GameLobby({ user }) {
       {/* Main */}
       <div style={{ flexGrow: 1, padding: 32 }}>
         <h2 style={{ color: "#7c3aed", textAlign: "center", marginBottom: 24 }}>
-          Game Lobby
+          Lobby
         </h2>
 
         {/* Team avatars */}
@@ -214,6 +215,14 @@ export default function GameLobby({ user }) {
         </div>
 
         <div style={{ marginTop: 24, textAlign: "center", color: "#888" }}>{status}</div>
+
+        {/* Voice chat for current selection */}
+        <VoiceChat
+          socket={socket}
+          roomKey={`lobby_${[user.id, ...invited].sort().join("_")}`}
+          userId={user?.id}
+          teammates={[{ userId: user.id, name: user.name || user.email }, ...invited.map(id => ({ userId: id, name: friends.find(f => f.userId===id)?.name || id }))]}
+        />
       </div>
     </div>
   );

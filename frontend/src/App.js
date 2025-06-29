@@ -94,7 +94,7 @@ function App() {
                 ? <Navigate to="/login" />
                 : <TeamCFDuel user={user} />
           } />
-        <Route path="/game" element={
+        <Route path="/lobby" element={
             user === null
               ? <div style={{ padding: 24 }}>Loading user info...</div>
               : user === false

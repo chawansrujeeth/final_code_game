@@ -145,6 +145,14 @@ io.on("connection", (socket) => {
     io.emit("lobby_update", getLobbyList());
   });
 
+  // Voice signalling for WebRTC (team voice chat)
+  socket.on("voice-signal", ({ to, from, signal, room }) => {
+    const target = userSockets[to];
+    if (target) {
+      target.emit("voice-signal", { from, signal, room });
+    }
+  });
+
   // Team code update
   socket.on("team_code_update", async ({ code, roomId, teamId }) => {
     if (rooms[roomId]) {

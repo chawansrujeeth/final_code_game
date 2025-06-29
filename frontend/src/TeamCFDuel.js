@@ -5,6 +5,7 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
 import randomColor from "randomcolor";
+import VoiceChat from "./VoiceChat";
 import { supabase } from "./supabaseClient";
 
 // Update to new backend URL
@@ -342,6 +343,7 @@ const TeamCFDuel = ({ user }) => {
         <div>Loading collaborative editor...</div>
       )}
       <div style={{ marginTop: 18, color: '#888', textAlign: 'center' }}>{statusMsg}</div>
+      <VoiceChat socket={socket} roomKey={`${roomId}_${teamId}`} userId={user?.id} teammates={teamMembers} />
     </div>
   );
 };
