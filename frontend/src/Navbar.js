@@ -94,6 +94,7 @@ export default function Navbar() {
             <Link to="/duel" style={linkStyle("/duel")}>Duel</Link>
             <Link to="/duel_cf" style={linkStyle("/duel_cf")}>Duel (CF)</Link>
             <Link to="/team_duel_cf" style={linkStyle("/team_duel_cf")}>Team Duel (2v2)</Link>
+            <Link to="/game" style={linkStyle("/game")}>Game</Link>
             {user && <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>}
             {!user && <Link to="/login" style={linkStyle("/login")}>Login</Link>}
             {user && <button onClick={handleLogout} style={{

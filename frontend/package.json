@@ -19,6 +19,7 @@
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.27",
     "randomcolor": "^0.6.2",
+    "socket.io-client": "^4.7.5",
     "y-monaco": "^0.1.6"
   },
   "scripts": {
