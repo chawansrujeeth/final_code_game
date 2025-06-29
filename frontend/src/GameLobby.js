@@ -26,6 +26,7 @@ export default function GameLobby({ user }) {
   const [invited, setInvited] = useState([]);       // array<userId> invited to team
   const [accepted, setAccepted] = useState([]);      // accepted teammates
   const [status, setStatus] = useState("");
+  const [invites, setInvites] = useState([]); // pending incoming invites
 
   /* -------------------------- Fetch friend list -------------------------- */
   const fetchFriends = useCallback(async () => {
@@ -81,11 +82,7 @@ export default function GameLobby({ user }) {
 
     // Invitations
     sock.on("team_invite", ({ from }) => {
-      const accept = window.confirm(`${from.name || from.userId} invited you to join their team. Accept?`);
-      sock.emit("invite_response", { to: from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: accept });
-      if (accept) {
-        setAccepted((prev) => (prev.includes(from.userId) ? prev : [...prev, from.userId]));
-      }
+      setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from }]);
     });
 
     sock.on("invite_response", ({ from, accepted }) => {
@@ -116,6 +113,8 @@ export default function GameLobby({ user }) {
 
   /* ----------------------------- UI helpers ------------------------------ */
   const toggleInvite = (friendId) => {
+    if (accepted.includes(friendId)) return; // already in team
+
     setInvited((prev) => {
       let next;
       if (prev.includes(friendId)) {
@@ -130,12 +129,18 @@ export default function GameLobby({ user }) {
     });
   };
 
+  const handleRespondInvite = (invite, acceptedFlag) => {
+    socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag });
+    setInvites(invites.filter(i => i !== invite));
+    if (acceptedFlag) setAccepted(prev => prev.includes(invite.from.userId) ? prev : [...prev, invite.from.userId]);
+  };
+
   const handleStart = () => {
     if (!socket) return;
 
     const team = [
       { userId: user.id, name: user.name || user.email },
-      ...invited.map((id) => {
+      ...accepted.map((id) => {
         const fr = friends.find((f) => f.userId === id) || {};
         return { userId: id, name: fr.name || id };
       }),
@@ -144,6 +149,8 @@ export default function GameLobby({ user }) {
     socket.emit("create_game_team", { team });
     setStatus("Creating team, waiting for opponent…");
   };
+
+  const teamIds = [user.id, ...accepted];
 
   const handleKick = (targetId) => {
     if (socket) socket.emit("kick_player", { leader: user.id, target: targetId });
@@ -159,7 +166,7 @@ export default function GameLobby({ user }) {
         <h3 style={{ marginTop: 0, color: "#7c3aed" }}>Friends</h3>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {friends.map((fr) => {
-            const alreadyInvited = invited.includes(fr.userId);
+            const alreadyInvited = invited.includes(fr.userId) || accepted.includes(fr.userId);
             const disabled = alreadyInvited || invited.length >= MAX_TEAM_SIZE - 1;
             return (
               <li
@@ -202,7 +209,7 @@ export default function GameLobby({ user }) {
             marginBottom: 24,
           }}
         >
-          {[user.id, ...invited, ...Array(MAX_TEAM_SIZE - 1 - invited.length).fill(null)].map(
+          {[...teamIds, ...Array(MAX_TEAM_SIZE - teamIds.length).fill(null)].map(
             (id, idx) => (
               <div
                 key={idx}
@@ -229,47 +236,46 @@ export default function GameLobby({ user }) {
           )}
         </div>
 
-        {user.id === (invited.length ? user.id : null) && accepted.length > 0 && (
+        {accepted.length > 0 && user.id === teamIds[0] && (<>
           <ul style={{ listStyle: 'none', padding: 0, textAlign: 'center', marginBottom: 16 }}>
             {accepted.filter(id => id !== user.id).map(id => (
               <li key={id} style={{ margin: '4px 0' }}>
                 {friends.find(f => f.userId === id)?.name || id}
                 <button onClick={() => handleKick(id)} style={{ marginLeft: 8, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 6px', cursor:'pointer' }}>Kick</button>
-              </li>
+            </li>
             ))}
           </ul>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            {accepted.length}/{MAX_TEAM_SIZE - 1} teammates selected
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+            <button
+              onClick={handleStart}
+              disabled={accepted.length === 0}
+              style={{
+                padding: '12px 32px',
+                fontSize: 18,
+                borderRadius: 8,
+                background: accepted.length === 0 ? '#aaa' : '#7c3aed',
+                color: '#fff',
+                border: 'none',
+                cursor: accepted.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Start
+            </button>
+          </div>
+
+          </>
         )}
-
-        <div style={{ textAlign: "center", marginBottom: 18 }}>
-          {invited.length}/{MAX_TEAM_SIZE - 1} teammates selected
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <button
-            onClick={handleStart}
-            disabled={invited.length === 0}
-            style={{
-              padding: "12px 32px",
-              fontSize: 18,
-              borderRadius: 8,
-              background: invited.length === 0 ? "#aaa" : "#7c3aed",
-              color: "#fff",
-              border: "none",
-              cursor: invited.length === 0 ? "not-allowed" : "pointer",
-            }}
-          >
-            Start
-          </button>
-        </div>
-
         <div style={{ marginTop: 24, textAlign: "center", color: "#888" }}>{status}</div>
 
         {/* Voice chat for current selection */}
         <VoiceChat
           socket={socket}
-          roomKey={`lobby_${[user.id, ...invited].sort().join("_")}`}
+          roomKey={`lobby_${[user.id, ...accepted].sort().join("_")}`}
           userId={user?.id}
-          teammates={[{ userId: user.id, name: user.name || user.email }, ...invited.map(id => ({ userId: id, name: friends.find(f => f.userId===id)?.name || id }))]}
+          teammates={[{ userId: user.id, name: user.name || user.email }, ...accepted.map(id => ({ userId: id, name: friends.find(f => f.userId===id)?.name || id }))]}
         />
       </div>
     </div>
