@@ -146,14 +146,21 @@ io.on("connection", (socket) => {
   });
 
   // Invitation relay
-  socket.on("invite_player", ({ to, from }) => {
+  socket.on("invite_player", ({ to, from, teamIds = [] }) => {
     const target = userSockets[to];
-    if (target) target.emit("team_invite", { from });
+    if (target) target.emit("team_invite", { from, teamIds });
   });
 
-  socket.on("invite_response", ({ to, from, accepted }) => {
+  socket.on("invite_response", ({ to, from, accepted, teamIds = [] }) => {
     const target = userSockets[to];
     if (target) target.emit("invite_response", { from, accepted });
+    if (accepted) {
+      const full = Array.from(new Set([...teamIds, from.userId]));
+      full.forEach(uid => {
+        const s = userSockets[uid];
+        if (s) s.emit("team_sync", { teamIds: full });
+      });
+    }
   });
 
   socket.on("kick_player", ({ leader, target }) => {
@@ -162,6 +169,15 @@ io.on("connection", (socket) => {
   });
 
   // Voice signalling for WebRTC (team voice chat)
+  
+  // Sync full team membership to all members
+  socket.on("sync_team", ({ teamIds }) => {
+    teamIds.forEach(id => {
+      const tgt = userSockets[id];
+      if (tgt) tgt.emit("team_sync", { teamIds });
+    });
+  });
+
   socket.on("voice-signal", ({ to, from, signal, room }) => {
     const target = userSockets[to];
     if (target) {

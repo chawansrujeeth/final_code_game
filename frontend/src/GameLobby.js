@@ -81,8 +81,8 @@ export default function GameLobby({ user }) {
     sock.on("lobby_update", (list) => setLobby(list));
 
     // Invitations
-    sock.on("team_invite", ({ from }) => {
-      setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from }]);
+    sock.on("team_invite", ({ from, teamIds = [] }) => {
+      setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from, teamIds }]);
     });
 
     sock.on("invite_response", ({ from, accepted }) => {
@@ -93,6 +93,12 @@ export default function GameLobby({ user }) {
           return prev.filter((id) => id !== from.userId);
         }
       });
+    });
+
+    // Team sync event – server sends the full roster after any change
+    sock.on("team_sync", ({ teamIds }) => {
+      setAccepted(teamIds.filter(id => id !== user.id));
+      setInvited([]);
     });
 
     sock.on("kicked", () => {
@@ -123,16 +129,19 @@ export default function GameLobby({ user }) {
       } else {
         if (prev.length >= MAX_TEAM_SIZE - 1) return prev;
         next = [...prev, friendId];
-        if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email } });
+        if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email }, teamIds: [user.id, ...accepted] });
       }
       return next;
     });
   };
 
   const handleRespondInvite = (invite, acceptedFlag) => {
-    socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag });
+    const combined = Array.from(new Set([user.id, ...accepted, ...(invite.teamIds || [])]));
+  socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag, teamIds: combined });
     setInvites(invites.filter(i => i !== invite));
-    if (acceptedFlag) setAccepted(prev => prev.includes(invite.from.userId) ? prev : [...prev, invite.from.userId]);
+    if (acceptedFlag) {
+    // We wait for team_sync to update accepted list
+  }
   };
 
   const handleStart = () => {
