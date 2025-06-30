@@ -128,13 +128,21 @@ export default function GameLobby({ user }) {
     });
 
     sock.on("invite_response", ({ from, accepted }) => {
-      setAccepted((prev) => {
+      setAccepted(prev => {
+        let next;
         if (accepted) {
-          return prev.includes(from.userId) ? prev : [...prev, from.userId];
+          next = prev.includes(from.userId) ? prev : [...prev, from.userId];
         } else {
-          return prev.filter((id) => id !== from.userId);
+          next = prev.filter(id => id !== from.userId);
         }
+        // Broadcast updated roster so all peers refresh
+        if (accepted && socket) {
+          socket.emit('sync_team', { teamIds: [user.id, ...next] });
+        }
+        return next;
       });
+      // Remove from invited list once responded
+      setInvited(prev => prev.filter(id => id !== from.userId));
     });
 
     // Team sync event – server sends the full roster after any change
@@ -167,6 +175,16 @@ export default function GameLobby({ user }) {
       sock.disconnect();
     };
   }, [user]);
+
+  // Persist pendingTeam locally and keep peers in sync whenever roster or size changes
+  useEffect(() => {
+    if (accepted.length) {
+      localStorage.setItem('pendingTeam', JSON.stringify({ desiredSize, accepted }));
+      socket?.emit('sync_team', { teamIds: [user.id, ...accepted] });
+    } else {
+      localStorage.removeItem('pendingTeam');
+    }
+  }, [accepted, desiredSize, socket, user.id]);
 
   /* ----------------------------- UI helpers ------------------------------ */
   const toggleInvite = (friendId) => {
