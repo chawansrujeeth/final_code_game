@@ -58,6 +58,41 @@ async function loadRoomsFromSupabase() {
   }
 }
 
+// --- Matchmaking queue persistence (Supabase) ---
+async function syncMatchmakingToSupabase() {
+  const rows = [];
+  Object.entries(pendingSubteams).forEach(([size, subs]) => {
+    subs.forEach((sub, idx) => {
+      rows.push({ key: `sub_${size}_${idx}`, kind: 'sub', desired_size: Number(size), team_ids: sub.players.map(p => p.userId) });
+    });
+  });
+  Object.entries(waitingFullTeams).forEach(([size, teams]) => {
+    teams.forEach((team, idx) => {
+      rows.push({ key: `full_${size}_${idx}`, kind: 'full', desired_size: Number(size), team_ids: team.map(p => p.userId) });
+    });
+  });
+  // replace contents to keep source of truth
+  await supabase.from('cfduel_matchmaking').delete().neq('key', '');
+  if (rows.length) await supabase.from('cfduel_matchmaking').upsert(rows);
+}
+
+async function loadMatchmakingFromSupabase() {
+  const { data } = await supabase.from('cfduel_matchmaking').select('*');
+  pendingSubteams = {};
+  waitingFullTeams = {};
+  if (!data) return;
+  data.forEach(row => {
+    const size = row.desired_size;
+    if (row.kind === 'sub') {
+      if (!pendingSubteams[size]) pendingSubteams[size] = [];
+      pendingSubteams[size].push({ players: row.team_ids.map(uid => ({ userId: uid, name: '', socket: null })) });
+    } else {
+      if (!waitingFullTeams[size]) waitingFullTeams[size] = [];
+      waitingFullTeams[size].push(row.team_ids.map(uid => ({ userId: uid, name: '', socket: null })));
+    }
+  });
+}
+
 function createRoom(teamA, teamB) {
   const roomId = "room_" + Math.random().toString(36).slice(2, 10);
   rooms[roomId] = {
@@ -92,7 +127,30 @@ io.on("connection", (socket) => {
           teamMembers: room[team === 'A' ? 'teamA' : 'teamB'].map(p => ({ userId: p.userId, name: p.name })),
           opponents: room[team === 'A' ? 'teamB' : 'teamA'].map(p => ({ userId: p.userId, name: p.name }))
         });
-        break;
+        return; // done, found room
+      }
+    }
+
+    // Check pending subteams / waitingFullTeams for this user
+    for (const size of Object.keys(pendingSubteams)) {
+      // Search pending subteams
+      const subArr = pendingSubteams[size] || [];
+      for (const sub of subArr) {
+        if (sub.players.some(p => p.userId === userId)) {
+          socket.emit("team_sync", { teamIds: sub.players.map(p => p.userId) });
+          socket.emit("waiting_opponent", { message: `Looking for ${size}-player opponent team…` });
+          return;
+        }
+      }
+    }
+    for (const size of Object.keys(waitingFullTeams)) {
+      const fullArr = waitingFullTeams[size] || [];
+      for (const full of fullArr) {
+        if (full.some(p => p.userId === userId)) {
+          socket.emit("team_sync", { teamIds: full.map(p => p.userId) });
+          socket.emit("waiting_opponent", { message: `Waiting for ${size}-player opponent team…` });
+          return;
+        }
       }
     }
   });
@@ -133,6 +191,7 @@ io.on("connection", (socket) => {
     if (!waitingFullTeams[desiredSize]) waitingFullTeams[desiredSize] = [];
 
     pendingSubteams[desiredSize].push({ players: subPlayers });
+    await syncMatchmakingToSupabase();
 
     // Try to assemble full team(s) for this desiredSize
     function tryBuildFullTeam(size) {
@@ -161,6 +220,7 @@ io.on("connection", (socket) => {
     let newTeam;
     while ((newTeam = tryBuildFullTeam(desiredSize))) {
       waitingFullTeams[desiredSize].push(newTeam);
+      await syncMatchmakingToSupabase();
     }
 
     // Notify each subteam player they are waiting
@@ -194,6 +254,8 @@ io.on("connection", (socket) => {
       };
       notify(teamAPlayers, "A", teamBPlayers);
       notify(teamBPlayers, "B", teamAPlayers);
+      // After pairing remove from waiting lists already done; sync again
+      await syncMatchmakingToSupabase();
     }
 
     io.emit("lobby_update", getLobbyList());
@@ -317,6 +379,7 @@ io.on("connection", (socket) => {
 (async () => {
   await loadLobbyFromSupabase();
   await loadRoomsFromSupabase();
+  await loadMatchmakingFromSupabase();
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

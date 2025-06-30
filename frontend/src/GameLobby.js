@@ -71,6 +71,27 @@ export default function GameLobby({ user }) {
     setSocket(sock);
 
     sock.on("connect", () => {
+      // Attempt resume queuedTeam
+      const saved = localStorage.getItem('queuedTeam');
+      if (saved) {
+        try {
+          const { desiredSize: ds, teamIds } = JSON.parse(saved);
+          if (teamIds && teamIds.includes(user.id)) {
+            setDesiredSize(ds);
+            setAccepted(teamIds.filter(id => id !== user.id));
+            // Rebuild team object
+            const team = [
+              { userId: user.id, name: user.name || user.email },
+              ...teamIds.filter(id => id !== user.id).map((id) => {
+                const fr = friends.find((f) => f.userId === id) || {};
+                return { userId: id, name: fr.name || id };
+              }),
+            ];
+            sock.emit("create_game_team", { team, desiredSize: ds });
+            setStatus("Rejoined queue…");
+          }
+        } catch {}
+      }
       sock.emit("join_lobby", {
         userId: user?.id || Math.random().toString(36).slice(2),
         name: user?.name || user?.email,
@@ -103,6 +124,7 @@ export default function GameLobby({ user }) {
     });
 
     sock.on("kicked", () => {
+      localStorage.removeItem('queuedTeam');
       alert('You were kicked from the team');
       setAccepted([]);
       setInvited([]);
@@ -111,12 +133,14 @@ export default function GameLobby({ user }) {
     // Placeholder for when backend pairs two teams
     // When server pairs two teams it sends team_assignment just like TeamCFDuel
     sock.on("team_assignment", ({ roomId, teamId, opponents, teamMembers }) => {
+      localStorage.removeItem('queuedTeam');
       // Redirect to TeamCFDuel component (re-use existing route)
       window.location.href = "/team_duel_cf"; // simplistic: reloads; better with router navigate
     });
 
     // Waiting message
-    sock.on("waiting_opponent", () => {
+    sock.on("waiting_opponent", ({ message }) => {
+      setStatus(message || "Waiting for opponent team…");
       setStatus("Waiting for opponent team…");
     });
 
@@ -153,6 +177,8 @@ export default function GameLobby({ user }) {
   };
 
   const handleStart = () => {
+    const teamIds = [user.id, ...accepted];
+    localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize, teamIds }));
     if (!socket) return;
 
     const team = [
