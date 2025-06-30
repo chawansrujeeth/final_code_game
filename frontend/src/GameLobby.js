@@ -92,6 +92,22 @@ export default function GameLobby({ user }) {
           }
         } catch {}
       }
+
+      // Restore pending team if exists and no queuedTeam
+      if (!saved) {
+        const pending = localStorage.getItem('pendingTeam');
+        if (pending) {
+          try {
+            const { desiredSize: pdSize, accepted: acc } = JSON.parse(pending);
+            if (acc && acc.length) {
+              setDesiredSize(pdSize);
+              setAccepted(acc);
+              // Inform server for presence sync
+              sock.emit('sync_team', { teamIds: [user.id, ...acc] });
+            }
+          } catch {}
+        }
+      }
       sock.emit("join_lobby", {
         userId: user?.id || Math.random().toString(36).slice(2),
         name: user?.name || user?.email,
@@ -141,7 +157,6 @@ export default function GameLobby({ user }) {
     // Waiting message
     sock.on("waiting_opponent", ({ message }) => {
       setStatus(message || "Waiting for opponent team…");
-      setStatus("Waiting for opponent team…");
     });
 
     return () => {
@@ -177,6 +192,7 @@ export default function GameLobby({ user }) {
   };
 
   const handleStart = () => {
+    localStorage.removeItem('pendingTeam');
     const teamIds = [user.id, ...accepted];
     localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize, teamIds }));
     if (!socket) return;
@@ -198,6 +214,7 @@ export default function GameLobby({ user }) {
   const handleKick = (targetId) => {
     if (socket) socket.emit("kick_player", { leader: user.id, target: targetId });
     setAccepted((prev) => prev.filter((id) => id !== targetId));
+  // pendingTeam will update via effect
     setInvited((prev) => prev.filter((id) => id !== targetId));
   };
 
