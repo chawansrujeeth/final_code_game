@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { io } from "socket.io-client";
 import { supabase } from "./supabaseClient";
 import VoiceChat from "./VoiceChat";
@@ -28,6 +28,7 @@ export default function GameLobby({ user }) {
   const [accepted, setAccepted] = useState([]);      // accepted teammates
   const [status, setStatus] = useState("");
   const [invites, setInvites] = useState([]); // pending incoming invites
+  const restoredPending = useRef(false);
 
   /* -------------------------- Fetch friend list -------------------------- */
   const fetchFriends = useCallback(async () => {
@@ -93,6 +94,8 @@ export default function GameLobby({ user }) {
         } catch {}
       }
 
+      
+
       // Restore pending team if exists and no queuedTeam
       if (!saved) {
         const pending = localStorage.getItem('pendingTeam');
@@ -108,6 +111,7 @@ export default function GameLobby({ user }) {
           } catch {}
         }
       }
+      restoredPending.current = true;
       sock.emit("join_lobby", {
         userId: user?.id || Math.random().toString(36).slice(2),
         name: user?.name || user?.email,
