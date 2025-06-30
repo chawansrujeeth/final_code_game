@@ -108,8 +108,15 @@ export default function GameLobby({ user }) {
     });
 
     // Placeholder for when backend pairs two teams
-    sock.on("team_created", ({ roomId }) => {
-      setStatus(`Team created! Waiting for opponent in room ${roomId}…`);
+    // When server pairs two teams it sends team_assignment just like TeamCFDuel
+    sock.on("team_assignment", ({ roomId, teamId, opponents, teamMembers }) => {
+      // Redirect to TeamCFDuel component (re-use existing route)
+      window.location.href = "/team_duel_cf"; // simplistic: reloads; better with router navigate
+    });
+
+    // Waiting message
+    sock.on("waiting_opponent", () => {
+      setStatus("Waiting for opponent team…");
     });
 
     return () => {
@@ -156,7 +163,7 @@ export default function GameLobby({ user }) {
     ];
 
     socket.emit("create_game_team", { team });
-    setStatus("Creating team, waiting for opponent…");
+    setStatus("Queued for matchmaking… waiting for opponent team");
   };
 
   const teamIds = [user.id, ...accepted];
@@ -245,7 +252,7 @@ export default function GameLobby({ user }) {
           )}
         </div>
 
-        {accepted.length > 0 && user.id === teamIds[0] && (<>
+        {user.id === teamIds[0] && (<>
           <ul style={{ listStyle: 'none', padding: 0, textAlign: 'center', marginBottom: 16 }}>
             {accepted.filter(id => id !== user.id).map(id => (
               <li key={id} style={{ margin: '4px 0' }}>
@@ -260,15 +267,15 @@ export default function GameLobby({ user }) {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
             <button
               onClick={handleStart}
-              disabled={accepted.length === 0}
+              disabled={false}
               style={{
                 padding: '12px 32px',
                 fontSize: 18,
                 borderRadius: 8,
-                background: accepted.length === 0 ? '#aaa' : '#7c3aed',
+                background: '#7c3aed',
                 color: '#fff',
                 border: 'none',
-                cursor: accepted.length === 0 ? 'not-allowed' : 'pointer'
+                cursor: 'pointer'
               }}
             >
               Start

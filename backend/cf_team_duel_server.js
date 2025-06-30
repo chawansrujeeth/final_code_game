@@ -20,6 +20,10 @@ let userSockets = {}; // userId: socket
 let lobby = [];
 let rooms = {};
 
+// --- Pending teams waiting for an opponent ---
+// Each element is an array of player objects: [{ userId, name, socket }]
+let pendingTeams = [];
+
 // --- Helper Functions ---
 async function syncLobbyToSupabase() {
   await supabase.from('cfduel_lobby').upsert(lobby.map(p => ({ user_id: p.userId, name: p.name })));
@@ -108,7 +112,65 @@ io.on("connection", (socket) => {
     io.emit("lobby_update", getLobbyList());
   });
 
-  // Create team duel room
+  // -----------------------------------------------------------------
+  // Team-based matchmaking initiated from GameLobby (queue style)
+  // Front-end emits `create_game_team` with `team` array (self + invited)
+  // First team is stored in pendingTeams; when a second team arrives
+  // we pop both and create a duel room identical to create_team_duel.
+  // -----------------------------------------------------------------
+  socket.on("create_game_team", async ({ team }) => {
+    // Remove team members from lobby while they wait
+    lobby = lobby.filter(p => !team.some(sel => sel.userId === p.userId));
+    await syncLobbyToSupabase();
+
+    // Map to players with socket reference (fall back to current socket)
+    const players = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
+    pendingTeams.push(players);
+
+    // Notify this team they are waiting
+    players.forEach(p => {
+      p.socket.emit("waiting_opponent", { message: "Waiting for opponent team…" });
+    });
+
+    // If we now have two teams queued, pair them
+    if (pendingTeams.length >= 2) {
+      const teamAPlayers = pendingTeams.shift();
+      const teamBPlayers = pendingTeams.shift();
+      const roomId = "room_" + Math.random().toString(36).slice(2, 10);
+
+      rooms[roomId] = {
+        teamA: teamAPlayers,
+        teamB: teamBPlayers,
+        state: { codeA: '', codeB: '' },
+        status: 'active',
+      };
+      await syncRoomsToSupabase();
+
+      // Join rooms and notify participants
+      teamAPlayers.forEach(player => {
+        player.socket.join(roomId + "_A");
+        player.socket.emit("team_assignment", {
+          roomId,
+          teamId: "A",
+          teamMembers: teamAPlayers.map(p => ({ userId: p.userId, name: p.name })),
+          opponents: teamBPlayers.map(p => ({ userId: p.userId, name: p.name }))
+        });
+      });
+      teamBPlayers.forEach(player => {
+        player.socket.join(roomId + "_B");
+        player.socket.emit("team_assignment", {
+          roomId,
+          teamId: "B",
+          teamMembers: teamBPlayers.map(p => ({ userId: p.userId, name: p.name })),
+          opponents: teamAPlayers.map(p => ({ userId: p.userId, name: p.name }))
+        });
+      });
+    }
+
+    io.emit("lobby_update", getLobbyList());
+  });
+
+  // Create team duel room (legacy: used by TeamCFDuel where both teams are chosen on client)
   socket.on("create_team_duel", async ({ teamA, teamB }) => {
     lobby = lobby.filter(p => ![...teamA, ...teamB].some(sel => sel.userId === p.userId));
     await syncLobbyToSupabase();
