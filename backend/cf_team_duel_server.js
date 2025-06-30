@@ -20,9 +20,11 @@ let userSockets = {}; // userId: socket
 let lobby = [];
 let rooms = {};
 
-// --- Pending teams waiting for an opponent ---
-// Each element is an array of player objects: [{ userId, name, socket }]
-let pendingTeams = [];
+// --- Pending matchmaking state ---
+// pendingSubteams[size] = array of subteams (each subteam = { players: [] })
+let pendingSubteams = {};
+// waitingFullTeams[size] = array of full teams (each fullTeam = players[] length == size)
+let waitingFullTeams = {};
 
 // --- Helper Functions ---
 async function syncLobbyToSupabase() {
@@ -113,29 +115,61 @@ io.on("connection", (socket) => {
   });
 
   // -----------------------------------------------------------------
-  // Team-based matchmaking initiated from GameLobby (queue style)
-  // Front-end emits `create_game_team` with `team` array (self + invited)
-  // First team is stored in pendingTeams; when a second team arrives
-  // we pop both and create a duel room identical to create_team_duel.
+  // Flexible matchmaking with desired team size.
+  // Client emits `create_game_team` with { team, desiredSize }
+  // We merge sub-teams to reach desiredSize, then wait for another
+  // full team of same size to start a match.
   // -----------------------------------------------------------------
-  socket.on("create_game_team", async ({ team }) => {
+  socket.on("create_game_team", async ({ team, desiredSize }) => {
     // Remove team members from lobby while they wait
     lobby = lobby.filter(p => !team.some(sel => sel.userId === p.userId));
     await syncLobbyToSupabase();
 
-    // Map to players with socket reference (fall back to current socket)
-    const players = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
-    pendingTeams.push(players);
+    // Map to player objects including socket ref
+    const subPlayers = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
 
-    // Notify this team they are waiting
-    players.forEach(p => {
-      p.socket.emit("waiting_opponent", { message: "Waiting for opponent team…" });
-    });
+    // Init bucket structures if missing
+    if (!pendingSubteams[desiredSize]) pendingSubteams[desiredSize] = [];
+    if (!waitingFullTeams[desiredSize]) waitingFullTeams[desiredSize] = [];
 
-    // If we now have two teams queued, pair them
-    if (pendingTeams.length >= 2) {
-      const teamAPlayers = pendingTeams.shift();
-      const teamBPlayers = pendingTeams.shift();
+    pendingSubteams[desiredSize].push({ players: subPlayers });
+
+    // Try to assemble full team(s) for this desiredSize
+    function tryBuildFullTeam(size) {
+      const bucket = pendingSubteams[size];
+      if (!bucket || bucket.length === 0) return null;
+      let collected = [];
+      let removeCount = 0;
+      for (const sub of bucket) {
+        if (collected.length + sub.players.length <= size) {
+          collected = collected.concat(sub.players);
+          removeCount++;
+          if (collected.length === size) break;
+        } else {
+          break; // can't fit this subteam; keep waiting
+        }
+      }
+      if (collected.length === size) {
+        // remove used subteams
+        bucket.splice(0, removeCount);
+        return collected;
+      }
+      return null;
+    }
+
+    // Attempt to build teams repeatedly
+    let newTeam;
+    while ((newTeam = tryBuildFullTeam(desiredSize))) {
+      waitingFullTeams[desiredSize].push(newTeam);
+    }
+
+    // Notify each subteam player they are waiting
+    subPlayers.forEach(p => p.socket.emit("waiting_opponent", { message: `Looking for ${desiredSize}-player opponent team…` }));
+
+    // If we now have two full teams, create match
+    if (waitingFullTeams[desiredSize].length >= 2) {
+      const teamAPlayers = waitingFullTeams[desiredSize].shift();
+      const teamBPlayers = waitingFullTeams[desiredSize].shift();
       const roomId = "room_" + Math.random().toString(36).slice(2, 10);
 
       rooms[roomId] = {
@@ -146,25 +180,20 @@ io.on("connection", (socket) => {
       };
       await syncRoomsToSupabase();
 
-      // Join rooms and notify participants
-      teamAPlayers.forEach(player => {
-        player.socket.join(roomId + "_A");
-        player.socket.emit("team_assignment", {
-          roomId,
-          teamId: "A",
-          teamMembers: teamAPlayers.map(p => ({ userId: p.userId, name: p.name })),
-          opponents: teamBPlayers.map(p => ({ userId: p.userId, name: p.name }))
+      // Notify players
+      const notify = (playersArr, teamId, opp) => {
+        playersArr.forEach(player => {
+          player.socket.join(roomId + "_" + teamId);
+          player.socket.emit("team_assignment", {
+            roomId,
+            teamId,
+            teamMembers: playersArr.map(p => ({ userId: p.userId, name: p.name })),
+            opponents: opp.map(p => ({ userId: p.userId, name: p.name }))
+          });
         });
-      });
-      teamBPlayers.forEach(player => {
-        player.socket.join(roomId + "_B");
-        player.socket.emit("team_assignment", {
-          roomId,
-          teamId: "B",
-          teamMembers: teamBPlayers.map(p => ({ userId: p.userId, name: p.name })),
-          opponents: teamAPlayers.map(p => ({ userId: p.userId, name: p.name }))
-        });
-      });
+      };
+      notify(teamAPlayers, "A", teamBPlayers);
+      notify(teamBPlayers, "B", teamAPlayers);
     }
 
     io.emit("lobby_update", getLobbyList());

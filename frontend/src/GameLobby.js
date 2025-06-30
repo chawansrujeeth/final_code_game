@@ -5,7 +5,7 @@ import VoiceChat from "./VoiceChat";
 
 // Backend socket endpoint (re-use existing one)
 const SOCKET_URL = "https://final-code-game-team.onrender.com";
-const MAX_TEAM_SIZE = 5; // self + 4 invited players
+const MAX_TEAM_SIZE = 5; // maximum allowed by system
 
 /**
  * GameLobby – lightweight lobby UI inspired by FPS/MOBA pre-match rooms.
@@ -24,6 +24,7 @@ export default function GameLobby({ user }) {
   const [friends, setFriends] = useState([]);       // all accepted friends
   const [lobby, setLobby] = useState([]);           // online users in lobby (from socket)
   const [invited, setInvited] = useState([]);       // array<userId> invited to team
+  const [desiredSize, setDesiredSize] = useState(1);
   const [accepted, setAccepted] = useState([]);      // accepted teammates
   const [status, setStatus] = useState("");
   const [invites, setInvites] = useState([]); // pending incoming invites
@@ -134,7 +135,7 @@ export default function GameLobby({ user }) {
         next = prev.filter((id) => id !== friendId);
         // Optionally notify cancellation
       } else {
-        if (prev.length >= MAX_TEAM_SIZE - 1) return prev;
+        if (prev.length >= desiredSize - 1) return prev;
         next = [...prev, friendId];
         if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email }, teamIds: [user.id, ...accepted] });
       }
@@ -144,11 +145,11 @@ export default function GameLobby({ user }) {
 
   const handleRespondInvite = (invite, acceptedFlag) => {
     const combined = Array.from(new Set([user.id, ...accepted, ...(invite.teamIds || [])]));
-  socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag, teamIds: combined });
+    socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag, teamIds: combined });
     setInvites(invites.filter(i => i !== invite));
     if (acceptedFlag) {
-    // We wait for team_sync to update accepted list
-  }
+      // We wait for team_sync to update accepted list
+    }
   };
 
   const handleStart = () => {
@@ -162,7 +163,7 @@ export default function GameLobby({ user }) {
       }),
     ];
 
-    socket.emit("create_game_team", { team });
+    socket.emit("create_game_team", { team, desiredSize });
     setStatus("Queued for matchmaking… waiting for opponent team");
   };
 
@@ -183,7 +184,7 @@ export default function GameLobby({ user }) {
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {friends.map((fr) => {
             const alreadyInvited = invited.includes(fr.userId) || accepted.includes(fr.userId);
-            const disabled = alreadyInvited || invited.length >= MAX_TEAM_SIZE - 1;
+            const disabled = alreadyInvited || invited.length >= desiredSize - 1;
             return (
               <li
                 key={fr.userId}
@@ -212,9 +213,22 @@ export default function GameLobby({ user }) {
 
       {/* Main */}
       <div style={{ flexGrow: 1, padding: 32 }}>
-        <h2 style={{ color: "#7c3aed", textAlign: "center", marginBottom: 24 }}>
+        <h2 style={{ color: "#7c3aed", textAlign: "center", marginBottom: 12 }}>
           Lobby
         </h2>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <label htmlFor="team-size-select" style={{ marginRight: 8, fontWeight: 600 }}>Desired Team Size:</label>
+          <select id="team-size-select" value={desiredSize} onChange={e => {
+            const val = Number(e.target.value);
+            setDesiredSize(val);
+            // Trim invites if exceeds new size limit
+            setInvited(prev => prev.slice(0, Math.max(0, val-1)));
+          }} style={{ padding: '6px 12px', borderRadius: 6 }}>
+            {[1,2,3,4,5].map(sz => (
+              <option key={sz} value={sz}>{sz}</option>
+            ))}
+          </select>
+        </div>
 
         {/* Team avatars */}
         <div
@@ -262,7 +276,7 @@ export default function GameLobby({ user }) {
             ))}
           </ul>
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
-            {accepted.length}/{MAX_TEAM_SIZE - 1} teammates selected
+            {accepted.length}/{desiredSize - 1} teammates selected
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
             <button
