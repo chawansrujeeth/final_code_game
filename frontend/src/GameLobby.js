@@ -45,6 +45,9 @@ export default function GameLobby({ user }) {
 
   const isLeader = user?.id === leaderId;
 
+  // Derived helper: current full roster
+  const teamIds = [user.id, ...accepted];
+
   /* -------------------------- Fetch friend list -------------------------- */
   const fetchFriends = useCallback(async () => {
     if (!user?.id) return;
