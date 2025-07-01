@@ -178,6 +178,22 @@ function createRoom(teamA, teamB) {
   return roomId;
 }
 
+// Remove a user from every in-memory room; delete room if empty
+function removeUserFromAllRooms(userId) {
+  for (const [rid, r] of Object.entries(rooms)) {
+    const beforeA = r.teamA.length;
+    const beforeB = r.teamB.length;
+    r.teamA = r.teamA.filter(p => p.userId !== userId);
+    r.teamB = r.teamB.filter(p => p.userId !== userId);
+    if (!r.teamA.length && !r.teamB.length) {
+      delete rooms[rid];
+      console.log('[room]', rid, 'deleted (empty)');
+    } else if (r.teamA.length !== beforeA || r.teamB.length !== beforeB) {
+      console.log('[room]', rid, 'removed user', userId);
+    }
+  }
+}
+
 function getLobbyList() {
   return lobby.map(p => ({ userId: p.userId, name: p.name }));
 }
@@ -232,6 +248,7 @@ io.on("connection", (socket) => {
 
   // Join lobby
   socket.on("join_lobby", async ({ userId, name }) => {
+    removeUserFromAllRooms(userId);
     console.log('[lobby] join request', userId, name);
     attachSocket(userId, socket);
     if (!lobby.find(p => p.userId === userId)) {
@@ -256,6 +273,15 @@ io.on("connection", (socket) => {
   // -----------------------------------------------------------------
   // Supabase-backed matchmaking queue (no in-memory merge)
   socket.on("create_game_team", async ({ team, desiredSize }) => {
+    // Deduplicate: if any player already queued or in a room ignore this call
+    const ids = team.map(p=>p.userId);
+    for (const id of ids) {
+      if (Object.values(pendingSubteams).some(arr=>arr.some(sub=>sub.players.some(p=>p.userId===id))) ||
+          Object.values(waitingFullTeams).some(arr=>arr.some(full=>full.some(p=>p.userId===id)))) {
+        console.log('[match] duplicate create_game_team ignored for', ids);
+        return;
+      }
+    }
     console.log('[match] create_game_team called by', team.map(p=>p.userId), 'desired', desiredSize);
     // Ensure desiredSize >= party size
     const size = Math.max(desiredSize || team.length, team.length);

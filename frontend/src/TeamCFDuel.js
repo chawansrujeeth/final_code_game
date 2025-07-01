@@ -43,7 +43,7 @@ const TeamCFDuel = ({ user }) => {
   // List of accepted friends (objects: { userId, name })
   const [friends, setFriends] = useState([]);
   const [selectedTeammates, setSelectedTeammates] = useState([]);
-  const [creatingMatch, setCreatingMatch] = useState(false);
+  const creatingMatchRef = useRef(false);
   const [inLobby, setInLobby] = useState(true);
   const teamCodeRef = useRef("");
   const channelRef = useRef(null);
@@ -128,7 +128,7 @@ const TeamCFDuel = ({ user }) => {
     };
 
     sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
-       setCreatingMatch(false);
+       creatingMatchRef.current = false;
        setCollabReady(false); // reset before new provider
       const fullTeam = await enrichNames(teamMembers);
       const fullOpp = await enrichNames(opponents);
@@ -274,7 +274,7 @@ const TeamCFDuel = ({ user }) => {
 
   // Create team (2v2: self + 1 teammate, 2 opponents)
   const handleCreateTeam = () => {
-    if (creatingMatch) return; // already pressed
+    if (creatingMatchRef.current) return; // already pressed
     if (!user?.id || selectedTeammates.length !== 1) return;
     // Pick 2 random opponents from lobby not in selectedTeammates or self
     const others = lobby.filter(p => p.userId !== user.id && !selectedTeammates.includes(p.userId));
@@ -287,7 +287,7 @@ const TeamCFDuel = ({ user }) => {
                     ...lobby.filter(p => selectedTeammates.includes(p.userId)) ];
     const teamB = shuffled.slice(0, 2);
     socket.emit("create_team_duel", { teamA, teamB });
-    setCreatingMatch(true);
+    creatingMatchRef.current = true;
     setStatusMsg("Team created! Assigning teams...");
   };
 
@@ -328,7 +328,7 @@ const TeamCFDuel = ({ user }) => {
           onClick={() => {
             handleCreateTeam();
           }}
-          disabled={selectedTeammates.length !== 1 || !isAllOnline(selectedTeammates, lobby) || creatingMatch}
+          disabled={selectedTeammates.length !== 1 || !isAllOnline(selectedTeammates, lobby) }
           style={{ padding: '10px 24px', fontSize: 16, borderRadius: 6, background: '#7c3aed', color: '#fff', border: 'none', cursor: 'pointer', marginBottom: 12 }}
         >
           Start 2v2 Duel
