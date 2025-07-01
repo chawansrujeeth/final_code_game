@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { io } from "socket.io-client";
+import { socket, safeJoinLobby, queueMatch } from "./socket";
 import MonacoEditor from "@monaco-editor/react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
@@ -30,7 +30,7 @@ const TeamCFDuel = ({ user }) => {
   const isAllOnline = (sel, lob) => {
     return [...sel, user?.id].every(uid => lob.some(p => p.userId === uid));
   };
-  const [socket, setSocket] = useState(null);
+  
   const [teamCode, setTeamCode] = useState("");
   const [editorLanguage, setEditorLanguage] = useState("python");
   const [statusMsg, setStatusMsg] = useState("");
@@ -91,8 +91,8 @@ const TeamCFDuel = ({ user }) => {
 
   // Connect to socket and handle lobby/team events
   useEffect(() => {
-    const sock = io(CF_SOCKET_URL);
-    setSocket(sock);
+    const sock = socket;
+    
     sock.on("connect", () => {
       setStatusMsg("Connected! Checking existing rooms...");
       sock.emit("reconnect_user", { userId: user?.id });
@@ -101,7 +101,7 @@ const TeamCFDuel = ({ user }) => {
         if (!roomIdRef.current) {
           setStatusMsg("Joining lobby...");
           if (!inRoomRef.current) {
-          sock.emit("join_lobby", { userId: user?.id || Math.random().toString(36).slice(2), name: user?.name || user?.email });
+          safeJoinLobby(user);
         }
           sock.emit("get_lobby");
         }
@@ -290,7 +290,7 @@ const TeamCFDuel = ({ user }) => {
     const teamA = [ { userId: user.id, name: user.name || user.email },
                     ...lobby.filter(p => selectedTeammates.includes(p.userId)) ];
     const teamB = shuffled.slice(0, 2);
-    socket.emit("create_team_duel", { teamA, teamB });
+    queueMatch([ ...teamA, ...teamB ], 2);
     creatingMatchRef.current = true;
     setStatusMsg("Team created! Assigning teams...");
   };

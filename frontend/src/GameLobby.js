@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { io } from "socket.io-client";
+import { socket, safeJoinLobby, queueMatch } from "./socket";
 import { supabase } from "./supabaseClient";
 import VoiceChat from "./VoiceChat";
 
 // Backend socket endpoint (re-use existing one)
-const SOCKET_URL = "https://final-code-game-team.onrender.com";
+
 const MAX_TEAM_SIZE = 5; // maximum allowed by system
 
 /**
@@ -20,7 +20,7 @@ const MAX_TEAM_SIZE = 5; // maximum allowed by system
  *       Hook them to real matchmaking once your server is ready.
  */
 export default function GameLobby({ user }) {
-  const [socket, setSocket] = useState(null);
+  // shared socket from socket.js is used
   const [friends, setFriends] = useState([]);       // all accepted friends
   const [lobby, setLobby] = useState([]);           // online users in lobby (from socket)
   const [invited, setInvited] = useState([]);       // array<userId> invited to team
@@ -68,8 +68,8 @@ export default function GameLobby({ user }) {
 
   /* --------------------------- Socket handling --------------------------- */
   useEffect(() => {
-    const sock = io(SOCKET_URL);
-    setSocket(sock);
+    const sock = socket;
+    
 
     sock.on("connect", () => {
       // Attempt resume queuedTeam
@@ -88,7 +88,7 @@ export default function GameLobby({ user }) {
                 return { userId: id, name: fr.name || id };
               }),
             ];
-            sock.emit("create_game_team", { team, desiredSize: ds });
+            queueMatch(team, ds);
             setStatus("Rejoined queue…");
           }
         } catch {}
@@ -112,10 +112,7 @@ export default function GameLobby({ user }) {
         }
       }
       restoredPending.current = true;
-      sock.emit("join_lobby", {
-        userId: user?.id || Math.random().toString(36).slice(2),
-        name: user?.name || user?.email,
-      });
+      safeJoinLobby(user);
       sock.emit("get_lobby");
       setStatus("Connected. Waiting in lobby…");
     });
@@ -172,7 +169,7 @@ export default function GameLobby({ user }) {
     });
 
     return () => {
-      sock.disconnect();
+      
     };
   }, [user]);
 
@@ -230,7 +227,7 @@ export default function GameLobby({ user }) {
     const actualDesiredSize = team.length;
     localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize: actualDesiredSize, teamIds }));
 
-    socket.emit("create_game_team", { team, desiredSize: actualDesiredSize });
+    queueMatch(team, actualDesiredSize);
     setStatus("Queued for matchmaking… waiting for opponent team");
   };
 
