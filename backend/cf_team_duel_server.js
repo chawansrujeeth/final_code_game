@@ -40,6 +40,13 @@ const io = new Server(server, {
 });
 
 // --- User ↔ Socket mapping ---
+function attachSocket(userId, socket) {
+  const prev = userSockets[userId];
+  if (prev && prev.id !== socket.id) {
+    try { prev.disconnect(true); } catch (_) {}
+  }
+  userSockets[userId] = socket;
+}
 let userSockets = {}; // userId: socket
 
 // --- Lobby and Room State (in-memory, but sync with Supabase) ---
@@ -179,7 +186,7 @@ function getLobbyList() {
 io.on("connection", (socket) => {
   // On connect, try to recover user session
   socket.on("reconnect_user", async ({ userId }) => {
-    userSockets[userId] = socket;
+    attachSocket(userId, socket);
     // Find if user is in a room
     await loadRoomsFromSupabase();
     for (const [roomId, room] of Object.entries(rooms)) {
@@ -224,7 +231,7 @@ io.on("connection", (socket) => {
 
   // Join lobby
   socket.on("join_lobby", async ({ userId, name }) => {
-    userSockets[userId] = socket;
+    attachSocket(userId, socket);
     if (!lobby.find(p => p.userId === userId)) {
       lobby.push({ socket, userId, name });
       await syncLobbyToSupabase();
