@@ -35,6 +35,7 @@ const TeamCFDuel = ({ user }) => {
   const [editorLanguage, setEditorLanguage] = useState("python");
   const [statusMsg, setStatusMsg] = useState("");
   const [roomId, setRoomId] = useState(null);
+  const roomIdRef = useRef(null);
   const [teamId, setTeamId] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [opponents, setOpponents] = useState([]);
@@ -92,11 +93,16 @@ const TeamCFDuel = ({ user }) => {
     const sock = io(CF_SOCKET_URL);
     setSocket(sock);
     sock.on("connect", () => {
-      setStatusMsg("Connected! Joining lobby...");
-      sock.emit("join_lobby", { userId: user?.id || Math.random().toString(36).slice(2), name: user?.name || user?.email });
-      sock.emit("get_lobby");
-      // Try to reconnect to a team if possible
+      setStatusMsg("Connected! Checking existing rooms...");
       sock.emit("reconnect_user", { userId: user?.id });
+      // After 1s, if still no room assigned, join lobby
+      setTimeout(() => {
+        if (!roomIdRef.current) {
+          setStatusMsg("Joining lobby...");
+          sock.emit("join_lobby", { userId: user?.id || Math.random().toString(36).slice(2), name: user?.name || user?.email });
+          sock.emit("get_lobby");
+        }
+      }, 1000);
     });
     // Legacy socket lobby update (kept as fallback)
     // sock.on("lobby_update", (lobbyList) => {
@@ -127,6 +133,7 @@ const TeamCFDuel = ({ user }) => {
       const fullTeam = await enrichNames(teamMembers);
       const fullOpp = await enrichNames(opponents);
       setRoomId(roomId);
+       roomIdRef.current = roomId;
       setTeamId(teamId);
       setTeamMembers(fullTeam);
       setOpponents(fullOpp);
