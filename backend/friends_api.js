@@ -2,13 +2,10 @@
 // API endpoints for friend management using Supabase
 
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
 
-// Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Use shared Supabase client (handles env fallbacks)
+const { supabase } = require('./supabaseClient');
 
 // Send a friend request by profile name
 router.post('/send-request', async (req, res) => {
