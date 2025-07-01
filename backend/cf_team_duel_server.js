@@ -195,6 +195,7 @@ io.on("connection", (socket) => {
       if (room.teamB.some(p => p.userId === userId)) team = 'B';
       if (team) {
         socket.join(roomId + "_" + team);
+        console.log(`[room:${roomId}] reconnect emit to`, userId, 'team', team);
         socket.emit("team_assignment", {
           roomId,
           teamId: team,
@@ -305,6 +306,7 @@ io.on("connection", (socket) => {
       await ensureNames(teamBPlayers);
 
       const roomId = 'room_' + Math.random().toString(36).slice(2, 10);
+    console.log('[room] created', roomId, 'teamA:', teamA.map(p=>p.userId), 'teamB:', teamB.map(p=>p.userId));
       rooms[roomId] = {
         teamA: teamAPlayers,
         teamB: teamBPlayers,
@@ -512,7 +514,8 @@ io.on("connection", (socket) => {
     if (rooms[roomId]) {
       rooms[roomId].state[teamId === 'A' ? 'codeA' : 'codeB'] = code;
       await syncRoomsToSupabase();
-      io.to(roomId + "_" + teamId).emit("team_code_update", { code });
+      console.log(`[room:${roomId}] code update from team ${teamId}, length`, code.length);
+        io.to(roomId + "_" + teamId).emit("team_code_update", { code });
     }
   });
 
