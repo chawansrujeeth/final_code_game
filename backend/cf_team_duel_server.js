@@ -572,11 +572,42 @@ io.on("connection", (socket) => {
   });
 
   // Leader tells server to have teammates join created room
-  socket.on("summon_team", ({ roomId, teamIds = [] }) => {
+  socket.on("summon_team", async ({ roomId, teamIds = [] }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // Attach sockets if missing and broadcast join_room (includes leader)
     teamIds.forEach(uid => {
-      const s = userSockets[uid];
-      if (s) s.emit("join_room", { roomId });
+      const sock = userSockets[uid];
+      if (sock) {
+        // keep socket reference for later
+        const pArr = room.teamA.concat(room.teamB);
+        const player = pArr.find(p => p.userId === uid);
+        if (player) player.socket = sock;
+        sock.emit("join_room", { roomId });
+      }
     });
+
+    // Ensure we have names for all players before assignment
+    await ensureNames(room.teamA);
+    await ensureNames(room.teamB);
+
+    const sendAssignment = (player) => {
+      const sock = player.socket || userSockets[player.userId];
+      if (!sock) return;
+      const isTeamA = room.teamA.some(p => p.userId === player.userId);
+      const teamId = isTeamA ? 'A' : 'B';
+      sock.join(roomId + '_' + teamId);
+      sock.emit('team_assignment', {
+        roomId,
+        teamId,
+        teamMembers: (isTeamA ? room.teamA : room.teamB).map(p => ({ userId: p.userId, name: p.name })),
+        opponents: (isTeamA ? room.teamB : room.teamA).map(p => ({ userId: p.userId, name: p.name }))
+      });
+    };
+
+    room.teamA.forEach(sendAssignment);
+    room.teamB.forEach(sendAssignment);
   });
 
   // Voice signalling for WebRTC (team voice chat)
