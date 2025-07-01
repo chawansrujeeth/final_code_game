@@ -289,7 +289,7 @@ io.on("connection", (socket) => {
       matchedTeams = [popped.teamA, popped.teamB];
     }
 
-    if (matchedTeams.length === 2) {
+    if (matchedTeams.length === 2 && matchedTeams[0].team_ids && matchedTeams[1].team_ids && new Set(matchedTeams[0].team_ids).size && !matchedTeams[0].team_ids.every(id => matchedTeams[1].team_ids.includes(id))) {
       // Determine which popped row corresponds to the calling party so we can make it Team A for consistency
       const initiatingIds = new Set(team.map(p => p.userId));
       const firstIsInitiator = matchedTeams[0].team_ids.some(id => initiatingIds.has(id));
