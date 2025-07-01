@@ -4,7 +4,8 @@
   "description": "",
   "main": "cf_duel_server.js",
   "scripts": {
-    "start": "node cf_duel_server.js"
+    "start": "node cf_team_duel_server.js",
+    "start:yjs": "node yjs_server.js"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +17,7 @@
     "http": "^0.0.1-security",
     "socket.io": "^4.7.2",
     "ws": "^8.15.1",
-    "y-websocket": "1.4.5",
+    "y-websocket": "^1.5.0",
     "yjs": "^13.6.27"
   }
 }
