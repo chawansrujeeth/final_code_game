@@ -253,9 +253,9 @@ io.on("connection", (socket) => {
       r.teamA.concat(r.teamB).some(p => p.userId === userId)
     );
     if (stillInRoom) {
-      console.log('[lobby] ignored join from', userId, '(still in room)');
-      socket.emit('error_msg', { text: 'Already in an active match' });
-      return;
+      // Assume stale room; force removal and allow lobby join
+      console.log('[lobby] user', userId, 'was in stale room, clearing');
+      removeUserFromAllRooms(userId);
     }
     removeUserFromAllRooms(userId);
     console.log('[lobby] join request', userId, name);
