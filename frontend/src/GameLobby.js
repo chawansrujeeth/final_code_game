@@ -279,7 +279,6 @@ export default function GameLobby({ user }) {
     queueMatch(team, actualDesiredSize);
     setStatus("Queued for matchmaking… waiting for opponent team");
 };
-  };
 
   const handleKick = (targetId) => {
   if (!isLeader) return;
