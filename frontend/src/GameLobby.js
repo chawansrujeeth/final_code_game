@@ -125,8 +125,8 @@ export default function GameLobby({ user }) {
     sock.on("lobby_update", (list) => setLobby(list));
 
     // Invitations
-    sock.on("team_invite", ({ from, teamIds = [] }) => {
-      setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from, teamIds }]);
+    sock.on("team_invite", ({ from, teamIds = [], leaderId: lId }) => {
+      setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from, teamIds, leaderId: lId }]);
     });
 
     sock.on("invite_response", ({ from, accepted }) => {
@@ -202,7 +202,7 @@ export default function GameLobby({ user }) {
       } else {
         if (prev.length >= desiredSize - 1) return prev;
         next = [...prev, friendId];
-        if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email }, teamIds: [user.id, ...accepted] });
+        if (socket) socket.emit("invite_player", { to: friendId, from: { userId: user.id, name: user.name || user.email }, teamIds: [user.id, ...accepted], leaderId });
       }
       return next;
     });
@@ -213,7 +213,9 @@ export default function GameLobby({ user }) {
     socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag, teamIds: combined });
     setInvites(invites.filter(i => i !== invite));
     if (acceptedFlag) {
-      setLeaderId(invite.from.userId); // inviter becomes leader
+      if (invite.leaderId) {
+    setLeaderId(invite.leaderId);
+  }
       // We wait for team_sync to update accepted list
     }
   };

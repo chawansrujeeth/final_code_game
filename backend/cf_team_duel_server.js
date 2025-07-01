@@ -505,9 +505,9 @@ io.on("connection", (socket) => {
   });
 
   // Invitation relay
-  socket.on("invite_player", ({ to, from, teamIds = [] }) => {
+  socket.on("invite_player", ({ to, from, teamIds = [], leaderId }) => {
     const target = userSockets[to];
-    if (target) target.emit("team_invite", { from, teamIds });
+    if (target) target.emit("team_invite", { from, teamIds, leaderId });
   });
 
   socket.on("invite_response", ({ to, from, accepted, teamIds = [] }) => {
