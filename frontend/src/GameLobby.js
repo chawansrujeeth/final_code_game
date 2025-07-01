@@ -216,7 +216,6 @@ export default function GameLobby({ user }) {
   const handleStart = () => {
     localStorage.removeItem('pendingTeam');
     const teamIds = [user.id, ...accepted];
-    localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize, teamIds }));
     if (!socket) return;
 
     const team = [
@@ -227,7 +226,11 @@ export default function GameLobby({ user }) {
       }),
     ];
 
-    socket.emit("create_game_team", { team, desiredSize });
+    // The desired size is the *actual* size of the team being sent.
+    const actualDesiredSize = team.length;
+    localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize: actualDesiredSize, teamIds }));
+
+    socket.emit("create_game_team", { team, desiredSize: actualDesiredSize });
     setStatus("Queued for matchmaking… waiting for opponent team");
   };
 

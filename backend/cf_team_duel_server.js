@@ -217,12 +217,17 @@ io.on("connection", (socket) => {
   // We merge sub-teams to reach desiredSize, then wait for another
   // full team of same size to start a match.
   // -----------------------------------------------------------------
-  socket.on("create_game_team", async ({ team, desiredSize }) => {
+  socket.on("create_game_team", async ({ team, desiredSize: clientDesiredSize }) => {
+    // Ensure the whole party stays together: desiredSize must be at least the current team size
+    let desiredSize = (typeof clientDesiredSize === 'number' && clientDesiredSize >= team.length)
+      ? clientDesiredSize
+      : team.length;
+
     // Remove team members from lobby while they wait
     lobby = lobby.filter(p => !team.some(sel => sel.userId === p.userId));
     await syncLobbyToSupabase();
 
-        // Map to player objects including socket ref (leave null if socket unknown)
+    // Map to player objects including socket ref (leave null if socket unknown)
     const subPlayers = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || null }));
 
     // Init bucket structures if missing
@@ -333,8 +338,12 @@ io.on("connection", (socket) => {
     await syncRoomsToSupabase();
     // Join rooms and notify
     teamAPlayers.forEach(player => {
-      player.socket.join(roomId + "_A");
-      player.socket.emit("team_assignment", {
+      const sock = player.socket || userSockets[player.userId];
+      if (!sock) return; // skip if player offline
+      // keep latest reference
+      player.socket = sock;
+      sock.join(roomId + "_A");
+      sock.emit("team_assignment", {
         roomId,
         teamId: "A",
         teamMembers: teamAPlayers.map(p => ({ userId: p.userId, name: p.name })),
@@ -342,8 +351,11 @@ io.on("connection", (socket) => {
       });
     });
     teamBPlayers.forEach(player => {
-      player.socket.join(roomId + "_B");
-      player.socket.emit("team_assignment", {
+      const sock = player.socket || userSockets[player.userId];
+      if (!sock) return;
+      player.socket = sock;
+      sock.join(roomId + "_B");
+      sock.emit("team_assignment", {
         roomId,
         teamId: "B",
         teamMembers: teamBPlayers.map(p => ({ userId: p.userId, name: p.name })),
