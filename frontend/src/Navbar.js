@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
+import useDarkMode from "./useDarkMode";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
 export default function Navbar() {
+  const [isDark, toggleDark] = useDarkMode();
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -32,7 +34,7 @@ export default function Navbar() {
     top: 0,
     left: 0,
     width: "100%",
-    background: "#fff",
+    background: "var(--bg)",
     boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
     zIndex: 100,
     fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif'",
@@ -52,7 +54,7 @@ export default function Navbar() {
     flexWrap: "wrap"
   };
   const linkStyle = (path) => ({
-    color: location.pathname === path ? "#7c3aed" : "#333",
+    color: location.pathname === path ? "var(--primary)" : "var(--text)",
     textDecoration: "none",
     fontWeight: 600,
     fontSize: "1.1rem",
@@ -90,6 +92,7 @@ export default function Navbar() {
             Code Stories
           </Link>
           <div className="navbar-links" style={linksContainer}>
+            <button onClick={toggleDark} style={{marginRight:16,padding:'4px 10px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>{isDark? '☀️' : '🌙'}</button>
             <Link to="/" style={linkStyle("/")}>Home</Link>
             <Link to="/duel" style={linkStyle("/duel")}>Duel</Link>
             <Link to="/duel_cf" style={linkStyle("/duel_cf")}>Duel (CF)</Link>
