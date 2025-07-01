@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { socket, safeJoinLobby, queueMatch } from "./socket";
+import useDarkMode from "./useDarkMode";
 import MonacoEditor from "@monaco-editor/react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
@@ -26,6 +27,7 @@ const languageOptions = [
 ];
 
 const TeamCFDuel = ({ user }) => {
+  const [isDark, toggleDark] = useDarkMode();
   // helper to check if all selected teammates (and self) are online in lobby list
   const isAllOnline = (sel, lob) => {
     return [...sel, user?.id].every(uid => lob.some(p => p.userId === uid));
@@ -298,7 +300,12 @@ const TeamCFDuel = ({ user }) => {
   if (inLobby) {
     return (
       <div style={{ padding: 32, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
-        <h2 style={{ color: '#7c3aed', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Team Duel Lobby</h2>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h2 style={{ color: 'var(--primary)', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Team Duel Lobby</h2>
+          <button onClick={toggleDark} style={{padding:'6px 12px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>
+            {isDark? '☀️ Light' : '🌙 Dark'}
+          </button>
+        </div>
         {
           // Compute online friends (accepted & currently in lobby)
         }

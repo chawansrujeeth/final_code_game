@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { socket, safeJoinLobby, queueMatch } from "./socket";
+import useDarkMode from "./useDarkMode";
 import { supabase } from "./supabaseClient";
 import VoiceChat from "./VoiceChat";
 
@@ -20,6 +21,7 @@ const MAX_TEAM_SIZE = 5; // maximum allowed by system
  *       Hook them to real matchmaking once your server is ready.
  */
 export default function GameLobby({ user }) {
+  const [isDark, toggleDark] = useDarkMode();
   // shared socket from socket.js is used
   const [friends, setFriends] = useState([]);       // all accepted friends
   const [lobby, setLobby] = useState([]);           // online users in lobby (from socket)
@@ -337,9 +339,15 @@ export default function GameLobby({ user }) {
               <li key={id} style={{ margin: '4px 0' }}>
                 {friends.find(f => f.userId === id)?.name || id}
                 <button onClick={() => handleKick(id)} style={{ marginLeft: 8, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 6px', cursor:'pointer' }}>Kick</button>
-            </li>
+              </li>
             ))}
           </ul>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <h1 style={{ textAlign: 'center' }}>Game Lobby</h1>
+          <button onClick={toggleDark} style={{padding:'6px 12px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>
+            {isDark? '☀️ Light' : '🌙 Dark'}
+          </button>
+        </div>
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
             {accepted.length}/{desiredSize - 1} teammates selected
           </div>
