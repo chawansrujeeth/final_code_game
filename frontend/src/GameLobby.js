@@ -30,7 +30,10 @@ export default function GameLobby({ user }) {
   const [accepted, setAccepted] = useState([]);      // accepted teammates
   const [status, setStatus] = useState("");
   const [invites, setInvites] = useState([]); // pending incoming invites
+  const [leaderId, setLeaderId] = useState(user?.id); // only leader can start match
   const restoredPending = useRef(false);
+
+  const isLeader = user?.id === leaderId;
 
   /* -------------------------- Fetch friend list -------------------------- */
   const fetchFriends = useCallback(async () => {
@@ -147,6 +150,8 @@ export default function GameLobby({ user }) {
     // Team sync event – server sends the full roster after any change
     sock.on("team_sync", ({ teamIds }) => {
       setAccepted(teamIds.filter(id => id !== user.id));
+      // keep existing leader if still present, else default to first id
+      setLeaderId(prev => teamIds.includes(prev) ? prev : teamIds[0]);
       setInvited([]);
     });
 
@@ -208,11 +213,13 @@ export default function GameLobby({ user }) {
     socket.emit("invite_response", { to: invite.from.userId, from: { userId: user.id, name: user.name || user.email }, accepted: acceptedFlag, teamIds: combined });
     setInvites(invites.filter(i => i !== invite));
     if (acceptedFlag) {
+      setLeaderId(invite.from.userId); // inviter becomes leader
       // We wait for team_sync to update accepted list
     }
   };
 
   const handleStart = () => {
+    if (user.id !== leaderId) return; // only leader can start
     localStorage.removeItem('pendingTeam');
     const teamIds = [user.id, ...accepted];
     if (!socket) return;
@@ -354,7 +361,7 @@ export default function GameLobby({ user }) {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
             <button
               onClick={handleStart}
-              disabled={false}
+              disabled={!isLeader}
               style={{
                 padding: '12px 32px',
                 fontSize: 18,
