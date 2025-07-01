@@ -606,8 +606,14 @@ io.on("connection", (socket) => {
       });
     };
 
-    room.teamA.forEach(sendAssignment);
-    room.teamB.forEach(sendAssignment);
+    // Delay team_assignment a bit so that teammates who just navigated to the duel page
+    // have time to mount their TeamCFDuel component and register socket listeners. Without
+    // this, the assignment could be emitted while they are still on the lobby page and
+    // will therefore be missed, resulting in the collaborative editor never loading.
+    setTimeout(() => {
+      room.teamA.forEach(sendAssignment);
+      room.teamB.forEach(sendAssignment);
+    }, 200); // 200 ms is ample for a route change + component mount
   });
 
   // Voice signalling for WebRTC (team voice chat)
