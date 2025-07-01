@@ -248,6 +248,15 @@ io.on("connection", (socket) => {
 
   // Join lobby
   socket.on("join_lobby", async ({ userId, name }) => {
+    // Ignore lobby join if user is already in an active room
+    const stillInRoom = Object.values(rooms).some(r =>
+      r.teamA.concat(r.teamB).some(p => p.userId === userId)
+    );
+    if (stillInRoom) {
+      console.log('[lobby] ignored join from', userId, '(still in room)');
+      socket.emit('error_msg', { text: 'Already in an active match' });
+      return;
+    }
     removeUserFromAllRooms(userId);
     console.log('[lobby] join request', userId, name);
     attachSocket(userId, socket);

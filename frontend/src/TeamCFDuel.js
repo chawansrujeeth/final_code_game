@@ -36,6 +36,7 @@ const TeamCFDuel = ({ user }) => {
   const [statusMsg, setStatusMsg] = useState("");
   const [roomId, setRoomId] = useState(null);
   const roomIdRef = useRef(null);
+  const inRoomRef = useRef(false);
   const [teamId, setTeamId] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [opponents, setOpponents] = useState([]);
@@ -99,7 +100,9 @@ const TeamCFDuel = ({ user }) => {
       setTimeout(() => {
         if (!roomIdRef.current) {
           setStatusMsg("Joining lobby...");
+          if (!inRoomRef.current) {
           sock.emit("join_lobby", { userId: user?.id || Math.random().toString(36).slice(2), name: user?.name || user?.email });
+        }
           sock.emit("get_lobby");
         }
       }, 1000);
@@ -138,6 +141,7 @@ const TeamCFDuel = ({ user }) => {
       setTeamMembers(fullTeam);
       setOpponents(fullOpp);
       setInLobby(false);
+       inRoomRef.current = true;
       setStatusMsg("Team assigned! Waiting for all players...");
     });
     sock.on("team_code_update", ({ code }) => {
