@@ -286,6 +286,22 @@ io.on("connection", (socket) => {
     if (waitingFullTeams[desiredSize].length >= 2) {
       const teamAPlayers = waitingFullTeams[desiredSize].shift();
       const teamBPlayers = waitingFullTeams[desiredSize].shift();
+
+      // --- Ensure names present ---
+      const ensureNames = async (arr) => {
+        const missing = arr.filter(p => !p.name || p.name === 'Player').map(p => p.userId);
+        if (missing.length) {
+          const profs = await fetchProfiles(missing);
+          arr.forEach(pl => {
+            if (!pl.name || pl.name === 'Player') {
+              pl.name = profs[pl.userId] || pl.name || pl.userId;
+            }
+          });
+        }
+      };
+      await ensureNames(teamAPlayers);
+      await ensureNames(teamBPlayers);
+
       const roomId = "room_" + Math.random().toString(36).slice(2, 10);
 
       rooms[roomId] = {
@@ -301,7 +317,6 @@ io.on("connection", (socket) => {
         playersArr.forEach(player => {
           const sock = player.socket || userSockets[player.userId];
           if (!sock) return; // player currently offline
-          // keep latest socket reference
           player.socket = sock;
           sock.join(roomId + "_" + teamId);
           sock.emit("team_assignment", {
