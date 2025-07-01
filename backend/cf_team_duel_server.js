@@ -1,16 +1,33 @@
 const { Server } = require("socket.io");
 const http = require("http");
 const { createClient } = require('@supabase/supabase-js');
+const express = require('express');
+const cors = require('cors');
+const profilesRouter = require('./profiles_api');
+const friendsRouter = require('./friends_api');
 
 // Use environment variables compatible with frontend naming
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end("Team duel server is running!");
-});
+const app = express();
+app.use(cors({
+  origin: [
+    "https://final-code-game.vercel.app",
+    "http://localhost:3000"
+  ],
+  credentials: true
+}));
+app.use(express.json());
+
+// Mount API routers
+app.use('/api/profile', profilesRouter);
+app.use('/api/friends', friendsRouter);
+
+app.get('/', (_req, res) => res.send('Team duel server is running!'));
+
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
