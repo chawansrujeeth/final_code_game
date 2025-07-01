@@ -33,6 +33,16 @@ export default function GameLobby({ user }) {
   const [leaderId, setLeaderId] = useState(user?.id); // only leader can start match
   const restoredPending = useRef(false);
 
+  // -------------------- Stable name cache --------------------
+  const [nameCache, setNameCache] = useState({});
+  const rememberName = useCallback((id, nm) => {
+    if (!id || !nm) return;
+    setNameCache(prev => (prev[id] ? prev : { ...prev, [id]: nm }));
+  }, []);
+  const displayName = useCallback((id) => {
+    return nameCache[id] || friends.find(f => f.userId === id)?.name || id;
+  }, [nameCache, friends]);
+
   const isLeader = user?.id === leaderId;
 
   /* -------------------------- Fetch friend list -------------------------- */
@@ -61,6 +71,7 @@ export default function GameLobby({ user }) {
         userId: id,
         name: profs?.find((p) => p.user_id === id)?.name || id,
       }));
+      mapped.forEach(p => rememberName(p.userId, p.name));
       setFriends(mapped);
     } else {
       setFriends([]);
@@ -122,14 +133,30 @@ export default function GameLobby({ user }) {
       setStatus("Connected. Waiting in lobby…");
     });
 
-    sock.on("lobby_update", (list) => setLobby(list));
+    sock.on("lobby_update", (list) => {
+      list.forEach(p => rememberName(p.userId, p.name));
+      setLobby(list);
+    });
+
+    // You were kicked
+    sock.on("kicked", ({ by }) => {
+      setAccepted([]);
+      setInvited([]);
+      setLeaderId(user.id);
+      setDesiredSize(MAX_TEAM_SIZE);
+      setStatus(`You were kicked by ${displayName(by)}`);
+    });
 
     // Invitations
     sock.on("team_invite", ({ from, teamIds = [], leaderId: lId }) => {
+      rememberName(from.userId, from.name);
+
       setInvites(prev => prev.some(i=>i.from.userId===from.userId) ? prev : [...prev, { from, teamIds, leaderId: lId }]);
     });
 
     sock.on("invite_response", ({ from, accepted }) => {
+      rememberName(from.userId, from.name);
+
       setAccepted(prev => {
         let next;
         if (accepted) {
@@ -150,6 +177,7 @@ export default function GameLobby({ user }) {
     // Team sync event – server sends the full roster after any change
     sock.on("team_sync", ({ teamIds }) => {
       setAccepted(teamIds.filter(id => id !== user.id));
+      setDesiredSize(teamIds.length);
       // keep existing leader if still present, else default to first id
       setLeaderId(prev => teamIds.includes(prev) ? prev : teamIds[0]);
       setInvited([]);
@@ -160,6 +188,20 @@ export default function GameLobby({ user }) {
       alert('You were kicked from the team');
       setAccepted([]);
       setInvited([]);
+    });
+
+    // Matchmaking complete – leaders receive match_found first
+    sock.on("match_found", ({ roomId, yourTeam, oppTeam }) => {
+      localStorage.removeItem('queuedTeam');
+      setStatus('Match found! Joining room…');
+      if (user.id === leaderId) {
+        sock.emit('summon_team', { roomId, teamIds: yourTeam });
+      }
+    });
+
+    sock.on("join_room", ({ roomId }) => {
+      setStatus('Joined match room ' + roomId);
+      // Redirect or state transition could go here
     });
 
     // Placeholder for when backend pairs two teams
@@ -215,9 +257,9 @@ export default function GameLobby({ user }) {
     if (acceptedFlag) {
       if (invite.leaderId) {
     setLeaderId(invite.leaderId);
-  }
-      // We wait for team_sync to update accepted list
-    }
+    setDesiredSize(combined.length);
+    // We wait for team_sync to update accepted list
+  }  }
   };
 
   const handleStart = () => {
@@ -228,28 +270,34 @@ export default function GameLobby({ user }) {
 
     const team = [
       { userId: user.id, name: user.name || user.email },
-      ...accepted.map((id) => {
-        const fr = friends.find((f) => f.userId === id) || {};
-        return { userId: id, name: fr.name || id };
-      }),
+      ...accepted.map((id) => ({ userId: id, name: displayName(id) })),
     ];
 
-    // The desired size is the *actual* size of the team being sent.
     const actualDesiredSize = team.length;
     localStorage.setItem('queuedTeam', JSON.stringify({ desiredSize: actualDesiredSize, teamIds }));
 
     queueMatch(team, actualDesiredSize);
     setStatus("Queued for matchmaking… waiting for opponent team");
+};
   };
-
-  const teamIds = [user.id, ...accepted];
 
   const handleKick = (targetId) => {
-    if (socket) socket.emit("kick_player", { leader: user.id, target: targetId });
-    setAccepted((prev) => prev.filter((id) => id !== targetId));
-  // pendingTeam will update via effect
-    setInvited((prev) => prev.filter((id) => id !== targetId));
-  };
+  if (!isLeader) return;
+  if (socket) socket.emit("kick_player", { leader: user.id, target: targetId });
+  setAccepted((prev) => prev.filter((id) => id !== targetId));
+  setInvited((prev) => prev.filter((id) => id !== targetId));
+};
+
+const handleLeave = () => {
+  // Form new roster without current user
+  const newTeamIds = [leaderId, ...accepted].filter(id => id !== user.id);
+  if (socket) socket.emit("leave_team", { userId: user.id, teamIds: newTeamIds });
+  // Reset local state to lobby solo mode
+  setAccepted([]);
+  setInvited([]);
+  setLeaderId(user.id);
+  setDesiredSize(MAX_TEAM_SIZE);
+};
 
   /* ------------------------------- Render -------------------------------- */
   return (
@@ -335,7 +383,7 @@ export default function GameLobby({ user }) {
                 {id
                   ? id === user.id
                     ? "You"
-                    : (friends.find((f) => f.userId === id)?.name?.[0]?.toUpperCase() || "F")
+                    : (displayName(id)?.[0]?.toUpperCase() || "F")
                   : ""}
               </div>
             )
@@ -346,7 +394,7 @@ export default function GameLobby({ user }) {
           <ul style={{ listStyle: 'none', padding: 0, textAlign: 'center', marginBottom: 16 }}>
             {accepted.filter(id => id !== user.id).map(id => (
               <li key={id} style={{ margin: '4px 0' }}>
-                {friends.find(f => f.userId === id)?.name || id}
+                {displayName(id)}
                 <button onClick={() => handleKick(id)} style={{ marginLeft: 8, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 6px', cursor:'pointer' }}>Kick</button>
               </li>
             ))}

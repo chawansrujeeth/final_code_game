@@ -57,6 +57,18 @@ let rooms = {};
 let pendingSubteams = {}; // unused in new Supabase flow
 let waitingFullTeams = {}; // unused in new Supabase flow
 
+// --- New leader-centric matchmaking ---
+const leaderTeams = new Map(); // leaderId -> [memberIds]
+const queuedLeaders = []; // FIFO of leaderIds waiting for opponent
+
+function popTwoLeaders() {
+  if (queuedLeaders.length >= 2) {
+    const [a, b] = queuedLeaders.splice(0, 2);
+    return [a, b];
+  }
+  return null;
+}
+
 // --- Helper Functions ---
 async function syncLobbyToSupabase() {
   await supabase.from('cfduel_lobby').upsert(lobby.map(p => ({ user_id: p.userId, name: p.name })));
@@ -282,6 +294,29 @@ io.on("connection", (socket) => {
   // -----------------------------------------------------------------
   // Supabase-backed matchmaking queue (no in-memory merge)
   socket.on("create_game_team", async ({ team, desiredSize }) => {
+    const leaderId = team[0]?.userId;
+    if (!leaderId) return;
+    leaderTeams.set(leaderId, team.map(p => p.userId));
+    if (!queuedLeaders.includes(leaderId)) queuedLeaders.push(leaderId);
+
+    const pair = popTwoLeaders();
+    if (pair) {
+      const [leadA, leadB] = pair;
+      const roomId = "room_" + Math.random().toString(36).slice(2, 10);
+      const teamAIds = leaderTeams.get(leadA) || [];
+      const teamBIds = leaderTeams.get(leadB) || [];
+
+      // Store minimal room
+      rooms[roomId] = { teamA: teamAIds.map(uid => ({ userId: uid, socket: userSockets[uid]||null })), teamB: teamBIds.map(uid => ({ userId: uid, socket: userSockets[uid]||null })), status: 'active', state:{} };
+
+      const sockA = userSockets[leadA];
+      const sockB = userSockets[leadB];
+      if (sockA) sockA.emit("match_found", { roomId, yourTeam: teamAIds, oppTeam: teamBIds });
+      if (sockB) sockB.emit("match_found", { roomId, yourTeam: teamBIds, oppTeam: teamAIds });
+    }
+
+    // Skip legacy Supabase queue when using new flow
+    return;
     // Deduplicate: if any player already queued or in a room ignore this call
     const ids = team.map(p=>p.userId);
     for (const id of ids) {
@@ -523,8 +558,25 @@ io.on("connection", (socket) => {
   });
 
   socket.on("kick_player", ({ leader, target }) => {
-    const tgt = userSockets[target];
-    if (tgt) tgt.emit("kicked", { by: leader });
+    // Verify leader is actually leader of target's team by simple heuristic: first id in team list sent previously.
+    const tgtSocket = userSockets[target];
+    if (tgtSocket) tgtSocket.emit("kicked", { by: leader });
+  });
+
+  socket.on("leave_team", ({ userId, teamIds = [] }) => {
+    // Broadcast updated team to remaining members
+    teamIds.forEach(id => {
+      const s = userSockets[id];
+      if (s) s.emit("team_sync", { teamIds });
+    });
+  });
+
+  // Leader tells server to have teammates join created room
+  socket.on("summon_team", ({ roomId, teamIds = [] }) => {
+    teamIds.forEach(uid => {
+      const s = userSockets[uid];
+      if (s) s.emit("join_room", { roomId });
+    });
   });
 
   // Voice signalling for WebRTC (team voice chat)
