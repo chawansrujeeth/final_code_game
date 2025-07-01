@@ -229,10 +229,16 @@ io.on("connection", (socket) => {
     if (!pendingSubteams[desiredSize]) pendingSubteams[desiredSize] = [];
     if (!waitingFullTeams[desiredSize]) waitingFullTeams[desiredSize] = [];
 
-    pendingSubteams[desiredSize].push({ players: subPlayers });
+    // If caller already provides a full-sized roster, treat as full team directly.
+    if (subPlayers.length === desiredSize) {
+      waitingFullTeams[desiredSize].push(subPlayers);
+    } else {
+      // Otherwise, treat as sub-team to be merged later
+      pendingSubteams[desiredSize].push({ players: subPlayers });
+    }
     await syncMatchmakingToSupabase();
 
-    // Try to assemble full team(s) for this desiredSize
+    // Helper: attempt to build a full team by merging smaller sub-teams
     function tryBuildFullTeam(size) {
       const bucket = pendingSubteams[size];
       if (!bucket || bucket.length === 0) return null;
@@ -248,19 +254,22 @@ io.on("connection", (socket) => {
         }
       }
       if (collected.length === size) {
-        // remove used subteams
         bucket.splice(0, removeCount);
         return collected;
       }
       return null;
     }
 
-    // Attempt to build teams repeatedly
-    let newTeam;
-    while ((newTeam = tryBuildFullTeam(desiredSize))) {
-      waitingFullTeams[desiredSize].push(newTeam);
-      await syncMatchmakingToSupabase();
+    // If we added a sub-team, try to assemble full team(s)
+    if (subPlayers.length !== desiredSize) {
+      let newTeam;
+      while ((newTeam = tryBuildFullTeam(desiredSize))) {
+        waitingFullTeams[desiredSize].push(newTeam);
+      }
     }
+
+    // After any update, persist
+    await syncMatchmakingToSupabase();
 
     // Notify each subteam player they are waiting
     subPlayers.forEach(p => {
