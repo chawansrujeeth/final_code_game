@@ -56,15 +56,36 @@ async function loadRoomsFromSupabase() {
   const { data } = await supabase.from('cfduel_rooms').select('*');
   if (data) {
     rooms = {};
+    const allUserIds = new Set();
+    data.forEach(r => {
+      if(r.team_a) r.team_a.forEach(uid => allUserIds.add(uid));
+      if(r.team_b) r.team_b.forEach(uid => allUserIds.add(uid));
+    });
+
+    const profiles = await fetchProfiles(Array.from(allUserIds));
+
     data.forEach(r => {
       rooms[r.room_id] = {
-        teamA: r.team_a.map(userId => ({ userId, name: '', socket: null })),
-        teamB: r.team_b.map(userId => ({ userId, name: '', socket: null })),
+        teamA: r.team_a ? r.team_a.map(userId => ({ userId, name: profiles[userId] || 'Player', socket: null })) : [],
+        teamB: r.team_b ? r.team_b.map(userId => ({ userId, name: profiles[userId] || 'Player', socket: null })) : [],
         state: r.state,
         status: r.status
       };
     });
   }
+}
+
+// Helper to fetch user profiles by IDs
+async function fetchProfiles(userIds) {
+  if (!userIds || userIds.length === 0) return {};
+  const { data, error } = await supabase.from('profiles').select('id, name').in('id', userIds);
+  if (error) {
+    console.error("Error fetching profiles:", error);
+    return {};
+  }
+  const profilesMap = {};
+  data.forEach(p => { profilesMap[p.id] = p.name; });
+  return profilesMap;
 }
 
 // --- Matchmaking queue persistence (Supabase) ---
@@ -90,14 +111,23 @@ async function loadMatchmakingFromSupabase() {
   pendingSubteams = {};
   waitingFullTeams = {};
   if (!data) return;
+
+  const allUserIds = new Set();
+  data.forEach(row => {
+    if(row.team_ids) row.team_ids.forEach(uid => allUserIds.add(uid));
+  });
+
+  const profiles = await fetchProfiles(Array.from(allUserIds));
+
   data.forEach(row => {
     const size = row.desired_size;
+    const players = row.team_ids ? row.team_ids.map(uid => ({ userId: uid, name: profiles[uid] || 'Player', socket: null })) : [];
     if (row.kind === 'sub') {
       if (!pendingSubteams[size]) pendingSubteams[size] = [];
-      pendingSubteams[size].push({ players: row.team_ids.map(uid => ({ userId: uid, name: '', socket: null })) });
+      pendingSubteams[size].push({ players });
     } else {
       if (!waitingFullTeams[size]) waitingFullTeams[size] = [];
-      waitingFullTeams[size].push(row.team_ids.map(uid => ({ userId: uid, name: '', socket: null })));
+      waitingFullTeams[size].push(players);
     }
   });
 }
