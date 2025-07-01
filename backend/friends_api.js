@@ -23,7 +23,7 @@ router.post('/send-request', async (req, res) => {
   // Insert friend request
   const { error } = await supabase
     .from('friends')
-    .insert({ from_user_id, to_user_id: toUser.user_id, status: 'pending' });
+    .insert({ user_id: from_user_id, friend_id: toUser.user_id, status: 'pending' });
   if (error) return res.status(400).json({ error: error.message });
   res.json({ message: 'Friend request sent' });
 });
@@ -44,7 +44,7 @@ router.post('/reject-request', async (req, res) => {
   const { request_id } = req.body;
   const { error } = await supabase
     .from('friends')
-    .update({ status: 'rejected' })
+    .update({ status: 'declined' })
     .eq('id', request_id);
   if (error) return res.status(400).json({ error: error.message });
   res.json({ message: 'Friend request rejected' });
@@ -56,7 +56,7 @@ router.get('/list', async (req, res) => {
   const { data, error } = await supabase
     .from('friends')
     .select('*')
-    .or(`from_user_id.eq.${user_id},to_user_id.eq.${user_id}`)
+    .or(`user_id.eq.${user_id},friend_id.eq.${user_id}`)
     .eq('status', 'accepted');
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);

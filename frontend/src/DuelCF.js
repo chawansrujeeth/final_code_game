@@ -101,8 +101,10 @@ const DuelCF = ({ user }) => {
     sock.on("connect", () => {
       console.log("[DEBUG] Socket connected!", sock.id);
       setStatusMsg("Connected! Joining matchmaking...");
-      sock.emit("join_cf_matchmaking", {
+      sock.emit("join_matchmaking", {
         userId: user?.id || Math.random().toString(36).slice(2),
+        username: handle || user?.name || user?.email || "anon",
+        level: 1,
         handle
       });
     });
@@ -110,7 +112,7 @@ const DuelCF = ({ user }) => {
       setStatusMsg(data.msg || "Waiting for opponent...");
       setDuelState("waiting");
     });
-    sock.on("cf_duel_start", async (data) => {
+    sock.on("duel_start", async (data) => {
       console.log('[DEBUG] cf_duel_start received:', data);
       // Do NOT fetch samples here anymore
       setDuelInfo({ ...data, problem: { ...data.problem } });
@@ -126,7 +128,7 @@ const DuelCF = ({ user }) => {
       // DEBUG: Log duel problem
       console.log('[DEBUG] duelInfo.problem:', data.problem);
     });
-    sock.on("cf_duel_winner", (data) => {
+    sock.on("duel_result", (data) => {
       setWinner(data.winner);
       setDuelState("ended");
       setStatusMsg(`Winner: ${data.winner}`);
@@ -289,7 +291,7 @@ const DuelCF = ({ user }) => {
       setVerdict("Sample 1 passed! Checking Codeforces submission...");
       // Notify backend that this user passed local Judge0 check
       if (socket && duelInfo && duelInfo.roomId && handle) {
-        socket.emit('cf_local_pass', { roomId: duelInfo.roomId, handle });
+        socket.emit('duel_submission', { roomId: duelInfo.roomId, user: handle });
         console.log('[DEBUG] Notified backend of local Judge0 pass:', { roomId: duelInfo.roomId, handle });
       }
     }
