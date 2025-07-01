@@ -222,8 +222,8 @@ io.on("connection", (socket) => {
     lobby = lobby.filter(p => !team.some(sel => sel.userId === p.userId));
     await syncLobbyToSupabase();
 
-    // Map to player objects including socket ref
-    const subPlayers = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
+        // Map to player objects including socket ref (leave null if socket unknown)
+    const subPlayers = team.map(sel => ({ ...sel, socket: userSockets[sel.userId] || null }));
 
     // Init bucket structures if missing
     if (!pendingSubteams[desiredSize]) pendingSubteams[desiredSize] = [];
@@ -312,8 +312,8 @@ io.on("connection", (socket) => {
     lobby = lobby.filter(p => ![...teamA, ...teamB].some(sel => sel.userId === p.userId));
     await syncLobbyToSupabase();
     // Find sockets
-    const teamAPlayers = teamA.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
-    const teamBPlayers = teamB.map(sel => ({ ...sel, socket: userSockets[sel.userId] || socket }));
+    const teamAPlayers = teamA.map(sel => ({ ...sel, socket: userSockets[sel.userId] || null }));
+    const teamBPlayers = teamB.map(sel => ({ ...sel, socket: userSockets[sel.userId] || null }));
     const roomId = "room_" + Math.random().toString(36).slice(2, 10);
     rooms[roomId] = {
       teamA: teamAPlayers,
