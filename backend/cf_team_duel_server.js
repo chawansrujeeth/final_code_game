@@ -252,8 +252,12 @@ io.on("connection", (socket) => {
       // Notify players
       const notify = (playersArr, teamId, opp) => {
         playersArr.forEach(player => {
-          player.socket.join(roomId + "_" + teamId);
-          player.socket.emit("team_assignment", {
+          const sock = player.socket || userSockets[player.userId];
+          if (!sock) return; // player currently offline
+          // keep latest socket reference
+          player.socket = sock;
+          sock.join(roomId + "_" + teamId);
+          sock.emit("team_assignment", {
             roomId,
             teamId,
             teamMembers: playersArr.map(p => ({ userId: p.userId, name: p.name })),
