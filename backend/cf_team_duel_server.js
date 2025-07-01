@@ -231,6 +231,7 @@ io.on("connection", (socket) => {
 
   // Join lobby
   socket.on("join_lobby", async ({ userId, name }) => {
+    console.log('[lobby] join request', userId, name);
     attachSocket(userId, socket);
     if (!lobby.find(p => p.userId === userId)) {
       lobby.push({ socket, userId, name });
@@ -254,6 +255,7 @@ io.on("connection", (socket) => {
   // -----------------------------------------------------------------
   // Supabase-backed matchmaking queue (no in-memory merge)
   socket.on("create_game_team", async ({ team, desiredSize }) => {
+    console.log('[match] create_game_team called by', team.map(p=>p.userId), 'desired', desiredSize);
     // Ensure desiredSize >= party size
     const size = Math.max(desiredSize || team.length, team.length);
 
@@ -318,6 +320,7 @@ io.on("connection", (socket) => {
           if (!sock) return;
           player.socket = sock;
           sock.join(roomId + '_' + teamId);
+          console.log('[assign]', player.userId, 'room', roomId, 'team', teamId);
           sock.emit('team_assignment', {
             roomId,
             teamId,
