@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useLocation } from 'react-router-dom';
 import { socket, safeJoinLobby, queueMatch } from "./socket";
 import useDarkMode from "./useDarkMode";
 import MonacoEditor from "@monaco-editor/react";
@@ -27,6 +28,9 @@ const languageOptions = [
 ];
 
 const TeamCFDuel = ({ user }) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const initialRoomParam = params.get('roomId');
   const [isDark, toggleDark] = useDarkMode();
   // helper to check if all selected teammates (and self) are online in lobby list
   const isAllOnline = (sel, lob) => {
@@ -36,7 +40,8 @@ const TeamCFDuel = ({ user }) => {
   const [teamCode, setTeamCode] = useState("");
   const [editorLanguage, setEditorLanguage] = useState("python");
   const [statusMsg, setStatusMsg] = useState("");
-  const [roomId, setRoomId] = useState(null);
+  const initialStoredRoom = localStorage.getItem('roomId');
+  const [roomId, setRoomId] = useState(initialRoomParam || initialStoredRoom || null);
   const roomIdRef = useRef(null);
   const inRoomRef = useRef(false);
   const [teamId, setTeamId] = useState(null);
@@ -91,6 +96,14 @@ const TeamCFDuel = ({ user }) => {
     fetchFriends();
   }, [fetchFriends]);
 
+  // Set roomId early if passed
+  useEffect(() => {
+    const rid = initialRoomParam || initialStoredRoom;
+    if (rid && !roomIdRef.current) {
+      roomIdRef.current = rid;
+    }
+  }, [initialRoomParam, initialStoredRoom]);
+  
   // Connect to socket and handle lobby/team events
   useEffect(() => {
     const sock = socket;

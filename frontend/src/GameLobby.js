@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
 import { socket, safeJoinLobby, queueMatch } from "./socket";
 import useDarkMode from "./useDarkMode";
 import { supabase } from "./supabaseClient";
@@ -21,6 +22,7 @@ const MAX_TEAM_SIZE = 5; // maximum allowed by system
  *       Hook them to real matchmaking once your server is ready.
  */
 export default function GameLobby({ user }) {
+  const navigate = useNavigate();
   const [isDark, toggleDark] = useDarkMode();
   // shared socket from socket.js is used
   const [friends, setFriends] = useState([]);       // all accepted friends
@@ -202,9 +204,13 @@ export default function GameLobby({ user }) {
       }
     });
 
-    sock.on("join_room", ({ roomId }) => {
+    sock.on("join_room", ({ roomId, yourTeam = [], oppTeam = [] }) => {
       setStatus('Joined match room ' + roomId);
-      // Redirect or state transition could go here
+      // persist data for next page
+      localStorage.setItem('roomId', roomId);
+      localStorage.setItem('yourTeam', JSON.stringify(yourTeam));
+      localStorage.setItem('oppTeam', JSON.stringify(oppTeam));
+      navigate(`/team_duel_cf?roomId=${roomId}`);
     });
 
     // Placeholder for when backend pairs two teams
@@ -421,11 +427,28 @@ const handleLeave = () => {
                 background: '#7c3aed',
                 color: '#fff',
                 border: 'none',
-                cursor: 'pointer'
+                cursor: isLeader ? 'pointer' : 'not-allowed',
+                marginRight: 16
               }}
             >
               Start
             </button>
+            {teamIds.length > 1 && (
+              <button
+                onClick={handleLeave}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: 16,
+                  borderRadius: 8,
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Leave Team
+              </button>
+            )}
           </div>
 
           </>
