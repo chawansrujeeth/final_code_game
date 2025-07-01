@@ -78,13 +78,13 @@ async function loadRoomsFromSupabase() {
 // Helper to fetch user profiles by IDs
 async function fetchProfiles(userIds) {
   if (!userIds || userIds.length === 0) return {};
-  const { data, error } = await supabase.from('profiles').select('id, name').in('id', userIds);
+  const { data, error } = await supabase.from('profiles').select('user_id, name').in('user_id', userIds);
   if (error) {
     console.error("Error fetching profiles:", error);
     return {};
   }
   const profilesMap = {};
-  data.forEach(p => { profilesMap[p.id] = p.name; });
+  data.forEach(p => { profilesMap[p.user_id] = p.name; });
   return profilesMap;
 }
 
@@ -250,14 +250,8 @@ io.on("connection", (socket) => {
     }));
 
     let matchedTeams = [];
-    if (popped && Array.isArray(popped)) {
-      // Case: function returns two rows directly
-      if (popped.length === 2 && popped[0].team_ids) {
-        matchedTeams = popped;
-      } else if (popped.length && popped[0].t1) {
-        // Case: function returns single row with t1/t2 keys
-        matchedTeams = [popped[0].t1, popped[0].t2];
-      }
+    if (popped && popped.teamA) {
+      matchedTeams = [popped.teamA, popped.teamB];
     }
 
     if (matchedTeams.length === 2) {
@@ -298,9 +292,8 @@ io.on("connection", (socket) => {
     }
 
     io.emit('lobby_update', getLobbyList());
-
-    // Helper: attempt to build a full team by merging smaller sub-teams
-    function tryBuildFullTeam(size) {
+    return;
+    /* Removed legacy in-memory matchmaking logic */
       const bucket = pendingSubteams[size];
       if (!bucket || bucket.length === 0) return null;
       let collected = [];
