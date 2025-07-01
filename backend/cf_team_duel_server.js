@@ -30,10 +30,10 @@ let lobby = [];
 let rooms = {};
 
 // --- Pending matchmaking state ---
-// pendingSubteams[size] = array of subteams (each subteam = { players: [] })
-let pendingSubteams = {};
-// waitingFullTeams[size] = array of full teams (each fullTeam = players[] length == size)
-let waitingFullTeams = {};
+// /* legacy code removed */[size] = array of subteams (each subteam = { players: [] })
+let /* legacy code removed */ = {};
+// /* legacy variable removed */[size] = array of full teams (each fullTeam = players[] length == size)
+let /* legacy variable removed */ = {};
 
 // --- Helper Functions ---
 async function syncLobbyToSupabase() {
@@ -91,12 +91,12 @@ async function fetchProfiles(userIds) {
 // --- Matchmaking queue persistence (Supabase) ---
 async function syncMatchmakingToSupabase() {
   const rows = [];
-  Object.entries(pendingSubteams).forEach(([size, subs]) => {
+  Object.entries(/* legacy code removed */).forEach(([size, subs]) => {
     subs.forEach((sub, idx) => {
       rows.push({ key: `sub_${size}_${idx}`, kind: 'sub', desired_size: Number(size), team_ids: sub.players.map(p => p.userId) });
     });
   });
-  Object.entries(waitingFullTeams).forEach(([size, teams]) => {
+  Object.entries(/* legacy variable removed */).forEach(([size, teams]) => {
     teams.forEach((team, idx) => {
       rows.push({ key: `full_${size}_${idx}`, kind: 'full', desired_size: Number(size), team_ids: team.map(p => p.userId) });
     });
@@ -108,8 +108,8 @@ async function syncMatchmakingToSupabase() {
 
 async function loadMatchmakingFromSupabase() {
   const { data } = await supabase.from('cfduel_matchmaking').select('*');
-  pendingSubteams = {};
-  waitingFullTeams = {};
+  /* legacy code removed */ = {};
+  /* legacy variable removed */ = {};
   if (!data) return;
 
   const allUserIds = new Set();
@@ -123,11 +123,11 @@ async function loadMatchmakingFromSupabase() {
     const size = row.desired_size;
     const players = row.team_ids ? row.team_ids.map(uid => ({ userId: uid, name: profiles[uid] || 'Player', socket: null })) : [];
     if (row.kind === 'sub') {
-      if (!pendingSubteams[size]) pendingSubteams[size] = [];
-      pendingSubteams[size].push({ players });
+      if (!/* legacy code removed */[size]) /* legacy code removed */[size] = [];
+      /* legacy code removed */[size].push({ players });
     } else {
-      if (!waitingFullTeams[size]) waitingFullTeams[size] = [];
-      waitingFullTeams[size].push(players);
+      if (!/* legacy variable removed */[size]) /* legacy variable removed */[size] = [];
+      /* legacy variable removed */[size].push(players);
     }
   });
 }
@@ -170,10 +170,10 @@ io.on("connection", (socket) => {
       }
     }
 
-    // Check pending subteams / waitingFullTeams for this user
-    for (const size of Object.keys(pendingSubteams)) {
+    // Check pending subteams / /* legacy variable removed */ for this user
+    for (const size of Object.keys(/* legacy code removed */)) {
       // Search pending subteams
-      const subArr = pendingSubteams[size] || [];
+      const subArr = /* legacy code removed */[size] || [];
       for (const sub of subArr) {
         if (sub.players.some(p => p.userId === userId)) {
           socket.emit("team_sync", { teamIds: sub.players.map(p => p.userId) });
@@ -182,8 +182,8 @@ io.on("connection", (socket) => {
         }
       }
     }
-    for (const size of Object.keys(waitingFullTeams)) {
-      const fullArr = waitingFullTeams[size] || [];
+    for (const size of Object.keys(/* legacy variable removed */)) {
+      const fullArr = /* legacy variable removed */[size] || [];
       for (const full of fullArr) {
         if (full.some(p => p.userId === userId)) {
           socket.emit("team_sync", { teamIds: full.map(p => p.userId) });
@@ -293,8 +293,8 @@ io.on("connection", (socket) => {
 
     io.emit('lobby_update', getLobbyList());
     return;
-    /* Removed legacy in-memory matchmaking logic */
-      const bucket = pendingSubteams[size];
+
+      const bucket = /* legacy code removed */[size];
       if (!bucket || bucket.length === 0) return null;
       let collected = [];
       let removeCount = 0;
@@ -315,10 +315,10 @@ io.on("connection", (socket) => {
     }
 
     // If we added a sub-team, try to assemble full team(s)
-    if (subPlayers.length !== desiredSize) {
+    if (/* legacy variable removed */.length !== desiredSize) {
       let newTeam;
       while ((newTeam = tryBuildFullTeam(desiredSize))) {
-        waitingFullTeams[desiredSize].push(newTeam);
+        /* legacy variable removed */[desiredSize].push(newTeam);
       }
     }
 
@@ -326,15 +326,15 @@ io.on("connection", (socket) => {
     await syncMatchmakingToSupabase();
 
     // Notify each subteam player they are waiting
-    subPlayers.forEach(p => {
+    /* legacy variable removed */.forEach(p => {
        const sock = p.socket || userSockets[p.userId];
        if (sock) sock.emit("waiting_opponent", { message: `Looking for ${desiredSize}-player opponent team…` });
      });
 
     // If we now have two full teams, create match
-    if (waitingFullTeams[desiredSize].length >= 2) {
-      const teamAPlayers = waitingFullTeams[desiredSize].shift();
-      const teamBPlayers = waitingFullTeams[desiredSize].shift();
+    if (/* legacy variable removed */[desiredSize].length >= 2) {
+      const teamAPlayers = /* legacy variable removed */[desiredSize].shift();
+      const teamBPlayers = /* legacy variable removed */[desiredSize].shift();
 
       // --- Ensure names present ---
       const ensureNames = async (arr) => {
