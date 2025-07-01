@@ -26,6 +26,10 @@ const languageOptions = [
 ];
 
 const TeamCFDuel = ({ user }) => {
+  // helper to check if all selected teammates (and self) are online in lobby list
+  const isAllOnline = (sel, lob) => {
+    return [...sel, user?.id].every(uid => lob.some(p => p.userId === uid));
+  };
   const [socket, setSocket] = useState(null);
   const [teamCode, setTeamCode] = useState("");
   const [editorLanguage, setEditorLanguage] = useState("python");
@@ -38,6 +42,7 @@ const TeamCFDuel = ({ user }) => {
   // List of accepted friends (objects: { userId, name })
   const [friends, setFriends] = useState([]);
   const [selectedTeammates, setSelectedTeammates] = useState([]);
+  const [creatingMatch, setCreatingMatch] = useState(false);
   const [inLobby, setInLobby] = useState(true);
   const teamCodeRef = useRef("");
   const channelRef = useRef(null);
@@ -117,6 +122,8 @@ const TeamCFDuel = ({ user }) => {
     };
 
     sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
+       setCreatingMatch(false);
+       setCollabReady(false); // reset before new provider
       const fullTeam = await enrichNames(teamMembers);
       const fullOpp = await enrichNames(opponents);
       setRoomId(roomId);
@@ -172,6 +179,7 @@ const TeamCFDuel = ({ user }) => {
     console.log("[Yjs] connecting", providerUrl + "/" + docName);
     const provider = new WebsocketProvider(providerUrl, docName, ydoc);
     provider.on('status', event => {
+      // forward to status message if wanted
       console.log('[Yjs] connection status', event.status);
     });
     providerRef.current = provider;
@@ -198,6 +206,7 @@ const TeamCFDuel = ({ user }) => {
     provider.awareness.setLocalStateField("lang", editorLanguage);
     setCollabReady(true);
     return () => {
+      setCollabReady(false);
       provider.destroy();
       ydoc.destroy();
     };
@@ -258,6 +267,7 @@ const TeamCFDuel = ({ user }) => {
 
   // Create team (2v2: self + 1 teammate, 2 opponents)
   const handleCreateTeam = () => {
+    if (creatingMatch) return; // already pressed
     if (!user?.id || selectedTeammates.length !== 1) return;
     // Pick 2 random opponents from lobby not in selectedTeammates or self
     const others = lobby.filter(p => p.userId !== user.id && !selectedTeammates.includes(p.userId));
@@ -270,6 +280,7 @@ const TeamCFDuel = ({ user }) => {
                     ...lobby.filter(p => selectedTeammates.includes(p.userId)) ];
     const teamB = shuffled.slice(0, 2);
     socket.emit("create_team_duel", { teamA, teamB });
+    setCreatingMatch(true);
     setStatusMsg("Team created! Assigning teams...");
   };
 
@@ -307,8 +318,10 @@ const TeamCFDuel = ({ user }) => {
           );
         })()}
         <button
-          onClick={handleCreateTeam}
-          disabled={selectedTeammates.length !== 1}
+          onClick={() => {
+            handleCreateTeam();
+          }}
+          disabled={selectedTeammates.length !== 1 || !isAllOnline(selectedTeammates, lobby) || creatingMatch}
           style={{ padding: '10px 24px', fontSize: 16, borderRadius: 6, background: '#7c3aed', color: '#fff', border: 'none', cursor: 'pointer', marginBottom: 12 }}
         >
           Start 2v2 Duel
