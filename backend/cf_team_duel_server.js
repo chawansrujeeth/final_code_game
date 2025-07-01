@@ -306,7 +306,7 @@ io.on("connection", (socket) => {
       await ensureNames(teamBPlayers);
 
       const roomId = 'room_' + Math.random().toString(36).slice(2, 10);
-    console.log('[room] created', roomId, 'teamA:', teamA.map(p=>p.userId), 'teamB:', teamB.map(p=>p.userId));
+    console.log('[room] created', roomId, 'teamA:', teamAPlayers.map(p=>p.userId), 'teamB:', teamBPlayers.map(p=>p.userId));
       rooms[roomId] = {
         teamA: teamAPlayers,
         teamB: teamBPlayers,
