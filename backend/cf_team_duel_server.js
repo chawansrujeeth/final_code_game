@@ -309,6 +309,7 @@ io.on("connection", (socket) => {
         state: { codeA: '', codeB: '' },
         status: 'active'
       };
+      console.log('[room]', roomId, 'teamA:', teamAPlayers.map(p => p.userId), 'teamB:', teamBPlayers.map(p => p.userId));
       await syncRoomsToSupabase();
 
       const notify = (playersArr, teamId, opp) => {
@@ -398,17 +399,6 @@ io.on("connection", (socket) => {
 
       const roomId = "room_" + Math.random().toString(36).slice(2, 10);
 
-      rooms[roomId] = {
-        teamA: teamAPlayers,
-        teamB: teamBPlayers,
-        state: { codeA: '', codeB: '' },
-        status: 'active',
-      };
-      await syncRoomsToSupabase();
-
-      // Notify players
-      const notify = (playersArr, teamId, opp) => {
-        playersArr.forEach(player => {
           const sock = player.socket || userSockets[player.userId];
           if (!sock) return; // player currently offline
           player.socket = sock;
