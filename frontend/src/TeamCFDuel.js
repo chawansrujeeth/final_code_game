@@ -97,11 +97,32 @@ const TeamCFDuel = ({ user }) => {
     // sock.on("lobby_update", (lobbyList) => {
     //   setLobby(lobbyList);
     // });
-    sock.on("team_assignment", ({ roomId, teamId, teamMembers, opponents }) => {
+    const enrichNames = async (arr) => {
+      const missingIds = arr
+        .filter(p => !p.name || p.name === 'Player')
+        .map(p => p.userId);
+      if (missingIds.length) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('user_id,name')
+          .in('user_id', missingIds);
+        if (data) {
+          return arr.map(p => {
+            const match = data.find(d => d.user_id === p.userId);
+            return match ? { ...p, name: match.name } : p;
+          });
+        }
+      }
+      return arr;
+    };
+
+    sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
+      const fullTeam = await enrichNames(teamMembers);
+      const fullOpp = await enrichNames(opponents);
       setRoomId(roomId);
       setTeamId(teamId);
-      setTeamMembers(teamMembers);
-      setOpponents(opponents);
+      setTeamMembers(fullTeam);
+      setOpponents(fullOpp);
       setInLobby(false);
       setStatusMsg("Team assigned! Waiting for all players...");
     });
