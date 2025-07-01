@@ -103,6 +103,19 @@ async function fetchProfiles(userIds) {
   return profilesMap;
 }
 
+// Helper to ensure every player object has a display name
+async function ensureNames(playersArr) {
+  const missingIds = playersArr.filter(p => !p.name || p.name === 'Player').map(p => p.userId);
+  if (missingIds.length) {
+    const profs = await fetchProfiles(missingIds);
+    playersArr.forEach(pl => {
+      if (!pl.name || pl.name === 'Player') {
+        pl.name = profs[pl.userId] || pl.name || pl.userId;
+      }
+    });
+  }
+}
+
 // --- Matchmaking queue persistence (Supabase) ---
 async function syncMatchmakingToSupabase() {
   const rows = [];
@@ -270,8 +283,17 @@ io.on("connection", (socket) => {
     }
 
     if (matchedTeams.length === 2) {
-      const teamAPlayers = toPlayerArray(matchedTeams[0]);
-      const teamBPlayers = toPlayerArray(matchedTeams[1]);
+      // Determine which popped row corresponds to the calling party so we can make it Team A for consistency
+      const initiatingIds = new Set(team.map(p => p.userId));
+      const firstIsInitiator = matchedTeams[0].team_ids.some(id => initiatingIds.has(id));
+      const ordered = firstIsInitiator ? matchedTeams : [matchedTeams[1], matchedTeams[0]];
+
+      const teamAPlayers = toPlayerArray(ordered[0]);
+      const teamBPlayers = toPlayerArray(ordered[1]);
+
+      // Ensure names present
+      await ensureNames(teamAPlayers);
+      await ensureNames(teamBPlayers);
 
       const roomId = 'room_' + Math.random().toString(36).slice(2, 10);
       rooms[roomId] = {
