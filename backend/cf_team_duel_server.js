@@ -11,7 +11,16 @@ const server = http.createServer((req, res) => {
   res.writeHead(200);
   res.end("Team duel server is running!");
 });
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "https://final-code-game.vercel.app",
+      "http://localhost:3000"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
 // --- User ↔ Socket mapping ---
 let userSockets = {}; // userId: socket
