@@ -3,8 +3,8 @@ const http = require("http");
 const { createClient } = require('@supabase/supabase-js');
 
 // Use environment variables compatible with frontend naming
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const server = http.createServer((req, res) => {
@@ -233,7 +233,10 @@ io.on("connection", (socket) => {
     }
 
     // Notify each subteam player they are waiting
-    subPlayers.forEach(p => p.socket.emit("waiting_opponent", { message: `Looking for ${desiredSize}-player opponent team…` }));
+    subPlayers.forEach(p => {
+       const sock = p.socket || userSockets[p.userId];
+       if (sock) sock.emit("waiting_opponent", { message: `Looking for ${desiredSize}-player opponent team…` });
+     });
 
     // If we now have two full teams, create match
     if (waitingFullTeams[desiredSize].length >= 2) {
