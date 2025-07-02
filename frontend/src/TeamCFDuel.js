@@ -21,6 +21,7 @@ function TeamCFDuel({ user }) {
   const [status, setStatus] = useState("Loading...");
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
+  const modelVersion = useRef(0);
   const timerRef = useRef(null);
   const updateTimeoutRef = useRef(null);
   const isUpdatingFromRemote = useRef(false);
@@ -81,14 +82,13 @@ function TeamCFDuel({ user }) {
       setTimeout(() => navigate('/lobby'), 3000);
     });
 
-    sock.on("code_updated", ({ code: newCode, userId: editorId, userName: editorName }) => {
+    sock.on("code_updated", ({ changes, userId: editorId, userName: editorName }) => {
       console.log("[code] Received code update from teammate");
-      if (newCode === code) return; // ignore identical
+      if (!changes || !editorRef.current) return;
       isUpdatingFromRemote.current = true;
-      setCode(newCode);
-      if (editorRef.current) {
-        editorRef.current.setValue(newCode);
-      }
+      const model = editorRef.current.getModel();
+      model.applyEdits(changes);
+      setCode(model.getValue());
       setLastEditor(editorId === user.id ? 'You' : editorName);
       // Reset flag after a short delay
       setTimeout(() => {
@@ -113,12 +113,17 @@ function TeamCFDuel({ user }) {
     }
     
     updateTimeoutRef.current = setTimeout(() => {
-      if (matchData && !isUpdatingFromRemote.current) {
+      if (matchData && !isUpdatingFromRemote.current && editorRef.current) {
+        const model = editorRef.current.getModel();
+        const edits = model.getAlternativeVersionId() !== modelVersion.current
+          ? editorRef.current.getModel().getFullModelRange()
+          : [];
         socket.emit("code_update", {
           roomId: matchData.roomId,
           teamId: matchData.teamId,
-          code: newCode
+          changes: editorRef.current.getModel().getEditOperations()[0]?.edits || []
         });
+        modelVersion.current = model.getAlternativeVersionId();
       }
     }, 300); // 300ms debounce
   };

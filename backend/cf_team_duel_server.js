@@ -275,11 +275,11 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Code collaboration
-  socket.on("code_update", ({ roomId, teamId, code }) => {
-    console.log(`[code] Team ${teamId} in room ${roomId} updated code`);
+  // Code collaboration (diff-based)
+  socket.on("code_update", ({ roomId, teamId, changes }) => {
+    console.log(`[code] Team ${teamId} in room ${roomId} sent ${changes?.length || 0} edits`);
     socket.to(`room_${roomId}_${teamId}`).emit('code_updated', { 
-      code,
+      changes,
       userId: socket.userId,
       userName: socket.userName
     });
