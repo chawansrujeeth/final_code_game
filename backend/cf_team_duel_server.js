@@ -295,6 +295,9 @@ io.on("connection", (socket) => {
   // Supabase-backed matchmaking queue (no in-memory merge)
   socket.on("create_game_team", async ({ team, desiredSize }) => {
     const leaderId = team[0]?.userId;
+    // Make sure the caller’s socket is stored so that we can emit match_found immediately,
+    // even if the client clicked *Start* before the server handled their join_lobby message.
+    if (leaderId) attachSocket(leaderId, socket);
     if (!leaderId) return;
     leaderTeams.set(leaderId, team.map(p => p.userId));
     if (!queuedLeaders.includes(leaderId)) queuedLeaders.push(leaderId);
