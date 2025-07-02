@@ -17,6 +17,7 @@ function TeamCFDuel({ user }) {
   const [matchData, setMatchData] = useState(null);
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("python");
+  const [lastEditor, setLastEditor] = useState(null);
   const [status, setStatus] = useState("Loading...");
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
@@ -80,13 +81,15 @@ function TeamCFDuel({ user }) {
       setTimeout(() => navigate('/lobby'), 3000);
     });
 
-    sock.on("code_updated", ({ code: newCode }) => {
+    sock.on("code_updated", ({ code: newCode, userId: editorId, userName: editorName }) => {
       console.log("[code] Received code update from teammate");
+      if (newCode === code) return; // ignore identical
       isUpdatingFromRemote.current = true;
       setCode(newCode);
       if (editorRef.current) {
         editorRef.current.setValue(newCode);
       }
+      setLastEditor(editorId === user.id ? 'You' : editorName);
       // Reset flag after a short delay
       setTimeout(() => {
         isUpdatingFromRemote.current = false;
@@ -102,6 +105,7 @@ function TeamCFDuel({ user }) {
   const handleCodeChange = (value) => {
     const newCode = value || "";
     setCode(newCode);
+    setLastEditor('You');
     
     // Debounced code update to prevent spam
     if (updateTimeoutRef.current) {
@@ -280,6 +284,11 @@ function TeamCFDuel({ user }) {
           marginBottom: 12 
         }}>
           <h3 style={{ margin: 0, color: '#7c3aed' }}>Collaborative Code Editor</h3>
+          {lastEditor && (
+            <span style={{ fontSize: 12, color: '#888', marginLeft: 12 }}>
+              Last edit by {lastEditor}
+            </span>
+          ) }
           
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label htmlFor="language-select" style={{ fontWeight: 600 }}>Language:</label>

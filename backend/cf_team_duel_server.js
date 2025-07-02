@@ -114,6 +114,10 @@ io.on("connection", (socket) => {
     // Add to lobby only once
     const userName = await getUserName(userId);
     lobby.push({ userId, name: userName, socket });
+
+    // Attach identity to socket for later reference in collaborative events
+    socket.userId = userId;
+    socket.userName = userName;
     
     console.log(`[lobby] Current lobby:`, lobby.map(u => u.userId));
     
@@ -274,7 +278,11 @@ io.on("connection", (socket) => {
   // Code collaboration
   socket.on("code_update", ({ roomId, teamId, code }) => {
     console.log(`[code] Team ${teamId} in room ${roomId} updated code`);
-    socket.to(`room_${roomId}_${teamId}`).emit('code_updated', { code });
+    socket.to(`room_${roomId}_${teamId}`).emit('code_updated', { 
+      code,
+      userId: socket.userId,
+      userName: socket.userName
+    });
   });
 
   // Disconnect
