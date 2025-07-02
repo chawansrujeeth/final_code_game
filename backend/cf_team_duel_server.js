@@ -10,6 +10,9 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPA
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const app = express();
+
+// Polyfill fetch for Node <18
+const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 app.use(cors({
   origin: [
     "https://final-code-game.vercel.app",
@@ -35,7 +38,7 @@ const io = new Server(server, {
 const userSockets = {}; // userId -> socket
 const lobby = []; // users in lobby
 const teams = {}; // teamId -> { leader, members: [user objects], status: 'forming'|'queued'|'matched' }
-const rooms = {}; // roomId -> { teamA, teamB, status: 'active'|'expired', createdAt, timer }
+const rooms = {}; // roomId -> { teamA, teamB, status: 'active'|'expired'|'finished', createdAt, timer, problem }
 
 // Helper functions
 function generateId() {
@@ -62,6 +65,28 @@ function findUserTeam(userId) {
     }
   }
   return null;
+}
+
+// Return a random Codeforces problem from Supabase (fallback to a hard-coded example on error)
+async function getRandomProblem() {
+  try {
+    const { data, error } = await supabase
+      .from('cf_problems')
+      .select('contest_id, index, name')
+      .order('random');
+    if (error || !data || data.length === 0) {
+      return { contestId: 231, index: 'A', name: 'Team Programming Contest' };
+    }
+    const p = data[0];
+    return { contestId: p.contest_id, index: p.index, name: p.name };
+  } catch (_) {
+    return { contestId: 231, index: 'A', name: 'Team Programming Contest' };
+  }
+}
+
+// Helper to build a CF problem link from object
+function cfProblemLink(problem) {
+  return `https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`;
 }
 
 function cleanupExpiredRooms() {
@@ -170,7 +195,7 @@ io.on("connection", (socket) => {
   });
 
   // Start matchmaking
-  socket.on("start_matchmaking", ({ teamId }) => {
+  socket.on("start_matchmaking", async ({ teamId }) => {
     const team = teams[teamId];
     if (!team) return;
     
@@ -188,11 +213,16 @@ io.on("connection", (socket) => {
       // Create match
       const roomId = generateId();
       const now = Date.now();
+
+      // Pick random problem for this duel
+      const problem = await getRandomProblem();
+      problem.link = cfProblemLink(problem);
       
       rooms[roomId] = {
         teamA: team.members,
         teamB: otherTeam.members,
         status: 'active',
+        problem,
         createdAt: now,
         timer: setTimeout(() => {
           cleanupExpiredRooms();
@@ -213,7 +243,8 @@ io.on("connection", (socket) => {
             roomId,
             teamId: 'A',
             teammates: team.members,
-            opponents: otherTeam.members
+            opponents: otherTeam.members,
+            problem
           });
         }
       });
@@ -225,7 +256,8 @@ io.on("connection", (socket) => {
             roomId,
             teamId: 'B', 
             teammates: otherTeam.members,
-            opponents: team.members
+            opponents: team.members,
+            problem
           });
         }
       });
@@ -271,11 +303,45 @@ io.on("connection", (socket) => {
       teamId,
       teammates,
       opponents,
-      timeRemaining: Math.max(0, 5 * 60 * 1000 - (Date.now() - room.createdAt))
+      timeRemaining: Math.max(0, 5 * 60 * 1000 - (Date.now() - room.createdAt)),
+      problem: room.problem
     });
   });
 
   // Code collaboration (diff-based)
+  // Solution submission – verify CF verdict
+  socket.on('submit_solution', async ({ roomId, teamId, submissionId, cfHandle }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'active') return;
+
+    try {
+      const resp = await fetch(`https://codeforces.com/api/user.status?handle=${cfHandle}&from=1&count=10`);
+      const data = await resp.json();
+      if (data.status !== 'OK') {
+        socket.emit('submission_error', { message: 'Codeforces API error' });
+        return;
+      }
+      const submission = data.result.find(s => s.id === Number(submissionId));
+      if (!submission) {
+        socket.emit('submission_error', { message: 'Submission not found for this handle' });
+        return;
+      }
+      const { problem, verdict } = submission;
+      const solved = verdict === 'OK' && problem.contestId == room.problem.contestId && problem.index === room.problem.index;
+      if (solved) {
+        // Declare winner
+        room.status = 'finished';
+        clearTimeout(room.timer);
+        io.to(`room_${roomId}_A`).emit('duel_finished', { winner: teamId });
+        io.to(`room_${roomId}_B`).emit('duel_finished', { winner: teamId });
+      } else {
+        socket.emit('submission_result', { correct: false, verdict });
+      }
+    } catch (e) {
+      socket.emit('submission_error', { message: 'Unable to verify submission' });
+    }
+  });
+
   socket.on("code_update", ({ roomId, teamId, changes }) => {
     console.log(`[code] Team ${teamId} in room ${roomId} sent ${changes?.length || 0} edits`);
     socket.to(`room_${roomId}_${teamId}`).emit('code_updated', { 

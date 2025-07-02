@@ -38,7 +38,7 @@ export default function GameLobby({ user }) {
       setStatus(message);
     });
 
-    sock.on("match_found", ({ roomId, teamId, teammates, opponents }) => {
+    sock.on("match_found", ({ roomId, teamId, teammates, opponents, problem }) => {
       console.log("[match] Match found:", { roomId, teamId, teammates, opponents });
       setStatus("Match found! Joining room...");
       
@@ -47,7 +47,8 @@ export default function GameLobby({ user }) {
         roomId,
         teamId,
         teammates,
-        opponents
+        opponents,
+        problem
       }));
       
       navigate('/team_duel_cf');

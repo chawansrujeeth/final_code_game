@@ -27,6 +27,8 @@ function TeamCFDuel({ user }) {
   const [isDark, toggleDark] = useDarkMode();
   
   const [matchData, setMatchData] = useState(null);
+  const [problem, setProblem] = useState(null);
+  const [submissionId, setSubmissionId] = useState("");
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("python");
   const [lastEditor, setLastEditor] = useState(null);
@@ -49,6 +51,7 @@ function TeamCFDuel({ user }) {
 
     const data = JSON.parse(storedMatchData);
     setMatchData(data);
+    if (data.problem) setProblem(data.problem);
     setStatus("Joining room...");
 
     // Join the room
@@ -59,10 +62,11 @@ function TeamCFDuel({ user }) {
   useEffect(() => {
     const sock = socket;
 
-    sock.on("room_joined", ({ roomId, teamId, teammates, opponents, timeRemaining: remaining }) => {
+    sock.on("room_joined", ({ roomId, teamId, teammates, opponents, timeRemaining: remaining, problem }) => {
       console.log("[room] Successfully joined room:", { roomId, teamId, teammates, opponents });
       setStatus("Room joined! Start coding...");
       setTimeRemaining(remaining);
+      if (problem) setProblem(problem);
       
       // Start countdown timer
       if (timerRef.current) clearInterval(timerRef.current);
@@ -95,6 +99,22 @@ function TeamCFDuel({ user }) {
       setConnStatus('online');
       if (matchData) {
         sock.emit('join_room', { roomId: matchData.roomId, userId: user.id });
+      }
+    });
+
+    sock.on('submission_result', ({ correct, verdict }) => {
+      setStatus(correct ? 'Accepted! Declare to server...' : `Verdict: ${verdict}`);
+    });
+
+    sock.on('submission_error', ({ message }) => {
+      setStatus(message);
+    });
+
+    sock.on('duel_finished', ({ winner }) => {
+      if (winner === matchData.teamId) {
+        setStatus('🎉 Your team solved the problem! You win!');
+      } else {
+        setStatus('😢 Opponent team solved the problem first. You lose.');
       }
     });
 
@@ -166,6 +186,16 @@ function TeamCFDuel({ user }) {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleSubmit = () => {
+    if (!submissionId) return;
+    socket.emit('submit_solution', {
+      roomId: matchData.roomId,
+      teamId: matchData.teamId,
+      submissionId,
+      cfHandle: user.codeforces_handle || user.name
+    });
   };
 
   const returnToLobby = () => {
@@ -331,6 +361,28 @@ function TeamCFDuel({ user }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Problem Statement */}
+      {problem && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 8px 0', color: '#2563eb' }}>Problem:</h3>
+          <a href={problem.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16 }}>
+            {problem.name} ({problem.contestId}{problem.index})
+          </a>
+        </div>
+      )}
+
+      {/* Submission Input */}
+      <div style={{ marginBottom: 24 }}>
+        <input
+          type="text"
+          placeholder="Enter Codeforces submission ID"
+          value={submissionId}
+          onChange={(e) => setSubmissionId(e.target.value)}
+          style={{ padding: '8px 12px', width: 220, marginRight: 8 }}
+        />
+        <button onClick={handleSubmit} style={{ padding: '8px 16px' }}>Submit Solution</button>
       </div>
 
       {/* Code Editor */}
