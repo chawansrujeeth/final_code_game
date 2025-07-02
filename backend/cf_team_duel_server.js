@@ -68,18 +68,22 @@ function findUserTeam(userId) {
 }
 
 // Return a random Codeforces problem from Supabase (fallback to a hard-coded example on error)
+// Return a random Codeforces problem from Supabase (client-side random to avoid SQL randomness issues)
 async function getRandomProblem() {
   try {
     const { data, error } = await supabase
       .from('cf_problems')
-      .select('contest_id, index, name')
-      .order('random');
+      .select('contest_id, index, name');
+
     if (error || !data || data.length === 0) {
+      // Fallback hard-coded example
       return { contestId: 231, index: 'A', name: 'Team Programming Contest' };
     }
-    const p = data[0];
+
+    const p = data[Math.floor(Math.random() * data.length)];
     return { contestId: p.contest_id, index: p.index, name: p.name };
-  } catch (_) {
+  } catch (err) {
+    console.error('Error fetching random problem:', err);
     return { contestId: 231, index: 'A', name: 'Team Programming Contest' };
   }
 }
