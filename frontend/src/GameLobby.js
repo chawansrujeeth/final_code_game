@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { socket } from "./socket";
 import useDarkMode from "./useDarkMode";
+import VoiceChat from "./VoiceChat";
 
 export default function GameLobby({ user }) {
   const navigate = useNavigate();
@@ -258,6 +259,14 @@ export default function GameLobby({ user }) {
           </div>
         </div>
       )}
+    {currentTeam && (
+      <VoiceChat 
+        socket={socket}
+        roomKey={`team_${currentTeam.teamId}`}
+        userId={user.id}
+        teammates={currentTeam.members}
+      />
+    )}
     </div>
   );
 }
