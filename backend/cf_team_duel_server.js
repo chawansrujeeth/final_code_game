@@ -58,7 +58,7 @@ let pendingSubteams = {}; // unused in new Supabase flow
 let waitingFullTeams = {}; // unused in new Supabase flow
 
 // --- New leader-centric matchmaking ---
-const leaderTeams = new Map(); // leaderId -> [memberIds]
+const leaderTeams = new Map(); // leaderId -> team data with names
 const queuedLeaders = []; // FIFO of leaderIds waiting for opponent
 
 function popTwoLeaders() {
@@ -295,8 +295,8 @@ io.on("connection", (socket) => {
     if (leaderId) attachSocket(leaderId, socket);
     if (!leaderId) return;
     
-    // Store team data
-    leaderTeams.set(leaderId, team.map(p => p.userId));
+    // Store complete team data (including names)
+    leaderTeams.set(leaderId, team);
     if (!queuedLeaders.includes(leaderId)) queuedLeaders.push(leaderId);
 
     // Try to match two teams
@@ -304,23 +304,20 @@ io.on("connection", (socket) => {
     if (pair) {
       const [leadA, leadB] = pair;
       const roomId = "room_" + Math.random().toString(36).slice(2, 10);
-      const teamAIds = leaderTeams.get(leadA) || [];
-      const teamBIds = leaderTeams.get(leadB) || [];
-
-      // Get team data for both teams
       const teamAData = leaderTeams.get(leadA) || [];
       const teamBData = leaderTeams.get(leadB) || [];
-      
-      // Create room with proper player objects
-      const teamAPlayers = teamAIds.map(uid => ({ 
-        userId: uid, 
-        name: team.find(p => p.userId === uid)?.name || 'Player',
-        socket: userSockets[uid] || null 
+
+      // Create player objects with proper names
+      const teamAPlayers = teamAData.map(p => ({ 
+        userId: p.userId, 
+        name: p.name || 'Player',
+        socket: userSockets[p.userId] || null 
       }));
-      const teamBPlayers = teamBIds.map(uid => ({ 
-        userId: uid, 
-        name: 'Player', // Will be enriched later
-        socket: userSockets[uid] || null 
+      
+      const teamBPlayers = teamBData.map(p => ({ 
+        userId: p.userId, 
+        name: p.name || 'Player',
+        socket: userSockets[p.userId] || null 
       }));
       
       // Ensure names for all players
@@ -336,6 +333,8 @@ io.on("connection", (socket) => {
       // Notify leaders about match found
       const sockA = userSockets[leadA];
       const sockB = userSockets[leadB];
+      const teamAIds = teamAPlayers.map(p => p.userId);
+      const teamBIds = teamBPlayers.map(p => p.userId);
       if (sockA) sockA.emit("match_found", { roomId, yourTeam: teamAIds, oppTeam: teamBIds });
       if (sockB) sockB.emit("match_found", { roomId, yourTeam: teamBIds, oppTeam: teamAIds });
       

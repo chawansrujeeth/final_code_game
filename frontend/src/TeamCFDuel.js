@@ -85,6 +85,7 @@ const TeamCFDuel = ({ user }) => {
     };
 
     sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
+      console.log('[TeamCFDuel] Received team_assignment:', { roomId, teamId, teamMembers, opponents });
       setCollabReady(false); // reset before new provider
       const fullTeam = await enrichNames(teamMembers);
       const fullOpp = await enrichNames(opponents);
@@ -96,6 +97,7 @@ const TeamCFDuel = ({ user }) => {
       setStatusMsg("Team assigned! Loading collaborative editor...");
       // Store room info in localStorage for persistence
       localStorage.setItem('roomId', roomId);
+      console.log('[TeamCFDuel] State updated:', { roomId, teamId, teamMembers: fullTeam, opponents: fullOpp });
     });
 
     sock.on("team_code_update", ({ code }) => {
