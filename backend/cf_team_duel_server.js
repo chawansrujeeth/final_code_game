@@ -222,6 +222,8 @@ io.on("connection", (socket) => {
         teamA: team.members,
         teamB: otherTeam.members,
         status: 'active',
+        leaderA: team.leader,
+        leaderB: otherTeam.leader,
         problem,
         createdAt: now,
         timer: setTimeout(() => {
@@ -244,6 +246,7 @@ io.on("connection", (socket) => {
             teamId: 'A',
             teammates: team.members,
             opponents: otherTeam.members,
+            leaderId: team.leader,
             problem
           });
         }
@@ -257,6 +260,7 @@ io.on("connection", (socket) => {
             teamId: 'B', 
             teammates: otherTeam.members,
             opponents: team.members,
+            leaderId: otherTeam.leader,
             problem
           });
         }
@@ -304,7 +308,8 @@ io.on("connection", (socket) => {
       teammates,
       opponents,
       timeRemaining: Math.max(0, 5 * 60 * 1000 - (Date.now() - room.createdAt)),
-      problem: room.problem
+      problem: room.problem,
+      leaderId: teamId === 'A' ? room.leaderA : room.leaderB
     });
   });
 
@@ -313,6 +318,12 @@ io.on("connection", (socket) => {
   socket.on('submit_solution', async ({ roomId, teamId, submissionId, cfHandle }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'active') return;
+
+    const expectedLeader = teamId === 'A' ? room.leaderA : room.leaderB;
+    if (socket.userId !== expectedLeader) {
+      socket.emit('submission_error', { message: 'Only team leader may submit' });
+      return;
+    }
 
     try {
       const resp = await fetch(`https://codeforces.com/api/user.status?handle=${cfHandle}&from=1&count=10`);
@@ -329,13 +340,16 @@ io.on("connection", (socket) => {
       const { problem, verdict } = submission;
       const solved = verdict === 'OK' && problem.contestId == room.problem.contestId && problem.index === room.problem.index;
       if (solved) {
-        // Declare winner
         room.status = 'finished';
         clearTimeout(room.timer);
         io.to(`room_${roomId}_A`).emit('duel_finished', { winner: teamId });
         io.to(`room_${roomId}_B`).emit('duel_finished', { winner: teamId });
       } else {
-        socket.emit('submission_result', { correct: false, verdict });
+        room.status = 'finished';
+        clearTimeout(room.timer);
+        const other = teamId === 'A' ? 'B' : 'A';
+        io.to(`room_${roomId}_A`).emit('duel_finished', { winner: other });
+        io.to(`room_${roomId}_B`).emit('duel_finished', { winner: other });
       }
     } catch (e) {
       socket.emit('submission_error', { message: 'Unable to verify submission' });

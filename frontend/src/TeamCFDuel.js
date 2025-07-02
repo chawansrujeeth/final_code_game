@@ -373,17 +373,19 @@ function TeamCFDuel({ user }) {
         </div>
       )}
 
-      {/* Submission Input */}
-      <div style={{ marginBottom: 24 }}>
-        <input
-          type="text"
-          placeholder="Enter Codeforces submission ID"
-          value={submissionId}
-          onChange={(e) => setSubmissionId(e.target.value)}
-          style={{ padding: '8px 12px', width: 220, marginRight: 8 }}
-        />
-        <button onClick={handleSubmit} style={{ padding: '8px 16px' }}>Submit Solution</button>
-      </div>
+      {/* Submission Input (leader only) */}
+      {matchData?.leaderId === user.id && (
+        <div style={{ marginBottom: 24 }}>
+          <input
+            type="text"
+            placeholder="Enter Codeforces submission ID"
+            value={submissionId}
+            onChange={(e) => setSubmissionId(e.target.value)}
+            style={{ padding: '8px 12px', width: 220, marginRight: 8 }}
+          />
+          <button onClick={handleSubmit} style={{ padding: '8px 16px' }}>Submit Solution</button>
+        </div>
+      )}
 
       {/* Code Editor */}
       <div style={{ marginBottom: 24 }}>
