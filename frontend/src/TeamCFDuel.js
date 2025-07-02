@@ -1,25 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import { useLocation } from 'react-router-dom';
-import { socket, safeJoinLobby, queueMatch } from "./socket";
+import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
+import { socket } from "./socket";
 import useDarkMode from "./useDarkMode";
 import MonacoEditor from "@monaco-editor/react";
-import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
-import { MonacoBinding } from "y-monaco";
-import randomColor from "randomcolor";
-import VoiceChat from "./VoiceChat";
-import { supabase } from "./supabaseClient";
-
-// Update to new backend URL
-const CF_SOCKET_URL = "https://final-code-game-team.onrender.com";
-
-function debounce(fn, ms) {
-  let timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), ms);
-  };
-}
 
 const languageOptions = [
   { id: "python", name: "Python 3" },
@@ -27,239 +10,324 @@ const languageOptions = [
   { id: "javascript", name: "JavaScript (Node.js)" },
 ];
 
-const TeamCFDuel = ({ user }) => {
+function TeamCFDuel({ user }) {
+  const navigate = useNavigate();
   const [isDark, toggleDark] = useDarkMode();
   
-  const [teamCode, setTeamCode] = useState("");
-  const [editorLanguage, setEditorLanguage] = useState("python");
-  const [statusMsg, setStatusMsg] = useState("Initializing...");
-  const initialStoredRoom = localStorage.getItem('roomId');
-  const [roomId, setRoomId] = useState(initialStoredRoom || null);
-  const roomIdRef = useRef(null);
-  const [teamId, setTeamId] = useState(null);
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [opponents, setOpponents] = useState([]);
-  const teamCodeRef = useRef("");
+  const [matchData, setMatchData] = useState(null);
+  const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("python");
+  const [status, setStatus] = useState("Loading...");
+  const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
-  const monacoRef = useRef(null);
-  const bindingRef = useRef(null);
-  const ydocRef = useRef(null);
-  const ytextRef = useRef(null);
-  const providerRef = useRef(null);
-  const [collabReady, setCollabReady] = useState(false);
+  const timerRef = useRef(null);
 
-  // Set roomId early if available
   useEffect(() => {
-    if (initialStoredRoom && !roomIdRef.current) {
-      roomIdRef.current = initialStoredRoom;
-      setRoomId(initialStoredRoom);
+    // Get match data from localStorage
+    const storedMatchData = localStorage.getItem('matchData');
+    if (!storedMatchData) {
+      setStatus("No match data found. Returning to lobby...");
+      setTimeout(() => navigate('/lobby'), 2000);
+      return;
     }
-  }, [initialStoredRoom]);
-  
-  // Connect to socket and handle team events
+
+    const data = JSON.parse(storedMatchData);
+    setMatchData(data);
+    setStatus("Joining room...");
+
+    // Join the room
+    socket.emit("join_room", { roomId: data.roomId, userId: user.id });
+
+  }, [user.id, navigate]);
+
   useEffect(() => {
     const sock = socket;
+
+    sock.on("room_joined", ({ roomId, teamId, teammates, opponents, timeRemaining: remaining }) => {
+      console.log("[room] Successfully joined room:", { roomId, teamId, teammates, opponents });
+      setStatus("Room joined! Start coding...");
+      setTimeRemaining(remaining);
+      
+      // Start countdown timer
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setTimeRemaining(prev => {
+          const newTime = prev - 1000;
+          if (newTime <= 0) {
+            clearInterval(timerRef.current);
+            setStatus("Time's up! Room expired.");
+            return 0;
+          }
+          return newTime;
+        });
+      }, 1000);
+    });
+
+    sock.on("room_not_found", () => {
+      setStatus("Room not found. Returning to lobby...");
+      setTimeout(() => navigate('/lobby'), 2000);
+    });
+
+    sock.on("not_in_room", () => {
+      setStatus("You are not part of this room. Returning to lobby...");
+      setTimeout(() => navigate('/lobby'), 2000);
+    });
+
+    sock.on("room_expired", ({ message }) => {
+      setStatus(message);
+      setTimeout(() => navigate('/lobby'), 3000);
+    });
+
+    sock.on("code_updated", ({ code: newCode }) => {
+      setCode(newCode);
+      if (editorRef.current) {
+        editorRef.current.setValue(newCode);
+      }
+    });
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [navigate]);
+
+  const handleCodeChange = (value) => {
+    setCode(value || "");
     
-    sock.on("connect", () => {
-      setStatusMsg("Connected! Checking for room assignment...");
-      sock.emit("reconnect_user", { userId: user?.id });
-    });
-
-    const enrichNames = async (arr) => {
-      const missingIds = arr
-        .filter(p => !p.name || p.name === 'Player')
-        .map(p => p.userId);
-      if (missingIds.length) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('user_id,name')
-          .in('user_id', missingIds);
-        if (data) {
-          return arr.map(p => {
-            const match = data.find(d => d.user_id === p.userId);
-            return match ? { ...p, name: match.name } : p;
-          });
-        }
-      }
-      return arr;
-    };
-
-    sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
-      console.log('[TeamCFDuel] Received team_assignment:', { roomId, teamId, teamMembers, opponents });
-      setCollabReady(false); // reset before new provider
-      const fullTeam = await enrichNames(teamMembers);
-      const fullOpp = await enrichNames(opponents);
-      setRoomId(roomId);
-      roomIdRef.current = roomId;
-      setTeamId(teamId);
-      setTeamMembers(fullTeam);
-      setOpponents(fullOpp);
-      setStatusMsg("Team assigned! Loading collaborative editor...");
-      // Store room info in localStorage for persistence
-      localStorage.setItem('roomId', roomId);
-      console.log('[TeamCFDuel] State updated:', { roomId, teamId, teamMembers: fullTeam, opponents: fullOpp });
-    });
-
-    sock.on("team_code_update", ({ code }) => {
-      setTeamCode(code);
-      teamCodeRef.current = code;
-    });
-
-    return () => {
-      // Don't disconnect socket as it's shared
-    };
-  }, [user]);
-
-  // Setup Yjs provider when room & team IDs are ready
-  useEffect(() => {
-    if (!roomId || !teamId) return;
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
-    // Determine Yjs websocket URL (use env or fallback to same host without explicit port)
-    const providerUrl = process.env.REACT_APP_YJS_URL || "wss://final-code-game-cobcode.onrender.com";
-    const docName = `teamduel_${roomId}_${teamId}`;
-    console.log("[Yjs] connecting", providerUrl + "/" + docName);
-    const provider = new WebsocketProvider(providerUrl, docName, ydoc);
-    provider.on('status', event => {
-      // forward to status message if wanted
-      console.log('[Yjs] connection status', event.status);
-    });
-    providerRef.current = provider;
-    const ytext = ydoc.getText("monaco");
-    ytextRef.current = ytext;
-    // Set local awareness state for colored cursors
-    const color = randomColor({ luminosity: "bright", seed: user?.id || Math.random() });
-    provider.awareness.setLocalStateField("user", {
-      name: user?.username || user?.email || "anon",
-      color,
-    });
-    // inject local CSS for this client color
-    const styleId = `y-style-${provider.doc.clientID}`;
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.innerHTML = `
-        .yRemoteSelection-${provider.doc.clientID} { background-color: ${color}55; }
-        .yRemoteSelectionHead-${provider.doc.clientID} { border-left: 2px solid ${color}; }
-      `;
-      document.head.appendChild(style);
+    // Broadcast code update to teammates
+    if (matchData) {
+      socket.emit("code_update", {
+        roomId: matchData.roomId,
+        teamId: matchData.teamId,
+        code: value || ""
+      });
     }
-    // share initial language
-    provider.awareness.setLocalStateField("lang", editorLanguage);
-    setCollabReady(true);
-    return () => {
-      setCollabReady(false);
-      provider.destroy();
-      ydoc.destroy();
-    };
-  }, [roomId, teamId]);
+  };
 
-  // Listen for language changes from others
-  useEffect(() => {
-    if (!providerRef.current) return;
-    const awareness = providerRef.current.awareness;
-    const addCssForClient = (clientId, clr) => {
-      const id = `y-style-${clientId}`;
-      if (!document.getElementById(id)) {
-        const st = document.createElement('style');
-        st.id = id;
-        st.innerHTML = `
-          .yRemoteSelection-${clientId} { background-color: ${clr}55; }
-          .yRemoteSelectionHead-${clientId} { border-left: 2px solid ${clr}; }
-        `;
-        document.head.appendChild(st);
-      }
-    };
-    const handler = () => {
-      awareness.getStates().forEach((st, id) => {
-      if (st.user && st.user.color) addCssForClient(id, st.user.color);
-      if (st.lang && st.lang !== editorLanguage) {
-        setEditorLanguage(st.lang);
-        if (monacoRef.current && editorRef.current) {
-          monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), st.lang);
-        }
-      }
-    });
-    };
-    awareness.on('change', handler);
-    return () => awareness.off('change', handler);
-  }, [editorLanguage]);
+  const handleLanguageChange = (newLanguage) => {
+    setLanguage(newLanguage);
+  };
 
-  // Bind Monaco <-> Yjs using y-monaco (handles cursors & incremental updates)
-  function handleEditorDidMount(editor, monaco) {
-    monacoRef.current = monaco;
-    editorRef.current = editor;
-    if (!ytextRef.current || !providerRef.current) return;
-    bindingRef.current = new MonacoBinding(
-      ytextRef.current,
-      editor.getModel(),
-      new Set([editor]),
-      providerRef.current.awareness
-    );
-  }
+  const formatTime = (ms) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
-  // If no room or team assigned yet, show waiting message
-  if (!roomId || !teamId) {
+  const returnToLobby = () => {
+    localStorage.removeItem('matchData');
+    navigate('/lobby');
+  };
+
+  if (!matchData) {
     return (
-      <div style={{ padding: 32, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif', textAlign: 'center' }}>
-        <h2 style={{ color: '#7c3aed', marginBottom: 16 }}>⚡ Team Duel</h2>
-        <div style={{ color: '#888', fontSize: 18 }}>{statusMsg}</div>
-        <div style={{ marginTop: 16, color: '#666' }}>
-          Waiting for room assignment...
-        </div>
+      <div style={{ 
+        padding: 32, 
+        textAlign: 'center', 
+        fontFamily: 'Segoe UI, sans-serif' 
+      }}>
+        <h2 style={{ color: '#7c3aed' }}>⚡ Team Duel</h2>
+        <p>{status}</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 900, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
-      <h2 style={{ color: '#7c3aed', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Codeforces Team Duel (2v2)</h2>
-      <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 18 }}>
-        <b>Collaborative Team Code Editor</b>
+    <div style={{ 
+      padding: 24, 
+      fontFamily: 'Segoe UI, sans-serif',
+      minHeight: '100vh'
+    }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: 24,
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
+        <h2 style={{ color: '#7c3aed', margin: 0 }}>⚡ Team Duel</h2>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ 
+            padding: '8px 16px',
+            background: timeRemaining > 60000 ? '#16a34a' : '#dc2626',
+            color: '#fff',
+            borderRadius: 6,
+            fontWeight: 600
+          }}>
+            Time: {formatTime(timeRemaining)}
+          </div>
+          
+          <button 
+            onClick={toggleDark}
+            style={{
+              padding: '8px 16px',
+              border: '1px solid #7c3aed',
+              borderRadius: 6,
+              background: 'transparent',
+              color: isDark ? '#fff' : '#000',
+              cursor: 'pointer'
+            }}
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
+          
+          <button
+            onClick={returnToLobby}
+            style={{
+              padding: '8px 16px',
+              background: '#dc2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >
+            Leave Room
+          </button>
+        </div>
       </div>
-      <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 16 }}>
-        <b>Your Team:</b> {teamMembers.map(m => m.name || m.userId).join(', ') || '[waiting...]'}<br/>
-        <b>Opponents:</b> {opponents.map(m => m.name || m.userId).join(', ') || '[waiting...]'}
+
+      {/* Status */}
+      <div style={{ 
+        background: isDark ? '#2a2a2a' : '#f8f9fa',
+        padding: 16,
+        borderRadius: 8,
+        marginBottom: 24,
+        textAlign: 'center'
+      }}>
+        <p style={{ margin: 0, fontSize: 16 }}>{status}</p>
       </div>
-      <div style={{ fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>
-        <label htmlFor="language-select">Language: </label>
-        <select
-          id="language-select"
-          value={editorLanguage}
-          onChange={e => {
-            const newLang = e.target.value;
-            setEditorLanguage(newLang);
-            // update monaco model language locally
-            if (monacoRef.current && editorRef.current) {
-              monacoRef.current.editor.setModelLanguage(editorRef.current.getModel(), newLang);
-            }
-            // broadcast language change
-            if (providerRef.current) {
-              providerRef.current.awareness.setLocalStateField("lang", newLang);
-            }
-          }}
-          style={{ marginLeft: 8, padding: '6px 12px', fontSize: 15, borderRadius: 6, border: '1px solid #ccc', background: '#fafaff' }}
-        >
-          {languageOptions.map(lang => (
-            <option key={lang.id} value={lang.id}>{lang.name}</option>
-          ))}
-        </select>
+
+      {/* Teams Display */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: '1fr 1fr', 
+        gap: 24, 
+        marginBottom: 24 
+      }}>
+        {/* Your Team */}
+        <div style={{ 
+          background: '#16a34a20',
+          border: '2px solid #16a34a',
+          borderRadius: 8,
+          padding: 16
+        }}>
+          <h3 style={{ margin: '0 0 12px 0', color: '#16a34a' }}>
+            Your Team (Team {matchData.teamId})
+          </h3>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {matchData.teammates.map(member => (
+              <div key={member.userId} style={{ 
+                padding: 8,
+                background: member.userId === user.id ? '#16a34a40' : '#16a34a10',
+                borderRadius: 4,
+                fontWeight: member.userId === user.id ? 600 : 400
+              }}>
+                {member.name} {member.userId === user.id && '(You)'}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Opponent Team */}
+        <div style={{ 
+          background: '#dc262620',
+          border: '2px solid #dc2626',
+          borderRadius: 8,
+          padding: 16
+        }}>
+          <h3 style={{ margin: '0 0 12px 0', color: '#dc2626' }}>
+            Opponents (Team {matchData.teamId === 'A' ? 'B' : 'A'})
+          </h3>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {matchData.opponents.map(member => (
+              <div key={member.userId} style={{ 
+                padding: 8,
+                background: '#dc262610',
+                borderRadius: 4
+              }}>
+                {member.name}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      {collabReady ? (
-        <MonacoEditor
-          height="400px"
-          defaultLanguage={editorLanguage}
-          theme="vs-light"
-          options={{ fontSize: 15, minimap: { enabled: false } }}
-          onMount={handleEditorDidMount}
-        />
-      ) : (
-        <div>Loading collaborative editor...</div>
-      )}
-      <div style={{ marginTop: 18, color: '#888', textAlign: 'center' }}>{statusMsg}</div>
-      <VoiceChat socket={socket} roomKey={`${roomId}_${teamId}`} userId={user?.id} teammates={teamMembers} />
+
+      {/* Code Editor */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: 12 
+        }}>
+          <h3 style={{ margin: 0, color: '#7c3aed' }}>Collaborative Code Editor</h3>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label htmlFor="language-select" style={{ fontWeight: 600 }}>Language:</label>
+            <select
+              id="language-select"
+              value={language}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 14,
+                borderRadius: 4,
+                border: '1px solid #ccc',
+                background: '#fff'
+              }}
+            >
+              {languageOptions.map(lang => (
+                <option key={lang.id} value={lang.id}>{lang.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ 
+          border: '1px solid #ddd',
+          borderRadius: 8,
+          overflow: 'hidden'
+        }}>
+          <MonacoEditor
+            height="500px"
+            language={language}
+            value={code}
+            onChange={handleCodeChange}
+            onMount={(editor) => {
+              editorRef.current = editor;
+            }}
+            theme={isDark ? "vs-dark" : "vs-light"}
+            options={{
+              fontSize: 14,
+              minimap: { enabled: false },
+              wordWrap: 'on',
+              automaticLayout: true
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div style={{ 
+        background: isDark ? '#2a2a2a' : '#f8f9fa',
+        padding: 16,
+        borderRadius: 8,
+        fontSize: 14,
+        color: '#666'
+      }}>
+        <p style={{ margin: '0 0 8px 0', fontWeight: 600 }}>Instructions:</p>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          <li>Work together with your teammates to solve the problem</li>
+          <li>Code changes are shared in real-time with your team</li>
+          <li>You have {Math.floor(timeRemaining / 60000)} minutes remaining</li>
+          <li>Room will automatically expire after 5 minutes</li>
+        </ul>
+      </div>
     </div>
   );
-};
+}
 
 export default TeamCFDuel;
