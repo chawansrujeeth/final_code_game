@@ -315,7 +315,7 @@ io.on("connection", (socket) => {
 
   // Code collaboration (diff-based)
   // Solution submission – verify CF verdict
-  socket.on('submit_solution', async ({ roomId, teamId, submissionId, cfHandle }) => {
+  socket.on('submit_solution', async ({ roomId, teamId, cfHandle }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'active') return;
 
@@ -332,13 +332,9 @@ io.on("connection", (socket) => {
         socket.emit('submission_error', { message: 'Codeforces API error' });
         return;
       }
-      const submission = data.result.find(s => s.id === Number(submissionId));
-      if (!submission) {
-        socket.emit('submission_error', { message: 'Submission not found for this handle' });
-        return;
-      }
-      const { problem, verdict } = submission;
-      const solved = verdict === 'OK' && problem.contestId == room.problem.contestId && problem.index === room.problem.index;
+      const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
+      const recentSubs = data.result.filter(s => s.creationTimeSeconds >= fiveMinutesAgo);
+      const solved = recentSubs.some(sub => sub.verdict === 'OK' && sub.problem.contestId == room.problem.contestId && sub.problem.index === room.problem.index);
       if (solved) {
         room.status = 'finished';
         clearTimeout(room.timer);

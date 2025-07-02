@@ -28,7 +28,6 @@ function TeamCFDuel({ user }) {
   
   const [matchData, setMatchData] = useState(null);
   const [problem, setProblem] = useState(null);
-  const [submissionId, setSubmissionId] = useState("");
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("python");
   const [lastEditor, setLastEditor] = useState(null);
@@ -189,11 +188,9 @@ function TeamCFDuel({ user }) {
   };
 
   const handleSubmit = () => {
-    if (!submissionId) return;
     socket.emit('submit_solution', {
       roomId: matchData.roomId,
       teamId: matchData.teamId,
-      submissionId,
       cfHandle: user.codeforces_handle || user.name
     });
   };
@@ -376,14 +373,7 @@ function TeamCFDuel({ user }) {
       {/* Submission Input (leader only) */}
       {matchData?.leaderId === user.id && (
         <div style={{ marginBottom: 24 }}>
-          <input
-            type="text"
-            placeholder="Enter Codeforces submission ID"
-            value={submissionId}
-            onChange={(e) => setSubmissionId(e.target.value)}
-            style={{ padding: '8px 12px', width: 220, marginRight: 8 }}
-          />
-          <button onClick={handleSubmit} style={{ padding: '8px 16px' }}>Submit Solution</button>
+          <button onClick={handleSubmit} style={{ padding: '8px 16px' }}>Submit</button>
         </div>
       )}
 
