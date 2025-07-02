@@ -8,6 +8,14 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { MonacoBinding } from 'y-monaco';
 
+// helper to generate consistent color per user
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 60%)`;
+}
+
 const languageOptions = [
   { id: "python", name: "Python 3" },
   { id: "cpp", name: "C++" },
@@ -23,6 +31,7 @@ function TeamCFDuel({ user }) {
   const [language, setLanguage] = useState("python");
   const [lastEditor, setLastEditor] = useState(null);
   const [status, setStatus] = useState("Loading...");
+  const [connStatus, setConnStatus] = useState('online'); // online | reconnecting
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
   const ydocRef = useRef(null);
@@ -80,6 +89,15 @@ function TeamCFDuel({ user }) {
       setTimeout(() => navigate('/lobby'), 2000);
     });
 
+    // socket connection lost / regained handling
+    sock.io.on('reconnect_attempt', () => setConnStatus('reconnecting'));
+    sock.io.on('reconnect', () => {
+      setConnStatus('online');
+      if (matchData) {
+        sock.emit('join_room', { roomId: matchData.roomId, userId: user.id });
+      }
+    });
+
     sock.on("room_expired", ({ message }) => {
       setStatus(message);
       setTimeout(() => navigate('/lobby'), 3000);
@@ -104,6 +122,11 @@ function TeamCFDuel({ user }) {
     const provider = new WebsocketProvider(wsUrl, roomName, ydoc);
     providerRef.current = provider;
 
+    // track provider status for reconnection banner
+    provider.on('status', ({status}) => {
+      setConnStatus(status === 'connected' ? 'online' : 'reconnecting');
+    });
+
     const yText = ydoc.getText('monaco');
     const model = editorRef.current.getModel();
 
@@ -111,7 +134,7 @@ function TeamCFDuel({ user }) {
     const binding = new MonacoBinding(yText, model, new Set([editorRef.current]), provider.awareness);
 
     // Track awareness changes for "last editor" info
-    provider.awareness.setLocalStateField('user', { name: user.name || user.email });
+    provider.awareness.setLocalStateField('user', { name: user.name || user.email, color: stringToColor(user.id) });
     const awarenessHandler = ({ added, updated }) => {
       const states = Array.from(provider.awareness.getStates().entries());
       const changedId = [...added, ...updated][0];
@@ -169,6 +192,29 @@ function TeamCFDuel({ user }) {
       fontFamily: 'Segoe UI, sans-serif',
       minHeight: '100vh'
     }}>
+      {/* Connection banner */}
+      {connStatus === 'reconnecting' && (
+        <div style={{
+          background:'#fde047',
+          padding:'8px 12px',
+          borderRadius:6,
+          marginBottom:12,
+          textAlign:'center',
+          fontWeight:600
+        }}>
+          Reconnecting&hellip; your changes are safe.
+        </div>
+      )}
+      {/* Cursor legend */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+        {Array.from(providerRef.current?.awareness?.getStates()?.values() || []).map((st,i)=>st.user?.name && (
+          <div key={i} style={{ display:'flex', alignItems:'center', gap:4,fontSize:12 }}>
+            <span style={{ width:12, height:12, background:st.user.color, borderRadius:'50%', display:'inline-block' }}></span>
+            <span>{st.user.name=== (user.name||user.email)?'You':st.user.name}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div style={{ 
         display: 'flex', 
