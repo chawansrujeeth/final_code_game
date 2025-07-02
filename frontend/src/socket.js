@@ -24,6 +24,12 @@ socket.on("team_assignment", () => {
   queued = false;
 });
 
+socket.on("join_room", () => {
+  inRoom = true;
+  joinedLobby = false;
+  queued = false;
+});
+
 export function safeJoinLobby(user) {
   if (inRoom || joinedLobby || !user?.id) return;
   socket.emit("join_lobby", { userId: user.id, name: user.name || user.email });

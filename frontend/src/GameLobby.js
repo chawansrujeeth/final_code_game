@@ -204,13 +204,13 @@ export default function GameLobby({ user }) {
       }
     });
 
-    sock.on("join_room", ({ roomId, yourTeam = [], oppTeam = [] }) => {
+    sock.on("join_room", ({ roomId }) => {
       setStatus('Joined match room ' + roomId);
-      // persist data for next page
+      // Clear any existing room data and set new roomId
+      localStorage.removeItem('queuedTeam');
+      localStorage.removeItem('pendingTeam');
       localStorage.setItem('roomId', roomId);
-      localStorage.setItem('yourTeam', JSON.stringify(yourTeam));
-      localStorage.setItem('oppTeam', JSON.stringify(oppTeam));
-      navigate(`/team_duel_cf?roomId=${roomId}`);
+      navigate(`/team_duel_cf`);
     });
 
     // Placeholder for when backend pairs two teams

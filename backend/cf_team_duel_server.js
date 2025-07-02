@@ -286,23 +286,20 @@ io.on("connection", (socket) => {
     io.emit("lobby_update", getLobbyList());
   });
 
-  // -----------------------------------------------------------------
-  // Flexible matchmaking with desired team size.
-  // Client emits `create_game_team` with { team, desiredSize }
-  // We merge sub-teams to reach desiredSize, then wait for another
-  // full team of same size to start a match.
-  // -----------------------------------------------------------------
-  // Supabase-backed matchmaking queue (no in-memory merge)
+  // Simplified matchmaking with leader-centric approach
   socket.on("create_game_team", async ({ team, desiredSize }) => {
     console.log('[match] create_game_team from', team.map(p=>p.userId), 'desired', desiredSize);
     const leaderId = team[0]?.userId;
-    // Make sure the caller’s socket is stored so that we can emit match_found immediately,
-    // even if the client clicked *Start* before the server handled their join_lobby message.
+    
+    // Make sure the caller's socket is stored
     if (leaderId) attachSocket(leaderId, socket);
     if (!leaderId) return;
+    
+    // Store team data
     leaderTeams.set(leaderId, team.map(p => p.userId));
     if (!queuedLeaders.includes(leaderId)) queuedLeaders.push(leaderId);
 
+    // Try to match two teams
     const pair = popTwoLeaders();
     if (pair) {
       const [leadA, leadB] = pair;
@@ -310,193 +307,48 @@ io.on("connection", (socket) => {
       const teamAIds = leaderTeams.get(leadA) || [];
       const teamBIds = leaderTeams.get(leadB) || [];
 
-      // Store minimal room
-      rooms[roomId] = { teamA: teamAIds.map(uid => ({ userId: uid, socket: userSockets[uid]||null })), teamB: teamBIds.map(uid => ({ userId: uid, socket: userSockets[uid]||null })), status: 'active', state:{} };
+      // Get team data for both teams
+      const teamAData = leaderTeams.get(leadA) || [];
+      const teamBData = leaderTeams.get(leadB) || [];
+      
+      // Create room with proper player objects
+      const teamAPlayers = teamAIds.map(uid => ({ 
+        userId: uid, 
+        name: team.find(p => p.userId === uid)?.name || 'Player',
+        socket: userSockets[uid] || null 
+      }));
+      const teamBPlayers = teamBIds.map(uid => ({ 
+        userId: uid, 
+        name: 'Player', // Will be enriched later
+        socket: userSockets[uid] || null 
+      }));
+      
+      // Ensure names for all players
+      await ensureNames([...teamAPlayers, ...teamBPlayers]);
 
+      rooms[roomId] = { 
+        teamA: teamAPlayers, 
+        teamB: teamBPlayers, 
+        status: 'active', 
+        state: { codeA: '', codeB: '' } 
+      };
+
+      // Notify leaders about match found
       const sockA = userSockets[leadA];
       const sockB = userSockets[leadB];
       if (sockA) sockA.emit("match_found", { roomId, yourTeam: teamAIds, oppTeam: teamBIds });
       if (sockB) sockB.emit("match_found", { roomId, yourTeam: teamBIds, oppTeam: teamAIds });
-    }
-
-    // Skip legacy Supabase queue when using new flow
-    return;
-    // Deduplicate: if any player already queued or in a room ignore this call
-    const ids = team.map(p=>p.userId);
-    for (const id of ids) {
-      if (Object.values(pendingSubteams).some(arr=>arr.some(sub=>sub.players.some(p=>p.userId===id))) ||
-          Object.values(waitingFullTeams).some(arr=>arr.some(full=>full.some(p=>p.userId===id)))) {
-        console.log('[match] duplicate create_game_team ignored for', ids);
-        return;
-      }
-    }
-    console.log('[match] create_game_team called by', team.map(p=>p.userId), 'desired', desiredSize);
-    // Ensure desiredSize >= party size
-    const size = Math.max(desiredSize || team.length, team.length);
-
-    // Remove party members from lobby
-    lobby = lobby.filter(p => !team.some(sel => sel.userId === p.userId));
-    await syncLobbyToSupabase();
-
-    // Insert party into queue table
-    const teamNames = Object.fromEntries(team.map(p => [p.userId, p.name]));
-    const insertRes = await supabase.from('cfduel_queue').insert({
-      desired_size: size,
-      team_ids: team.map(p => p.userId),
-      team_names: teamNames
-    });
-    if (insertRes.error) {
-      console.error('Queue insert error', insertRes.error);
-    }
-
-    // Attempt atomic pop of two waiting teams
-    const { data: popped, error } = await supabase.rpc('pop_two_teams', { p_size: size });
-    if (error) {
-      console.error('pop_two_teams error', error);
-    }
-
-    const toPlayerArray = row => row.team_ids.map(uid => ({
-      userId: uid,
-      name: row.team_names?.[uid] || 'Player',
-      socket: userSockets[uid] || null
-    }));
-
-    let matchedTeams = [];
-    if (popped && popped.teamA) {
-      matchedTeams = [popped.teamA, popped.teamB];
-    }
-
-    if (matchedTeams.length === 2 && matchedTeams[0].team_ids && matchedTeams[1].team_ids && new Set(matchedTeams[0].team_ids).size && !matchedTeams[0].team_ids.every(id => matchedTeams[1].team_ids.includes(id))) {
-      // Determine which popped row corresponds to the calling party so we can make it Team A for consistency
-      const initiatingIds = new Set(team.map(p => p.userId));
-      const firstIsInitiator = matchedTeams[0].team_ids.some(id => initiatingIds.has(id));
-      const ordered = firstIsInitiator ? matchedTeams : [matchedTeams[1], matchedTeams[0]];
-
-      const teamAPlayers = toPlayerArray(ordered[0]);
-      const teamBPlayers = toPlayerArray(ordered[1]);
-
-      // Ensure names present
-      await ensureNames(teamAPlayers);
-      await ensureNames(teamBPlayers);
-
-      const roomId = 'room_' + Math.random().toString(36).slice(2, 10);
-    console.log('[room] created', roomId, 'teamA:', teamAPlayers.map(p=>p.userId), 'teamB:', teamBPlayers.map(p=>p.userId));
-      rooms[roomId] = {
-        teamA: teamAPlayers,
-        teamB: teamBPlayers,
-        state: { codeA: '', codeB: '' },
-        status: 'active'
-      };
-      console.log('[room]', roomId, 'teamA:', teamAPlayers.map(p => p.userId), 'teamB:', teamBPlayers.map(p => p.userId));
-      await syncRoomsToSupabase();
-
-      const notify = (playersArr, teamId, opp) => {
-        playersArr.forEach(player => {
-          const sock = player.socket || userSockets[player.userId];
-          if (!sock) return;
-          player.socket = sock;
-          sock.join(roomId + '_' + teamId);
-          console.log('[assign]', player.userId, 'room', roomId, 'team', teamId);
-          sock.emit('team_assignment', {
-            roomId,
-            teamId,
-            teamMembers: playersArr.map(p => ({ userId: p.userId, name: p.name })),
-            opponents: opp.map(p => ({ userId: p.userId, name: p.name }))
-          });
-        });
-      };
-      notify(teamAPlayers, 'A', teamBPlayers);
-      notify(teamBPlayers, 'B', teamAPlayers);
+      
+      // Clean up leader data
+      leaderTeams.delete(leadA);
+      leaderTeams.delete(leadB);
     } else {
-      // Still waiting – notify party
+      // Still waiting for opponent
       team.forEach(p => {
         const sock = userSockets[p.userId];
-        if (sock) sock.emit('waiting_opponent', { message: `Looking for ${size}-player opponent team…` });
+        if (sock) sock.emit('waiting_opponent', { message: `Looking for ${desiredSize}-player opponent team…` });
       });
     }
-
-    io.emit('lobby_update', getLobbyList());
-    return;
-
-      /* legacy in-memory code disabled
-    const bucket = pendingSubteams[size];
-      if (!bucket || bucket.length === 0) return null;
-      let collected = [];
-      let removeCount = 0;
-      for (const sub of bucket) {
-        if (collected.length + sub.players.length <= size) {
-          collected = collected.concat(sub.players);
-          removeCount++;
-          if (collected.length === size) break;
-        } else {
-          break; // can't fit this subteam; keep waiting
-        }
-      }
-      if (collected.length === size) {
-        bucket.splice(0, removeCount);
-        return collected;
-      }
-      return null;
-    }
-
-    // If we added a sub-team, try to assemble full team(s)
-    if (waitingFullTeams.length !== desiredSize) {
-      let newTeam;
-      while ((newTeam = tryBuildFullTeam(desiredSize))) {
-        waitingFullTeams[desiredSize].push(newTeam);
-      }
-    }
-
-    // After any update, persist
-    await syncMatchmakingToSupabase();
-
-    // Notify each subteam player they are waiting
-    waitingFullTeams.forEach(p => {
-       const sock = p.socket || userSockets[p.userId];
-       if (sock) sock.emit("waiting_opponent", { message: `Looking for ${desiredSize}-player opponent team…` });
-     });
-
-    // If we now have two full teams, create match
-    if (waitingFullTeams[desiredSize].length >= 2) {
-      const teamAPlayers = waitingFullTeams[desiredSize].shift();
-      const teamBPlayers = waitingFullTeams[desiredSize].shift();
-
-      // --- Ensure names present ---
-      const ensureNames = async (arr) => {
-        const missing = arr.filter(p => !p.name || p.name === 'Player').map(p => p.userId);
-        if (missing.length) {
-          const profs = await fetchProfiles(missing);
-          arr.forEach(pl => {
-            if (!pl.name || pl.name === 'Player') {
-              pl.name = profs[pl.userId] || pl.name || pl.userId;
-            }
-          });
-        }
-      };
-      await ensureNames(teamAPlayers);
-      await ensureNames(teamBPlayers);
-
-      const roomId = "room_" + Math.random().toString(36).slice(2, 10);
-
-          const sock = player.socket || userSockets[player.userId];
-          if (!sock) return; // player currently offline
-          player.socket = sock;
-          sock.join(roomId + "_" + teamId);
-          sock.emit("team_assignment", {
-            roomId,
-            teamId,
-            teamMembers: playersArr.map(p => ({ userId: p.userId, name: p.name })),
-            opponents: opp.map(p => ({ userId: p.userId, name: p.name }))
-          });
-        });
-      };
-      notify(teamAPlayers, "A", teamBPlayers);
-      notify(teamBPlayers, "B", teamAPlayers);
-      // After pairing remove from waiting lists already done; sync again
-      await syncMatchmakingToSupabase();
-    */
-    
-
   });
 
   // Create team duel room (legacy: used by TeamCFDuel where both teams are chosen on client)

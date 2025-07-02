@@ -28,33 +28,18 @@ const languageOptions = [
 ];
 
 const TeamCFDuel = ({ user }) => {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const initialRoomParam = params.get('roomId');
   const [isDark, toggleDark] = useDarkMode();
-  // helper to check if all selected teammates (and self) are online in lobby list
-  const isAllOnline = (sel, lob) => {
-    return [...sel, user?.id].every(uid => lob.some(p => p.userId === uid));
-  };
   
   const [teamCode, setTeamCode] = useState("");
   const [editorLanguage, setEditorLanguage] = useState("python");
-  const [statusMsg, setStatusMsg] = useState("");
+  const [statusMsg, setStatusMsg] = useState("Initializing...");
   const initialStoredRoom = localStorage.getItem('roomId');
-  const [roomId, setRoomId] = useState(initialRoomParam || initialStoredRoom || null);
+  const [roomId, setRoomId] = useState(initialStoredRoom || null);
   const roomIdRef = useRef(null);
-  const inRoomRef = useRef(false);
   const [teamId, setTeamId] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [opponents, setOpponents] = useState([]);
-  const [lobby, setLobby] = useState([]);
-  // List of accepted friends (objects: { userId, name })
-  const [friends, setFriends] = useState([]);
-  const [selectedTeammates, setSelectedTeammates] = useState([]);
-  const creatingMatchRef = useRef(false);
-  const [inLobby, setInLobby] = useState(true);
   const teamCodeRef = useRef("");
-  const channelRef = useRef(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const bindingRef = useRef(null);
@@ -63,69 +48,23 @@ const TeamCFDuel = ({ user }) => {
   const providerRef = useRef(null);
   const [collabReady, setCollabReady] = useState(false);
 
-  // ---- Friends helpers ----
-  const fetchFriends = useCallback(async () => {
-    if (!user?.id) return;
-    const { data: rows, error } = await supabase
-      .from('friends')
-      .select('user_id,friend_id,status')
-      .eq('status', 'accepted')
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-    if (error) {
-      console.error('Error fetching friends', error);
-      return;
-    }
-    const ids = rows.map(r => (r.user_id === user.id ? r.friend_id : r.user_id));
-    if (ids.length) {
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('user_id,name')
-        .in('user_id', ids);
-      const frs = ids.map(id => ({
-        userId: id,
-        name: profs?.find(p => p.user_id === id)?.name || id,
-      }));
-      setFriends(frs);
-    } else {
-      setFriends([]);
-    }
-  }, [user]);
-
-  // Fetch friends once on mount / when user changes
+  // Set roomId early if available
   useEffect(() => {
-    fetchFriends();
-  }, [fetchFriends]);
-
-  // Set roomId early if passed
-  useEffect(() => {
-    const rid = initialRoomParam || initialStoredRoom;
-    if (rid && !roomIdRef.current) {
-      roomIdRef.current = rid;
+    if (initialStoredRoom && !roomIdRef.current) {
+      roomIdRef.current = initialStoredRoom;
+      setRoomId(initialStoredRoom);
     }
-  }, [initialRoomParam, initialStoredRoom]);
+  }, [initialStoredRoom]);
   
-  // Connect to socket and handle lobby/team events
+  // Connect to socket and handle team events
   useEffect(() => {
     const sock = socket;
     
     sock.on("connect", () => {
-      setStatusMsg("Connected! Checking existing rooms...");
+      setStatusMsg("Connected! Checking for room assignment...");
       sock.emit("reconnect_user", { userId: user?.id });
-      // After 1s, if still no room assigned, join lobby
-      setTimeout(() => {
-        if (!roomIdRef.current) {
-          setStatusMsg("Joining lobby...");
-          if (!inRoomRef.current) {
-          safeJoinLobby(user);
-        }
-          sock.emit("get_lobby");
-        }
-      }, 1000);
     });
-    // Legacy socket lobby update (kept as fallback)
-    // sock.on("lobby_update", (lobbyList) => {
-    //   setLobby(lobbyList);
-    // });
+
     const enrichNames = async (arr) => {
       const missingIds = arr
         .filter(p => !p.name || p.name === 'Player')
@@ -146,51 +85,26 @@ const TeamCFDuel = ({ user }) => {
     };
 
     sock.on("team_assignment", async ({ roomId, teamId, teamMembers, opponents }) => {
-       creatingMatchRef.current = false;
-       setCollabReady(false); // reset before new provider
+      setCollabReady(false); // reset before new provider
       const fullTeam = await enrichNames(teamMembers);
       const fullOpp = await enrichNames(opponents);
       setRoomId(roomId);
-       roomIdRef.current = roomId;
+      roomIdRef.current = roomId;
       setTeamId(teamId);
       setTeamMembers(fullTeam);
       setOpponents(fullOpp);
-      setInLobby(false);
-       inRoomRef.current = true;
-      setStatusMsg("Team assigned! Waiting for all players...");
+      setStatusMsg("Team assigned! Loading collaborative editor...");
+      // Store room info in localStorage for persistence
+      localStorage.setItem('roomId', roomId);
     });
+
     sock.on("team_code_update", ({ code }) => {
       setTeamCode(code);
       teamCodeRef.current = code;
     });
-    // Setup Supabase presence for lobby users
-    if (user?.id && !channelRef.current) {
-      const ch = supabase.channel('lobby', {
-        config: {
-          presence: {
-            key: user.id,
-          },
-        },
-      });
-      channelRef.current = ch;
-      ch.on('presence', { event: 'sync' }, () => {
-        const state = ch.presenceState();
-        const people = Object.values(state).map(arr => arr[0]);
-        setLobby(people);
-      });
-      ch.subscribe(async status => {
-        if (status === 'SUBSCRIBED') {
-          await ch.track({ userId: user.id, name: user.name || user.email });
-        }
-      });
-    }
 
     return () => {
-      sock.disconnect();
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-        channelRef.current = null;
-      }
+      // Don't disconnect socket as it's shared
     };
   }, [user]);
 
@@ -282,82 +196,15 @@ const TeamCFDuel = ({ user }) => {
     );
   }
 
-  // sendCodeUpdate & handleCodeChange removed – Yjs now manages code sync
-
-  // Select/deselect teammates
-  const toggleTeammate = (userId) => {
-    setSelectedTeammates((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
-  };
-
-  // Create team (2v2: self + 1 teammate, 2 opponents)
-  const handleCreateTeam = () => {
-    if (creatingMatchRef.current) return; // already pressed
-    if (!user?.id || selectedTeammates.length !== 1) return;
-    // Pick 2 random opponents from lobby not in selectedTeammates or self
-    const others = lobby.filter(p => p.userId !== user.id && !selectedTeammates.includes(p.userId));
-    if (others.length < 2) {
-      setStatusMsg("Not enough opponents in lobby.");
-      return;
-    }
-    const shuffled = others.sort(() => Math.random() - 0.5);
-    const teamA = [ { userId: user.id, name: user.name || user.email },
-                    ...lobby.filter(p => selectedTeammates.includes(p.userId)) ];
-    const teamB = shuffled.slice(0, 2);
-    queueMatch([ ...teamA, ...teamB ], 2);
-    creatingMatchRef.current = true;
-    setStatusMsg("Team created! Assigning teams...");
-  };
-
-  if (inLobby) {
+  // If no room or team assigned yet, show waiting message
+  if (!roomId || !teamId) {
     return (
-      <div style={{ padding: 32, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif' }}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <h2 style={{ color: 'var(--primary)', textAlign: 'center', marginBottom: 16, letterSpacing: 1 }}>⚡ Team Duel Lobby</h2>
-          <button onClick={toggleDark} style={{padding:'6px 12px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>
-            {isDark? '☀️ Light' : '🌙 Dark'}
-          </button>
+      <div style={{ padding: 32, maxWidth: 700, margin: '0 auto', fontFamily: 'Segoe UI, sans-serif', textAlign: 'center' }}>
+        <h2 style={{ color: '#7c3aed', marginBottom: 16 }}>⚡ Team Duel</h2>
+        <div style={{ color: '#888', fontSize: 18 }}>{statusMsg}</div>
+        <div style={{ marginTop: 16, color: '#666' }}>
+          Waiting for room assignment...
         </div>
-        {
-          // Compute online friends (accepted & currently in lobby)
-        }
-        {(() => {
-          const onlineFriends = friends.filter(f => lobby.some(p => p.userId === f.userId));
-          return (
-            <>
-              <div style={{ marginBottom: 18, textAlign: 'center', fontSize: 18 }}>
-                <b>Online Friends:</b> {onlineFriends.length} / {friends.length}
-              </div>
-              <ul style={{ listStyle: 'none', padding: 0, marginBottom: 18 }}>
-                {onlineFriends.map(fr => (
-                  <li key={fr.userId} style={{ margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedTeammates.includes(fr.userId)}
-                      disabled={fr.userId === user?.id}
-                      onChange={() => toggleTeammate(fr.userId)}
-                      style={{ marginRight: 8 }}
-                    />
-                    <span style={{ fontWeight: fr.userId === user?.id ? 700 : 400 }}>
-                      {fr.name || fr.userId} {fr.userId === user?.id ? '(You)' : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          );
-        })()}
-        <button
-          onClick={() => {
-            handleCreateTeam();
-          }}
-          disabled={selectedTeammates.length !== 1 || !isAllOnline(selectedTeammates, lobby) }
-          style={{ padding: '10px 24px', fontSize: 16, borderRadius: 6, background: '#7c3aed', color: '#fff', border: 'none', cursor: 'pointer', marginBottom: 12 }}
-        >
-          Start 2v2 Duel
-        </button>
-        <div style={{ color: '#888', textAlign: 'center', marginTop: 10 }}>{statusMsg}</div>
       </div>
     );
   }
