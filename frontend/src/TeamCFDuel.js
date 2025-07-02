@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { socket } from "./socket";
 import useDarkMode from "./useDarkMode";
 import MonacoEditor from "@monaco-editor/react";
+// Yjs collaborative editing
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { MonacoBinding } from 'y-monaco';
 
 const languageOptions = [
   { id: "python", name: "Python 3" },
@@ -21,10 +25,9 @@ function TeamCFDuel({ user }) {
   const [status, setStatus] = useState("Loading...");
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
-  const modelVersion = useRef(0);
+  const ydocRef = useRef(null);
+  const providerRef = useRef(null);
   const timerRef = useRef(null);
-  const updateTimeoutRef = useRef(null);
-  const isUpdatingFromRemote = useRef(false);
 
   useEffect(() => {
     // Get match data from localStorage
@@ -82,50 +85,54 @@ function TeamCFDuel({ user }) {
       setTimeout(() => navigate('/lobby'), 3000);
     });
 
-    sock.on("code_updated", ({ changes, userId: editorId, userName: editorName }) => {
-      console.log("[code] Received code update from teammate");
-      if (!changes || !editorRef.current) return;
-      isUpdatingFromRemote.current = true;
-      const model = editorRef.current.getModel();
-      model.applyEdits(changes);
-      setCode(model.getValue());
-      setLastEditor(editorId === user.id ? 'You' : editorName);
-      // Reset flag after a short delay
-      setTimeout(() => {
-        isUpdatingFromRemote.current = false;
-      }, 100);
-    });
+    
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
+
     };
   }, [navigate]);
 
-  const handleCodeChange = (value) => {
-    const newCode = value || "";
-    setCode(newCode);
-    setLastEditor('You');
-    
-    // Debounced code update to prevent spam
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    
-    updateTimeoutRef.current = setTimeout(() => {
-      if (matchData && !isUpdatingFromRemote.current && editorRef.current) {
-        const model = editorRef.current.getModel();
-        const edits = model.getAlternativeVersionId() !== modelVersion.current
-          ? editorRef.current.getModel().getFullModelRange()
-          : [];
-        socket.emit("code_update", {
-          roomId: matchData.roomId,
-          teamId: matchData.teamId,
-          changes: editorRef.current.getModel().getEditOperations()[0]?.edits || []
-        });
-        modelVersion.current = model.getAlternativeVersionId();
+  // Initialize Yjs provider once editor and matchData available
+  useEffect(() => {
+    if (!matchData || !editorRef.current) return;
+
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+    const wsUrl = process.env.REACT_APP_YJS_WS || 'ws://localhost:5051';
+    const roomName = `room-${matchData.roomId}`;
+    const provider = new WebsocketProvider(wsUrl, roomName, ydoc);
+    providerRef.current = provider;
+
+    const yText = ydoc.getText('monaco');
+    const model = editorRef.current.getModel();
+
+    // Create binding
+    const binding = new MonacoBinding(yText, model, new Set([editorRef.current]), provider.awareness);
+
+    // Track awareness changes for "last editor" info
+    provider.awareness.setLocalStateField('user', { name: user.name || user.email });
+    const awarenessHandler = ({ added, updated }) => {
+      const states = Array.from(provider.awareness.getStates().entries());
+      const changedId = [...added, ...updated][0];
+      const state = states.find(([id]) => id === changedId)?.[1];
+      if (state?.user?.name) {
+        setLastEditor(state.user.name === (user.name || user.email) ? 'You' : state.user.name);
       }
-    }, 300); // 300ms debounce
+    };
+    provider.awareness.on('change', awarenessHandler);
+
+    // Clean up on unmount
+    return () => {
+      provider.awareness.off('change', awarenessHandler);
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [matchData, editorRef.current]);
+
+  const handleCodeChange = (value) => {
+    setCode(value || "");
+    setLastEditor('You');
   };
 
   const handleLanguageChange = (newLanguage) => {
