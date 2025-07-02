@@ -338,9 +338,8 @@ io.on("connection", (socket) => {
       if (sockA) sockA.emit("match_found", { roomId, yourTeam: teamAIds, oppTeam: teamBIds });
       if (sockB) sockB.emit("match_found", { roomId, yourTeam: teamBIds, oppTeam: teamAIds });
       
-      // Clean up leader data
-      leaderTeams.delete(leadA);
-      leaderTeams.delete(leadB);
+      // Don't clean up leader data yet - we need it for summon_team
+      // Will clean up after team assignment is complete
     } else {
       // Still waiting for opponent
       team.forEach(p => {
@@ -452,12 +451,22 @@ io.on("connection", (socket) => {
       if (!sock) return;
       const isTeamA = room.teamA.some(p => p.userId === player.userId);
       const teamId = isTeamA ? 'A' : 'B';
+      const teamMembers = (isTeamA ? room.teamA : room.teamB).map(p => ({ userId: p.userId, name: p.name }));
+      const opponents = (isTeamA ? room.teamB : room.teamA).map(p => ({ userId: p.userId, name: p.name }));
+      
+      console.log(`[assignment] Sending to ${player.userId} (${player.name}):`, {
+        roomId,
+        teamId,
+        teamMembers,
+        opponents
+      });
+      
       sock.join(roomId + '_' + teamId);
       sock.emit('team_assignment', {
         roomId,
         teamId,
-        teamMembers: (isTeamA ? room.teamA : room.teamB).map(p => ({ userId: p.userId, name: p.name })),
-        opponents: (isTeamA ? room.teamB : room.teamA).map(p => ({ userId: p.userId, name: p.name }))
+        teamMembers,
+        opponents
       });
     };
 
@@ -468,6 +477,14 @@ io.on("connection", (socket) => {
     setTimeout(() => {
       room.teamA.forEach(sendAssignment);
       room.teamB.forEach(sendAssignment);
+      
+      // Clean up leader data after assignment is complete
+      const allPlayerIds = [...room.teamA, ...room.teamB].map(p => p.userId);
+      for (const [leaderId, teamData] of leaderTeams.entries()) {
+        if (teamData.some(p => allPlayerIds.includes(p.userId))) {
+          leaderTeams.delete(leaderId);
+        }
+      }
     }, 200); // 200 ms is ample for a route change + component mount
   });
 
