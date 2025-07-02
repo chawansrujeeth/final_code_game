@@ -105,15 +105,17 @@ io.on("connection", (socket) => {
       }
     }
     
-    // Remove from lobby if already there
-    const existingIndex = lobby.findIndex(u => u.userId === userId);
-    if (existingIndex !== -1) {
-      lobby.splice(existingIndex, 1);
+    // Remove ALL instances of this user from lobby (fix duplicates)
+    let foundIndex;
+    while ((foundIndex = lobby.findIndex(u => u.userId === userId)) !== -1) {
+      lobby.splice(foundIndex, 1);
     }
     
-    // Add to lobby
+    // Add to lobby only once
     const userName = await getUserName(userId);
     lobby.push({ userId, name: userName, socket });
+    
+    console.log(`[lobby] Current lobby:`, lobby.map(u => u.userId));
     
     // Broadcast lobby update
     io.emit("lobby_update", lobby.map(u => ({ userId: u.userId, name: u.name })));

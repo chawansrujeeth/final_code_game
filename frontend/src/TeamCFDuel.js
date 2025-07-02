@@ -21,6 +21,8 @@ function TeamCFDuel({ user }) {
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
   const timerRef = useRef(null);
+  const updateTimeoutRef = useRef(null);
+  const isUpdatingFromRemote = useRef(false);
 
   useEffect(() => {
     // Get match data from localStorage
@@ -79,28 +81,42 @@ function TeamCFDuel({ user }) {
     });
 
     sock.on("code_updated", ({ code: newCode }) => {
+      console.log("[code] Received code update from teammate");
+      isUpdatingFromRemote.current = true;
       setCode(newCode);
       if (editorRef.current) {
         editorRef.current.setValue(newCode);
       }
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isUpdatingFromRemote.current = false;
+      }, 100);
     });
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
     };
   }, [navigate]);
 
   const handleCodeChange = (value) => {
-    setCode(value || "");
+    const newCode = value || "";
+    setCode(newCode);
     
-    // Broadcast code update to teammates
-    if (matchData) {
-      socket.emit("code_update", {
-        roomId: matchData.roomId,
-        teamId: matchData.teamId,
-        code: value || ""
-      });
+    // Debounced code update to prevent spam
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
     }
+    
+    updateTimeoutRef.current = setTimeout(() => {
+      if (matchData && !isUpdatingFromRemote.current) {
+        socket.emit("code_update", {
+          roomId: matchData.roomId,
+          teamId: matchData.teamId,
+          code: newCode
+        });
+      }
+    }, 300); // 300ms debounce
   };
 
   const handleLanguageChange = (newLanguage) => {
