@@ -110,11 +110,9 @@ function TeamCFDuel({ user }) {
     });
 
     sock.on('duel_finished', ({ winner }) => {
-      if (matchData && winner === matchData.teamId) {
-        setStatus('🎉 Your team solved the problem! You win!');
-      } else {
-        setStatus('😢 Opponent team solved the problem first. You lose.');
-      }
+      if (!matchData) return;
+      const winnerText = winner === matchData.teamId ? 'Your team' : 'Opponent team';
+      setStatus(`${winnerText} solved the problem first. Room closed.`);
     });
 
     sock.on("room_expired", ({ message }) => {
