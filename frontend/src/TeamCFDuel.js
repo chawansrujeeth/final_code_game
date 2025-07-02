@@ -110,7 +110,7 @@ function TeamCFDuel({ user }) {
     });
 
     sock.on('duel_finished', ({ winner }) => {
-      if (winner === matchData.teamId) {
+      if (matchData && winner === matchData.teamId) {
         setStatus('🎉 Your team solved the problem! You win!');
       } else {
         setStatus('😢 Opponent team solved the problem first. You lose.');
@@ -376,6 +376,11 @@ function TeamCFDuel({ user }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Status Banner */}
+      <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f3f4f6', borderRadius: 4 }}>
+        {status}
       </div>
 
       {/* Problem Statement */}
