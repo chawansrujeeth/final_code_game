@@ -100,7 +100,7 @@ function TeamCFDuel({ user }) {
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
     const wsUrl = process.env.REACT_APP_YJS_WS || 'ws://localhost:5051';
-    const roomName = `room-${matchData.roomId}`;
+    const roomName = `room-${matchData.roomId}-${matchData.teamId}`; // separate code-space per team
     const provider = new WebsocketProvider(wsUrl, roomName, ydoc);
     providerRef.current = provider;
 
