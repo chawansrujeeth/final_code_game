@@ -69,11 +69,19 @@ function findUserTeam(userId) {
 
 // Return a random Codeforces problem from Supabase (fallback to a hard-coded example on error)
 // Return a random Codeforces problem from Supabase (client-side random to avoid SQL randomness issues)
+function parseCFUrl(url) {
+  const match = url.match(/problem\/(\d+)\/([A-Za-z0-9]+)/) || url.match(/contest\/(\d+)\/problem\/([A-Za-z0-9]+)/);
+  if (match) {
+    return { contestId: Number(match[1]), index: match[2] };
+  }
+  return null;
+}
+
 async function getRandomProblem() {
   try {
     const { data, error } = await supabase
       .from('cf_problems')
-      .select('contest_id, index, name');
+      .select('problem_url, name');
 
     if (error || !data || data.length === 0) {
       // Fallback hard-coded example
@@ -81,7 +89,12 @@ async function getRandomProblem() {
     }
 
     const p = data[Math.floor(Math.random() * data.length)];
-    return { contestId: p.contest_id, index: p.index, name: p.name };
+    const parsed = parseCFUrl(p.problem_url);
+    if (parsed) {
+      return { ...parsed, name: p.name, link: p.problem_url };
+    }
+    // if parsing failed, fallback
+    return { contestId: 231, index: 'A', name: 'Team Programming Contest', link: 'https://codeforces.com/problemset/problem/231/A' };
   } catch (err) {
     console.error('Error fetching random problem:', err);
     return { contestId: 231, index: 'A', name: 'Team Programming Contest' };
@@ -220,7 +233,7 @@ io.on("connection", (socket) => {
 
       // Pick random problem for this duel
       const problem = await getRandomProblem();
-      problem.link = cfProblemLink(problem);
+      
       
       rooms[roomId] = {
         teamA: team.members,
@@ -338,7 +351,7 @@ io.on("connection", (socket) => {
       }
       const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
       const recentSubs = data.result.filter(s => s.creationTimeSeconds >= fiveMinutesAgo);
-      const solved = recentSubs.some(sub => sub.verdict === 'OK' && sub.problem.contestId == room.problem.contestId && sub.problem.index === room.problem.index);
+      const solved = recentSubs.some(sub => sub.verdict === 'OK' && sub.problem.contestId == room.problem.contestId && sub.problem.index == room.problem.index);
       if (solved) {
         room.status = 'finished';
         clearTimeout(room.timer);
