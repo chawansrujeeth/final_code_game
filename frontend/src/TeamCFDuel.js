@@ -130,6 +130,24 @@ function TeamCFDuel({ user }) {
     };
   }, [navigate]);
 
+  // Listen for submission result events
+  useEffect(() => {
+    const onError = ({ message }) => setStatus(message || 'Submission error');
+    const onFinished = ({ winner }) => {
+      if (winner === matchData?.teamId) {
+        setStatus('Your team won!');
+      } else {
+        setStatus('Your team lost');
+      }
+    };
+    socket.on('submission_error', onError);
+    socket.on('duel_finished', onFinished);
+    return () => {
+      socket.off('submission_error', onError);
+      socket.off('duel_finished', onFinished);
+    };
+  }, [matchData]);
+
   // Initialize Yjs provider once editor and matchData available
   useEffect(() => {
     if (!matchData || !editorRef.current) return;
