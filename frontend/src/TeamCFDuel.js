@@ -33,6 +33,7 @@ function TeamCFDuel({ user }) {
   const [language, setLanguage] = useState("python");
   const [lastEditor, setLastEditor] = useState(null);
   const [status, setStatus] = useState("Loading...");
+  const [duelOver, setDuelOver] = useState(false);
   const [connStatus, setConnStatus] = useState('online'); // online | reconnecting
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
   const editorRef = useRef(null);
@@ -133,11 +134,10 @@ function TeamCFDuel({ user }) {
   useEffect(() => {
     const onError = ({ message }) => setStatus(message || 'Submission error');
     const onFinished = ({ winner }) => {
-      if (winner === matchData?.teamId) {
-        setStatus('Your team won!');
-      } else {
-        setStatus('Your team lost');
-      }
+      const won = winner === matchData?.teamId;
+      setStatus(`${won ? 'Your team won!' : 'Your team lost.'} Redirecting to lobby in 5 seconds...`);
+      setDuelOver(true);
+      setTimeout(returnToLobby, 5000);
     };
     socket.on('submission_error', onError);
     socket.on('duel_finished', onFinished);
@@ -381,6 +381,12 @@ function TeamCFDuel({ user }) {
       <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f3f4f6', borderRadius: 4 }}>
         {status}
       </div>
+
+      {duelOver && (
+        <div style={{ marginBottom: 24 }}>
+          <button onClick={returnToLobby} style={{ padding: '10px 20px', fontSize: 16 }}>Return to Lobby Now</button>
+        </div>
+      )}
 
       {/* Problem Statement */}
       {problem && (

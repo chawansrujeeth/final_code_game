@@ -43,7 +43,7 @@ export default function Profile() {
         // Fetch profile
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("name, age, state, codeforces_handle, cf_verified, cf_verify_problem_contest_id, cf_verify_problem_index, cf_verify_problem_name, cf_verify_start_time")
+          .select("name, age, state, codeforces_handle, rating, cf_verified, cf_verify_problem_contest_id, cf_verify_problem_index, cf_verify_problem_name, cf_verify_start_time")
           .eq("user_id", userData.user.id)
           .single();
         setProfile(profileData);
@@ -356,6 +356,7 @@ export default function Profile() {
             <div><b>Name:</b> {profile.name}</div>
             <div><b>Age:</b> {profile.age}</div>
             <div><b>State:</b> {profile.state}</div>
+            <div><b>Rating:</b> {profile.rating != null ? profile.rating : 800}</div>
             <div><b>Codeforces Handle:</b> {profile.codeforces_handle || <span style={{ color: '#aaa' }}>Not set</span>}</div>
             {profile.codeforces_handle && (
               <span style={{ marginLeft: 8, color: cfVerified ? 'green' : 'orange', fontWeight: 600 }}>

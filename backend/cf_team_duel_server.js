@@ -40,6 +40,31 @@ const lobby = []; // users in lobby
 const teams = {}; // teamId -> { leader, members: [user objects], status: 'forming'|'queued'|'matched' }
 const rooms = {}; // roomId -> { teamA, teamB, status: 'active'|'expired'|'finished', createdAt, timer, problem }
 
+// --- Rating system ---
+// Everyone starts at 800 if rating is null / missing in DB
+// Winners +30, losers -30
+async function updateTeamRatings(winnerMembers = [], loserMembers = []) {
+  // Helper to safely fetch current rating and update
+  async function adjust(userId, delta) {
+    try {
+      const { data, error } = await supabase.from('profiles').select('rating').eq('user_id', userId).single();
+      if (error) {
+        console.error('[rating] fetch error', error);
+        return;
+      }
+      let rating = (data && data.rating != null) ? data.rating : 800;
+      rating += delta;
+      await supabase.from('profiles').update({ rating }).eq('user_id', userId);
+    } catch (e) {
+      console.error('[rating] unexpected', e);
+    }
+  }
+  await Promise.all([
+    ...winnerMembers.map(m => adjust(m.userId, 30)),
+    ...loserMembers.map(m => adjust(m.userId, -30))
+  ]);
+}
+
 // Helper functions
 function generateId() {
   return Math.random().toString(36).substr(2, 9);
@@ -355,13 +380,23 @@ io.on("connection", (socket) => {
       if (solved) {
         room.status = 'finished';
         clearTimeout(room.timer);
-        io.to(`room_${roomId}_A`).emit('duel_finished', { winner: teamId });
+        // Update ratings
+const winners = teamId === 'A' ? room.teamA : room.teamB;
+const losers  = teamId === 'A' ? room.teamB : room.teamA;
+await updateTeamRatings(winners, losers);
+
+io.to(`room_${roomId}_A`).emit('duel_finished', { winner: teamId });
         io.to(`room_${roomId}_B`).emit('duel_finished', { winner: teamId });
       } else {
         room.status = 'finished';
         clearTimeout(room.timer);
         const other = teamId === 'A' ? 'B' : 'A';
-        io.to(`room_${roomId}_A`).emit('duel_finished', { winner: other });
+        // Update ratings
+const winners = other === 'A' ? room.teamA : room.teamB;
+const losers  = other === 'A' ? room.teamB : room.teamA;
+await updateTeamRatings(winners, losers);
+
+io.to(`room_${roomId}_A`).emit('duel_finished', { winner: other });
         io.to(`room_${roomId}_B`).emit('duel_finished', { winner: other });
       }
     } catch (e) {
