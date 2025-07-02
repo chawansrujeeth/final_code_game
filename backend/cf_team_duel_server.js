@@ -352,6 +352,14 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Voice signalling for WebRTC
+  socket.on('voice-signal', ({ to, from, signal, room }) => {
+    const target = userSockets[to];
+    if (target) {
+      target.emit('voice-signal', { from, signal, room });
+    }
+  });
+
   socket.on("code_update", ({ roomId, teamId, changes }) => {
     console.log(`[code] Team ${teamId} in room ${roomId} sent ${changes?.length || 0} edits`);
     socket.to(`room_${roomId}_${teamId}`).emit('code_updated', { 

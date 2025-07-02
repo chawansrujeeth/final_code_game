@@ -7,6 +7,7 @@ import MonacoEditor from "@monaco-editor/react";
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { MonacoBinding } from 'y-monaco';
+import VoiceChat from './VoiceChat';
 
 // helper to generate consistent color per user
 function stringToColor(str) {
@@ -457,6 +458,16 @@ function TeamCFDuel({ user }) {
           />
         </div>
       </div>
+
+      {/* Voice Chat */}
+      {matchData && (
+        <VoiceChat
+          socket={socket}
+          roomKey={`room_${matchData.roomId}_${matchData.teamId}`}
+          userId={user.id}
+          teammates={matchData.teammates || []}
+        />
+      )}
 
       {/* Instructions */}
       <div style={{ 
