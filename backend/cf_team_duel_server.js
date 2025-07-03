@@ -23,6 +23,10 @@ app.use(cors({
 app.use(express.json());
 
 const server = http.createServer(app);
+
+// Debug: confirm Judge0 RapidAPI key detection
+const hasRapid = !!(process.env.JUDGE0_KEY_1 || process.env.JUDGE0_KEY);
+console.log('[INIT] Judge0 RapidAPI key', hasRapid ? 'detected' : 'NOT found');
 const io = new Server(server, {
   cors: {
     origin: [
@@ -411,12 +415,18 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true';
-      const headers = {
-        'Content-Type': 'application/json',
-        'X-RapidAPI-Key': process.env.JUDGE0_KEY_1 || process.env.JUDGE0_KEY || '',
-        'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-      };
+      // Decide which Judge0 host to use
+      const RAPID_KEY = process.env.JUDGE0_KEY_1 || process.env.JUDGE0_KEY;
+      const JUDGE0_URL = RAPID_KEY
+        ? 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true'
+        : 'https://api.judge0.com/submissions/?base64_encoded=false&wait=true';
+      const headers = RAPID_KEY
+        ? {
+            'Content-Type': 'application/json',
+            'X-RapidAPI-Key': RAPID_KEY,
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+          }
+        : { 'Content-Type': 'application/json' };
 
       const submissionRes = await fetch(JUDGE0_URL, {
         method: 'POST',
@@ -428,9 +438,19 @@ io.on("connection", (socket) => {
         }),
       });
       const submissionData = await submissionRes.json();
+      console.log('[DEBUG] Judge0 response', submissionData);
+      // Judge0 status: 3 = Accepted
+      if (submissionData.status && submissionData.status.id !== 3) {
+        socket.emit('submission_error', { message: `Judge0 status: ${submissionData.status.description || submissionData.status.id}` });
+        return;
+      }
       const got = (submissionData.stdout || '').replace(/\r/g, '').trim();
       const expected = (sample.output || '').replace(/\r/g, '').trim();
-      localPassed = got === expected;
+      if (got !== expected) {
+        socket.emit('submission_error', { message: `Sample failed. Expected '${expected}', got '${got}'` });
+        return;
+      }
+      localPassed = true;
     } catch (e) {
       console.error('[submit_solution] Judge0 error', e);
       socket.emit('submission_error', { message: 'Judge0 error / sample not passed' });
