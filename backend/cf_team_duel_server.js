@@ -442,7 +442,8 @@ io.on("connection", (socket) => {
       // Judge0 status: 3 = Accepted
       if (submissionData.status && submissionData.status.id !== 3) {
         socket.emit('submission_error', { message: `Judge0 status: ${submissionData.status.description || submissionData.status.id}` });
-        return;
+        // Judge0 failed; localPassed remains false - opponent may win
+
       }
       const got = (submissionData.stdout || '').replace(/\r/g, '').trim();
       const expected = (sample.output || '').replace(/\r/g, '').trim();
@@ -472,7 +473,7 @@ io.on("connection", (socket) => {
         } catch {}
         if (!localPassed) {
           socket.emit('submission_error', { message: `Sample failed. Expected '${expected}', got '${got}'` });
-          return;
+          // keep localPassed false
         }
       } else {
         localPassed = true;
@@ -480,7 +481,7 @@ io.on("connection", (socket) => {
     } catch (e) {
       console.error('[submit_solution] Judge0 error', e);
       socket.emit('submission_error', { message: 'Judge0 error / sample not passed' });
-      return;
+      // keep localPassed false but continue
     }
 
     // ---- Decide winner ----
