@@ -391,11 +391,25 @@ io.on("connection", (socket) => {
     // ---- 2) Local Judge0 sample check ----
     let localPassed = false;
     try {
-      // Obtain sample
-      const { scrapeFirstSample } = require('./cf_random_util');
-      const sample = await scrapeFirstSample(room.problem.link || cfProblemLink(room.problem));
-
-      if (!sample.input || !sample.output) throw new Error('Sample not found for problem');
+      // Obtain sample from Supabase cf_problems table
+      let sample;
+      try {
+        const { data, error } = await supabase
+          .from('cf_problems')
+          .select('samples')
+          .eq('problem_url', room.problem.link || cfProblemLink(room.problem))
+          .single();
+        if (error) throw error;
+        if (data && Array.isArray(data.samples) && data.samples.length > 0) {
+          sample = data.samples[0];
+        }
+      } catch (dbErr) {
+        console.error('[submit_solution] Supabase sample fetch error', dbErr);
+      }
+      if (!sample || !sample.input || !sample.output) {
+        socket.emit('submission_error', { message: 'No sample available for this problem' });
+        return;
+      }
 
       const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true';
       const headers = {
