@@ -23,6 +23,13 @@ const languageOptions = [
   { id: "javascript", name: "JavaScript (Node.js)" },
 ];
 
+// Judge0 language IDs mapping
+const judge0LangMap = {
+  python: 71,
+  cpp: 54,
+  javascript: 63,
+};
+
 function TeamCFDuel({ user }) {
   const navigate = useNavigate();
   const [isDark, toggleDark] = useDarkMode();
@@ -205,10 +212,16 @@ function TeamCFDuel({ user }) {
   };
 
   const handleSubmit = () => {
+    if (!code) {
+      setStatus('Write some code before submitting');
+      return;
+    }
     socket.emit('submit_solution', {
       roomId: matchData.roomId,
       teamId: matchData.teamId,
-      cfHandle: user.codeforces_handle || user.name
+      cfHandle: user.codeforces_handle || user.name,
+      sourceCode: code,
+      languageId: judge0LangMap[language] || 71,
     });
   };
 

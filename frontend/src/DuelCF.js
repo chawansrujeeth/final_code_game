@@ -253,67 +253,93 @@ const DuelCF = ({ user }) => {
     return [];
   }
 
-  // Submit code to Judge0 and check verdict using Supabase samples, and also check Codeforces API for official submission
+  // Submit: 1) query Codeforces API, 2) run Judge0 on Supabase samples
   async function handleSubmit() {
     setIsSubmitting(true);
     setVerdict("");
     setError("");
+
     if (!cfSample || !cfSample.samples || !cfSample.samples.length) {
       setError("No sample test cases found in Supabase.");
       setIsSubmitting(false);
       return;
     }
-    // Only test the first sample
-    const sample = cfSample.samples[0];
-    // Prepare Judge0 submission
-    const resp = await fetch("https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-RapidAPI-Key": "3bff2b72famsh0ff77eb8ee5d792p14b51fjsnbb6a00e0b675",
-        "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
-      },
-      body: JSON.stringify({
-        source_code: myCode,
-        language_id: judge0LangMap[editorLanguage],
-        stdin: sample.input
-      })
-    });
-    const result = await resp.json();
-    let output = result.stdout || "";
-    output = output.replace(/\r/g, '').trim();
-    const expected = (sample.output || "").replace(/\r/g, '').trim();
-    if (output !== expected) {
-      setVerdict(`Wrong Answer on sample 1`);
-      setIsSubmitting(false);
-      return;
-    } else {
-      setVerdict("Sample 1 passed! Checking Codeforces submission...");
-      // Notify backend that this user passed local Judge0 check
-      if (socket && duelInfo && duelInfo.roomId && handle) {
-        socket.emit('duel_submission', { roomId: duelInfo.roomId, user: handle });
-        console.log('[DEBUG] Notified backend of local Judge0 pass:', { roomId: duelInfo.roomId, handle });
-      }
-    }
-    // Check Codeforces API for official submission
+
+    // 1️⃣  Check Codeforces submissions first
+    let cfAccepted = false;
     try {
       const { contest_id, index } = cfSample;
+      setVerdict("Checking Codeforces submissions…");
       const res = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=20`);
       const data = await res.json();
-      const found = data.result.find(sub =>
-        sub.problem &&
-        sub.problem.contestId == contest_id &&
-        sub.problem.index == index &&
-        sub.verdict === 'OK'
+      cfAccepted = data.result?.some(
+        (sub) =>
+          sub.problem &&
+          sub.problem.contestId == contest_id &&
+          sub.problem.index == index &&
+          sub.verdict === "OK"
       );
-      if (found) {
-        setVerdict("Accepted! Codeforces submission found.");
-      } else {
-        setVerdict("Sample 1 passed locally, but no Codeforces AC submission found yet.");
+    } catch (err) {
+      console.error("CF API error", err);
+      // do not abort – still run Judge0
+    }
+
+    // 2️⃣  Run Judge0 on the first sample from Supabase
+    const sample = cfSample.samples[0];
+    setVerdict((prev) => (prev ? prev + "\n" : "") + "Running local Judge0 test…");
+
+    try {
+      const resp = await fetch(
+        "https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-RapidAPI-Key": "3bff2b72famsh0ff77eb8ee5d792p14b51fjsnbb6a00e0b675",
+            "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
+          },
+          body: JSON.stringify({
+            source_code: myCode,
+            language_id: judge0LangMap[editorLanguage],
+            stdin: sample.input,
+          }),
+        }
+      );
+      const result = await resp.json();
+      let output = (result.stdout || "").replace(/\r/g, "").trim();
+      const expected = (sample.output || "").replace(/\r/g, "").trim();
+
+      if (output !== expected) {
+        setVerdict((prev) =>
+          `${prev}\nWrong Answer on sample 1 (expected \"${expected}\", got \"${output}\")`
+        );
+        setIsSubmitting(false);
+        return;
       }
     } catch (err) {
-      setVerdict("Sample 1 passed locally, but failed to check Codeforces API: " + (err.message || err));
+      setVerdict((prev) => `${prev}\nJudge0 error: ${err.message || err}`);
+      setIsSubmitting(false);
+      return;
     }
+
+    // Decide duel outcome based on results
+    const opponentHandle = (duelInfo?.users || []).find((h) => h !== handle) || "";
+    if (cfAccepted) {
+      // Both checks succeeded → I win
+      setVerdict((prev) => `${prev}\n✅ Accepted! You are the winner.`);
+      if (socket && duelInfo && duelInfo.roomId) {
+        socket.emit("duel_submission", { roomId: duelInfo.roomId, user: handle });
+        console.log("[DEBUG] Declared self winner", { roomId: duelInfo.roomId });
+      }
+    } else {
+      // Local sample passed but no CF AC → you lose
+      setVerdict((prev) => `${prev}\n❌ No Codeforces AC yet → You lose.`);
+      if (socket && duelInfo && duelInfo.roomId && opponentHandle) {
+        socket.emit("duel_submission", { roomId: duelInfo.roomId, user: opponentHandle });
+        console.log("[DEBUG] Declared opponent winner", { roomId: duelInfo.roomId });
+      }
+    }
+
     setIsSubmitting(false);
   }
 

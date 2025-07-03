@@ -356,8 +356,8 @@ io.on("connection", (socket) => {
   });
 
   // Code collaboration (diff-based)
-  // Solution submission – verify CF verdict
-  socket.on('submit_solution', async ({ roomId, teamId, cfHandle }) => {
+  // Solution submission – verify BOTH Codeforces verdict and local Judge0 sample
+  socket.on('submit_solution', async ({ roomId, teamId, cfHandle, sourceCode, languageId }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'active') return;
 
@@ -367,40 +367,81 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // ---- 1) Codeforces API check (latest 5 min) ----
+    let cfAccepted = false;
     try {
-      const resp = await fetch(`https://codeforces.com/api/user.status?handle=${cfHandle}&from=1&count=10`);
+      const resp = await fetch(`https://codeforces.com/api/user.status?handle=${cfHandle}&from=1&count=20`);
       const data = await resp.json();
-      if (data.status !== 'OK') {
-        socket.emit('submission_error', { message: 'Codeforces API error' });
-        return;
-      }
-      const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
-      const recentSubs = data.result.filter(s => s.creationTimeSeconds >= fiveMinutesAgo);
-      const solved = recentSubs.some(sub => sub.verdict === 'OK' && sub.problem.contestId == room.problem.contestId && sub.problem.index == room.problem.index);
-      if (solved) {
-        room.status = 'finished';
-        clearTimeout(room.timer);
-        // Update ratings
-const winners = teamId === 'A' ? room.teamA : room.teamB;
-const losers  = teamId === 'A' ? room.teamB : room.teamA;
-await updateTeamRatings(winners, losers);
-
-io.to(`room_${roomId}_A`).emit('duel_finished', { winner: teamId });
-        io.to(`room_${roomId}_B`).emit('duel_finished', { winner: teamId });
-      } else {
-        room.status = 'finished';
-        clearTimeout(room.timer);
-        const other = teamId === 'A' ? 'B' : 'A';
-        // Update ratings
-const winners = other === 'A' ? room.teamA : room.teamB;
-const losers  = other === 'A' ? room.teamB : room.teamA;
-await updateTeamRatings(winners, losers);
-
-io.to(`room_${roomId}_A`).emit('duel_finished', { winner: other });
-        io.to(`room_${roomId}_B`).emit('duel_finished', { winner: other });
+      if (data.status === 'OK') {
+        const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
+        cfAccepted = data.result.some(
+          (sub) =>
+            sub.creationTimeSeconds >= fiveMinutesAgo &&
+            sub.verdict === 'OK' &&
+            sub.problem.contestId == room.problem.contestId &&
+            sub.problem.index == room.problem.index
+        );
       }
     } catch (e) {
-      socket.emit('submission_error', { message: 'Unable to verify submission' });
+      console.error('[submit_solution] CF API error', e);
+      socket.emit('submission_error', { message: 'Codeforces API error' });
+      return;
+    }
+
+    // ---- 2) Local Judge0 sample check ----
+    let localPassed = false;
+    try {
+      // Obtain sample
+      const { scrapeFirstSample } = require('./cf_random_util');
+      const sample = await scrapeFirstSample(room.problem.link || cfProblemLink(room.problem));
+
+      if (!sample.input || !sample.output) throw new Error('Sample not found for problem');
+
+      const JUDGE0_URL = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true';
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-RapidAPI-Key': process.env.JUDGE0_KEY_1 || process.env.JUDGE0_KEY || '',
+        'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+      };
+
+      const submissionRes = await fetch(JUDGE0_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          source_code: sourceCode,
+          language_id: languageId,
+          stdin: sample.input,
+        }),
+      });
+      const submissionData = await submissionRes.json();
+      const got = (submissionData.stdout || '').replace(/\r/g, '').trim();
+      const expected = (sample.output || '').replace(/\r/g, '').trim();
+      localPassed = got === expected;
+    } catch (e) {
+      console.error('[submit_solution] Judge0 error', e);
+      socket.emit('submission_error', { message: 'Judge0 error / sample not passed' });
+      return;
+    }
+
+    // ---- Decide winner ----
+    const declareWinner = async (winnerTeam) => {
+      room.status = 'finished';
+      clearTimeout(room.timer);
+      const losersTeam = winnerTeam === 'A' ? 'B' : 'A';
+      const winners = winnerTeam === 'A' ? room.teamA : room.teamB;
+      const losers = winnerTeam === 'A' ? room.teamB : room.teamA;
+      await updateTeamRatings(winners, losers);
+      io.to(`room_${roomId}_A`).emit('duel_finished', { winner: winnerTeam });
+      io.to(`room_${roomId}_B`).emit('duel_finished', { winner: winnerTeam });
+    };
+
+    if (cfAccepted && localPassed) {
+      // current team wins
+      await declareWinner(teamId);
+    } else {
+      // opponent wins
+      const other = teamId === 'A' ? 'B' : 'A';
+      await declareWinner(other);
     }
   });
 
