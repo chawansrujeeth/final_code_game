@@ -446,11 +446,37 @@ io.on("connection", (socket) => {
       }
       const got = (submissionData.stdout || '').replace(/\r/g, '').trim();
       const expected = (sample.output || '').replace(/\r/g, '').trim();
-      if (got !== expected) {
-        socket.emit('submission_error', { message: `Sample failed. Expected '${expected}', got '${got}'` });
-        return;
+      const normalize = (str) => str.replace(/\s+/g, ' ').trim();
+      if (normalize(got) !== normalize(expected)) {
+        // Fallback: try scraping live sample in case Supabase sample is outdated
+        try {
+          const { scrapeFirstSample } = require('./cf_random_util');
+          const liveSample = await scrapeFirstSample(room.problem.link || cfProblemLink(room.problem));
+          if (liveSample && liveSample.input && liveSample.output) {
+            const liveRes = await fetch(JUDGE0_URL, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                source_code: sourceCode,
+                language_id: languageId,
+                stdin: liveSample.input,
+              }),
+            });
+            const liveData = await liveRes.json();
+            const gotLive = normalize((liveData.stdout || ''));
+            const expectedLive = normalize((liveSample.output || ''));
+            if (liveData.status && liveData.status.id === 3 && gotLive === expectedLive) {
+              localPassed = true;
+            }
+          }
+        } catch {}
+        if (!localPassed) {
+          socket.emit('submission_error', { message: `Sample failed. Expected '${expected}', got '${got}'` });
+          return;
+        }
+      } else {
+        localPassed = true;
       }
-      localPassed = true;
     } catch (e) {
       console.error('[submit_solution] Judge0 error', e);
       socket.emit('submission_error', { message: 'Judge0 error / sample not passed' });
