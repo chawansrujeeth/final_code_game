@@ -98,75 +98,53 @@ export default function GameLobby({ user }) {
   };
 
   return (
-    <div style={{ 
-      padding: 32, 
-      maxWidth: 800, 
-      margin: '0 auto', 
-      fontFamily: 'Segoe UI, sans-serif',
-      minHeight: '80vh'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ color: '#7c3aed', margin: 0 }}>⚡ Team Duel Lobby</h2>
-        <button 
+    <div className="max-w-3xl mx-auto p-8 font-sans min-h-[80vh]">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-primary m-0 text-2xl font-semibold">⚡ Team Duel Lobby</h2>
+        <button
           onClick={toggleDark}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #7c3aed',
-            borderRadius: 6,
-            background: 'transparent',
-            color: isDark ? '#fff' : '#000',
-            cursor: 'pointer'
-          }}
+          className="px-4 py-2 border border-primary rounded-md bg-transparent text-black dark:text-white hover:bg-primary hover:text-white transition-colors"
         >
           {isDark ? '☀️ Light' : '🌙 Dark'}
         </button>
       </div>
 
-      <div style={{ 
-        background: isDark ? '#2a2a2a' : '#f8f9fa',
-        padding: 20,
-        borderRadius: 8,
-        marginBottom: 24
-      }}>
-        <h3 style={{ margin: '0 0 16px 0', color: '#7c3aed' }}>Status</h3>
-        <p style={{ margin: 0, fontSize: 16 }}>{status}</p>
+      <div className="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg mb-6">
+        <h3 className="text-primary mb-4">Status</h3>
+        <p className="text-base m-0">{status}</p>
       </div>
 
       {!currentTeam ? (
         // Lobby view - create team
         <div>
-          <h3 style={{ color: '#7c3aed', marginBottom: 16 }}>Create Team</h3>
-          <p style={{ marginBottom: 16, color: '#666' }}>
+          <h3 className="text-primary mb-4">Create Team</h3>
+          <p className="mb-4 text-gray-600">
             Select players from the lobby to form your team:
           </p>
           
-          <div style={{ marginBottom: 24 }}>
-            <h4 style={{ marginBottom: 12 }}>Available Players ({lobby.length})</h4>
+          <div className="mb-6">
+            <h4 className="mb-3 font-semibold">Available Players ({lobby.length})</h4>
             {lobby.length === 0 ? (
-              <p style={{ color: '#888', fontStyle: 'italic' }}>No other players in lobby</p>
+              <p className="text-gray-500 italic">No other players in lobby</p>
             ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div className="grid gap-2">
                 {lobby.map(player => (
                   <div 
                     key={player.userId}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: 12,
-                      background: selectedMembers.includes(player.userId) ? '#7c3aed20' : '#fff',
-                      border: selectedMembers.includes(player.userId) ? '2px solid #7c3aed' : '1px solid #ddd',
-                      borderRadius: 6,
-                      cursor: 'pointer'
-                    }}
+                    className={`flex items-center p-3 rounded-md cursor-pointer border ${
+                      selectedMembers.includes(player.userId)
+                        ? 'bg-primary/10 border-primary'
+                        : 'bg-white border-gray-300'
+                    }`}
                     onClick={() => toggleMemberSelection(player.userId)}
                   >
                     <input
                       type="checkbox"
                       checked={selectedMembers.includes(player.userId)}
-                      onChange={() => {}}
-                      style={{ marginRight: 12 }}
+                      readOnly
+                      className="mr-3"
                     />
-                    <span style={{ fontWeight: 500 }}>{player.name}</span>
+                    <span className="font-medium">{player.name}</span>
                   </div>
                 ))}
               </div>
@@ -176,15 +154,9 @@ export default function GameLobby({ user }) {
           <button
             onClick={createTeam}
             disabled={selectedMembers.length === 0}
-            style={{
-              padding: '12px 24px',
-              fontSize: 16,
-              borderRadius: 6,
-              background: selectedMembers.length > 0 ? '#7c3aed' : '#ccc',
-              color: '#fff',
-              border: 'none',
-              cursor: selectedMembers.length > 0 ? 'pointer' : 'not-allowed'
-            }}
+            className={`px-6 py-3 text-base rounded-md text-white transition-colors ${
+              selectedMembers.length > 0 ? 'bg-primary hover:bg-primary/90 cursor-pointer' : 'bg-gray-400 cursor-not-allowed'
+            }`}
           >
             Create Team ({selectedMembers.length + 1} players)
           </button>
@@ -192,29 +164,17 @@ export default function GameLobby({ user }) {
       ) : (
         // Team view - show team and start match
         <div>
-          <h3 style={{ color: '#7c3aed', marginBottom: 16 }}>Your Team</h3>
+          <h3 className="text-primary mb-4">Your Team</h3>
           
-          <div style={{ 
-            background: '#fff',
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 24
-          }}>
-            <h4 style={{ marginBottom: 12 }}>Team Members ({currentTeam.members.length})</h4>
-            <div style={{ display: 'grid', gap: 8 }}>
+          <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-5 mb-6">
+            <h4 className="mb-3 font-semibold">Team Members ({currentTeam.members.length})</h4>
+            <div className="grid gap-2">
               {currentTeam.members.map(member => (
-                <div 
+                <div
                   key={member.userId}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: 8,
-                    background: member.userId === currentTeam.leader ? '#7c3aed10' : '#f8f9fa',
-                    borderRadius: 4
-                  }}
+                  className={`flex items-center p-2 rounded ${member.userId === currentTeam.leader ? 'bg-primary/10' : 'bg-gray-100 dark:bg-gray-800'}`}
                 >
-                  <span style={{ fontWeight: member.userId === currentTeam.leader ? 600 : 400 }}>
+                  <span className={member.userId === currentTeam.leader ? 'font-semibold' : 'font-normal'}>
                     {member.name}
                     {member.userId === currentTeam.leader && ' (Leader)'}
                     {member.userId === user.id && ' (You)'}
@@ -224,19 +184,11 @@ export default function GameLobby({ user }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="flex gap-3">
             {isLeader && (
               <button
                 onClick={startMatchmaking}
-                style={{
-                  padding: '12px 24px',
-                  fontSize: 16,
-                  borderRadius: 6,
-                  background: '#16a34a',
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-md"
               >
                 Start Matchmaking
               </button>
@@ -244,15 +196,7 @@ export default function GameLobby({ user }) {
             
             <button
               onClick={leaveTeam}
-              style={{
-                padding: '12px 24px',
-                fontSize: 16,
-                borderRadius: 6,
-                background: '#dc2626',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer'
-              }}
+              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-md"
             >
               Leave Team
             </button>
