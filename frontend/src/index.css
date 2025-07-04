@@ -27,6 +27,50 @@ body {
   color: var(--text);
 }
 
+/* Global utility classes using Tailwind's @apply */
+.card {
+  @apply p-5 rounded-lg shadow-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700;
+}
+
+.button-primary {
+  @apply px-5 py-3 rounded-md text-white bg-primary hover:bg-primary/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.button-danger {
+  @apply px-5 py-3 rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors;
+}
+
+.button-success {
+  @apply px-5 py-3 rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors;
+}
+
+.heading {
+  @apply text-2xl font-semibold text-primary;
+}
+
+/* Smooth transitions for theme toggling */
+body, button, input, textarea {
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Themed scrollbar */
+body {
+  scrollbar-color: var(--primary) var(--bg);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--primary);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-track {
+  background-color: var(--bg);
+}
+
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
