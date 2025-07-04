@@ -491,6 +491,23 @@ io.on("connection", (socket) => {
       const losersTeam = winnerTeam === 'A' ? 'B' : 'A';
       const winners = winnerTeam === 'A' ? room.teamA : room.teamB;
       const losers = winnerTeam === 'A' ? room.teamB : room.teamA;
+      // Record match history
+      try {
+        const ratingDeltas = Object.fromEntries([
+          ...winners.map(m => [m.userId, 30]),
+          ...losers.map(m => [m.userId, -30])
+        ]);
+        await supabase.from('duel_history').insert({
+          participants: [...winners.map(m => m.userId), ...losers.map(m => m.userId)],
+          team_a_ids: room.teamA.map(m => m.userId),
+          team_b_ids: room.teamB.map(m => m.userId),
+          winner_team: winnerTeam,
+          score_diff: 1,
+          rating_deltas: ratingDeltas
+        });
+      } catch (e) {
+        console.error('[history] insert failed', e);
+      }
       await updateTeamRatings(winners, losers);
       io.to(`room_${roomId}_A`).emit('duel_finished', { winner: winnerTeam });
       io.to(`room_${roomId}_B`).emit('duel_finished', { winner: winnerTeam });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { socket } from "./socket";
 import useDarkMode from "./useDarkMode";
@@ -144,7 +145,7 @@ export default function GameLobby({ user }) {
                       readOnly
                       className="mr-3"
                     />
-                    <span className="font-medium">{player.name}</span>
+                    <Link to={`/player/${player.userId}`} className="font-medium hover:underline">{player.name}</Link>
                   </div>
                 ))}
               </div>
