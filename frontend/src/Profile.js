@@ -36,6 +36,13 @@ export default function Profile() {
   const presenceRef = useRef(null);
   // Tailwind input style
   const inputClass = "w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary";
+  // Gamification helpers
+  const getLevelData = (ratingValue = 800) => {
+    const level = Math.floor(ratingValue / 200) + 1;
+    const xp = ratingValue % 200;
+    const xpPercent = (xp / 200) * 100;
+    return { level, xp, xpPercent };
+  };
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -288,8 +295,8 @@ export default function Profile() {
         <div style={{ marginBottom: 8 }}><b>Email:</b> {user.email}</div>
         {(!profile || !profile.name || !profile.age || !profile.state || editing) ? (
           <form onSubmit={handleProfileSubmit} style={{ marginTop: 24 }}>
-            {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-            {message && <div style={{ color: 'green', marginBottom: 8 }}>{message}</div>}
+            {error && <div className="text-red-600 mb-2">{error}</div>}
+            {message && <div className="text-green-600 mb-2">{message}</div>}
             <div className="mb-3">
               <input
                 type="text"
@@ -354,14 +361,30 @@ export default function Profile() {
             </button>
           </form>
         ) : (
-          <div style={{ marginTop: 16 }}>
-            <div><b>Name:</b> {profile.name}</div>
-            <div><b>Age:</b> {profile.age}</div>
-            <div><b>State:</b> {profile.state}</div>
-            <div><b>Rating:</b> {profile.rating != null ? profile.rating : 800}</div>
-            <div><b>Codeforces Handle:</b> {profile.codeforces_handle || <span style={{ color: '#aaa' }}>Not set</span>}</div>
+          <div className="flex flex-col items-center text-center space-y-3 mt-4">
+            {/* Avatar & Level */}
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center text-3xl font-bold text-primary">
+                {profile.name?.charAt(0).toUpperCase()}
+              </div>
+              {cfVerified && <span className="absolute -bottom-1 -right-1 bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">CF ✓</span>}
+            </div>
+            <h3 className="text-2xl font-semibold">{profile.name}</h3>
+            {(() => { const { level, xpPercent } = getLevelData(profile.rating ?? 800); return (<>
+              <div className="flex items-center space-x-2">
+                <span className="px-2 py-1 bg-primary text-white rounded-md text-sm">Lvl {level}</span>
+                <span className="text-gray-500 text-sm">{profile.rating ?? 800} RP</span>
+              </div>
+              <div className="w-40 bg-gray-200 rounded-full h-3">
+                <div className="bg-primary h-3 rounded-full" style={{ width: `${xpPercent}%` }}></div>
+              </div></>)})() }
+            
+            
+            
+            
+            {/* Verification badge already shown on avatar */}
             {profile.codeforces_handle && (
-              <span style={{ marginLeft: 8, color: cfVerified ? 'green' : 'orange', fontWeight: 600 }}>
+              <span className={cfVerified ? 'text-green-600 font-semibold ml-2' : 'text-orange-500 font-semibold ml-2'}>
                 {cfVerified ? 'Verified' : 'Not Verified'}
               </span>
             )}
@@ -370,7 +393,7 @@ export default function Profile() {
               setEditing(true);
               setMessage("");
               setError("");
-            }} className="button-primary mt-3">Edit Profile</button>
+            }} className="button-primary mt-4">Edit Profile</button>
           </div>
         )}
       </div>
