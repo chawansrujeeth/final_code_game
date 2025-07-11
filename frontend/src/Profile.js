@@ -34,6 +34,8 @@ export default function Profile() {
   // online presence
   const [onlineIds, setOnlineIds] = useState([]);
   const presenceRef = useRef(null);
+  // Tailwind input style
+  const inputClass = "w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary";
 
   useEffect(() => {
     async function fetchUserAndData() {
@@ -280,51 +282,51 @@ export default function Profile() {
   if (!user) return <div style={{ marginTop: 120, textAlign: "center" }}>Not logged in.</div>;
 
   return (
-    <div style={{ marginTop: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#444' }}>
-      <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: 12, padding: 32, minWidth: 340, maxWidth: 420 }}>
-        <h2 style={{ marginBottom: 8 }}>Profile</h2>
+    <div className="mt-20 flex flex-col items-center px-4 text-gray-700">
+      <div className="card w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-2">Profile</h2>
         <div style={{ marginBottom: 8 }}><b>Email:</b> {user.email}</div>
         {(!profile || !profile.name || !profile.age || !profile.state || editing) ? (
           <form onSubmit={handleProfileSubmit} style={{ marginTop: 24 }}>
             {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
             {message && <div style={{ color: 'green', marginBottom: 8 }}>{message}</div>}
-            <div style={{ marginBottom: 12 }}>
+            <div className="mb-3">
               <input
                 type="text"
                 placeholder="Name"
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 required
-                style={{ padding: 8, fontSize: 16, width: 200 }}
+                className={inputClass}
               />
             </div>
-            <div style={{ marginBottom: 12 }}>
+            <div className="mb-3">
               <input
                 type="number"
                 placeholder="Age"
                 value={form.age}
                 onChange={e => setForm({ ...form, age: e.target.value })}
                 required
-                style={{ padding: 8, fontSize: 16, width: 200 }}
+                className={inputClass}
               />
             </div>
-            <div style={{ marginBottom: 12 }}>
+            <div className="mb-3">
               <input
                 type="text"
                 placeholder="State"
                 value={form.state}
                 onChange={e => setForm({ ...form, state: e.target.value })}
                 required
-                style={{ padding: 8, fontSize: 16, width: 200 }}
+                className={inputClass}
               />
             </div>
-            <div style={{ marginBottom: 12 }}>
+            <div className="mb-3">
               <input
                 type="text"
                 placeholder="Codeforces Handle (optional)"
                 value={form.codeforces_handle}
                 onChange={e => setForm({ ...form, codeforces_handle: e.target.value })}
-                style={{ padding: 8, fontSize: 16, width: 200 }}
+                className={inputClass}
               />
               {form.codeforces_handle && (
                 <>
@@ -347,7 +349,7 @@ export default function Profile() {
                 </>
               )}
             </div>
-            <button type="submit" disabled={saving} style={{ padding: '8px 24px', fontSize: 16 }}>
+            <button type="submit" disabled={saving} className="button-primary">
               {saving ? 'Saving...' : 'Save Profile'}
             </button>
           </form>
@@ -368,52 +370,52 @@ export default function Profile() {
               setEditing(true);
               setMessage("");
               setError("");
-            }} style={{ marginTop: 12, padding: '6px 18px', fontSize: 15 }}>Edit Profile</button>
+            }} className="button-primary mt-3">Edit Profile</button>
           </div>
         )}
       </div>
       {/* Friends Section */}
-      <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: 12, padding: 32, minWidth: 340, maxWidth: 900, marginTop: 32 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 12 }}>Friends</h3>
+      <div className="card w-full max-w-2xl mt-8">
+        <h3 className="text-lg font-semibold mb-3">Friends</h3>
         {friendLoading ? (
           <div>Loading...</div>
         ) : (
           <>
             {friends.length === 0 ? (
-              <div style={{ marginBottom: 12 }}>You have no friends yet.</div>
+              <div className="mb-3">You have no friends yet.</div>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, marginBottom: 12 }}>
+              <ul className="list-none mb-3">
                 {friends.map(f => (
-                  <li key={f.id} style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: onlineIds.includes(f.friend_user_id) ? 'limegreen' : '#bbb', display: 'inline-block', marginRight: 6 }}></span>
+                  <li key={f.id} className="my-1.5 flex items-center">
+                    <span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: onlineIds.includes(f.friend_user_id) ? 'limegreen' : '#bbb' }}></span>
                     {f.friend_name || f.friend_user_id}
                   </li>
                 ))}
               </ul>
             )}
-            <div style={{ marginBottom: 12 }}>
+            <div className="mb-3">
               <input
                 type="text"
                 placeholder="Friend's Codeforces handle"
                 value={addHandle}
                 onChange={e => setAddHandle(e.target.value)}
-                style={{ padding: '6px 10px', fontSize: 14, width: 240, marginRight: 8 }}
+                className={inputClass + ' mr-2'}
               />
-              <button onClick={handleSendFriendRequest} disabled={friendLoading || !addHandle.trim()} style={{ padding: '6px 14px', fontSize: 14 }}>
+              <button onClick={handleSendFriendRequest} disabled={friendLoading || !addHandle.trim()} className="button-primary">
                 Add Friend
               </button>
             </div>
-            {friendMessage && <div style={{ color: 'green', marginBottom: 12 }}>{friendMessage}</div>}
-            <h4 style={{ margin: '12px 0 6px' }}>Incoming Requests</h4>
+            {friendMessage && <div className="text-green-600 mb-3">{friendMessage}</div>}
+            <h4 className="my-3 font-semibold">Incoming Requests</h4>
             {friendRequests.length === 0 ? (
               <div>No pending requests.</div>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0 }}>
+              <ul className="list-none">
                 {friendRequests.map(req => (
                   <li key={req.id} style={{ margin: '6px 0' }}>
                     {req.requester_name || 'Unknown'}
-                    <button onClick={() => respondFriendRequest(req.id, true)} style={{ margin: '0 6px', padding: '4px 10px' }}>Accept</button>
-                    <button onClick={() => respondFriendRequest(req.id, false)} style={{ padding: '4px 10px' }}>Decline</button>
+                    <button onClick={() => respondFriendRequest(req.id, true)} className="button-success mx-1">Accept</button>
+                    <button onClick={() => respondFriendRequest(req.id, false)} className="button-danger">Decline</button>
                   </li>
                 ))}
               </ul>
@@ -422,8 +424,8 @@ export default function Profile() {
         )}
       </div>
 
-      <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: 12, padding: 32, minWidth: 340, maxWidth: 900, marginTop: 32 }}>
-        <h3 style={{ marginTop: 0 }}>Your Submissions</h3>
+      <div className="card w-full max-w-2xl mt-8">
+        <h3 className="text-lg font-semibold mb-3">Your Submissions</h3>
         {submissions.length === 0 ? (
           <div>No submissions yet.</div>
         ) : (
