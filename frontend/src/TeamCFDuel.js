@@ -36,9 +36,11 @@ function TeamCFDuel({ user }) {
   
   const [matchData, setMatchData] = useState(null);
   const [problem, setProblem] = useState(null);
-  const [code, setCode] = useState("");
+  // Store code in a ref to avoid re-renders on every keystroke
+  const codeRef = useRef("");
   const [language, setLanguage] = useState("python");
   const [lastEditor, setLastEditor] = useState(null);
+  const [activeUsers, setActiveUsers] = useState([]);
   const [status, setStatus] = useState("Loading...");
   const [duelOver, setDuelOver] = useState(false);
   const [connStatus, setConnStatus] = useState('online'); // online | reconnecting
@@ -170,6 +172,12 @@ function TeamCFDuel({ user }) {
       setConnStatus(status === 'connected' ? 'online' : 'reconnecting');
     });
 
+    // Set local awareness w/ name & color
+    provider.awareness.setLocalStateField('user', {
+      name: user.name || user.email,
+      color: stringToColor(user.id)
+    });
+
     const yText = ydoc.getText('monaco');
     const model = editorRef.current.getModel();
 
@@ -178,13 +186,16 @@ function TeamCFDuel({ user }) {
 
     // Track awareness changes for "last editor" info
     provider.awareness.setLocalStateField('user', { name: user.name || user.email, color: stringToColor(user.id) });
-    const awarenessHandler = ({ added, updated }) => {
+    const awarenessHandler = ({ added, updated, removed }) => {
       const states = Array.from(provider.awareness.getStates().entries());
       const changedId = [...added, ...updated][0];
       const state = states.find(([id]) => id === changedId)?.[1];
       if (state?.user?.name) {
         setLastEditor(state.user.name === (user.name || user.email) ? 'You' : state.user.name);
       }
+      // Update active users list
+      const users = Array.from(provider.awareness.getStates().values()).map(s => s.user).filter(Boolean);
+      setActiveUsers(users);
     };
     provider.awareness.on('change', awarenessHandler);
 
@@ -196,10 +207,10 @@ function TeamCFDuel({ user }) {
     };
   }, [matchData, editorRef.current]);
 
-  const handleCodeChange = (value) => {
-    setCode(value || "");
+  const handleCodeChange = useCallback((value) => {
+    codeRef.current = value || "";
     setLastEditor('You');
-  };
+  }, []);
 
   const handleLanguageChange = (newLanguage) => {
     setLanguage(newLanguage);
@@ -212,7 +223,8 @@ function TeamCFDuel({ user }) {
   };
 
   const handleSubmit = () => {
-    if (!code) {
+    const currentCode = codeRef.current || editorRef.current?.getValue() || "";
+    if (!currentCode) {
       setStatus('Write some code before submitting');
       return;
     }
@@ -220,7 +232,7 @@ function TeamCFDuel({ user }) {
       roomId: matchData.roomId,
       teamId: matchData.teamId,
       cfHandle: user.codeforces_handle || user.name,
-      sourceCode: code,
+      sourceCode: currentCode,
       languageId: judge0LangMap[language] || 71,
     });
   };
@@ -427,6 +439,15 @@ function TeamCFDuel({ user }) {
           marginBottom: 12 
         }}>
           <h3 style={{ margin: 0, color: '#7c3aed' }}>Collaborative Code Editor</h3>
+          {/* Active collaborators */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {activeUsers.map(u => (
+              <div key={u.name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: u.color }}></span>
+                <span style={{ fontSize: 12 }}>{u.name === (user.name || user.email) ? 'You' : u.name}</span>
+              </div>
+            ))}
+          </div>
           {lastEditor && (
             <span style={{ fontSize: 12, color: '#888', marginLeft: 12 }}>
               Last edit by {lastEditor}
@@ -462,7 +483,7 @@ function TeamCFDuel({ user }) {
           <MonacoEditor
             height="500px"
             language={language}
-            value={code}
+            defaultValue={codeRef.current}
             onChange={handleCodeChange}
             onMount={(editor) => {
               editorRef.current = editor;
