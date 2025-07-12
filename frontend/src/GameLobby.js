@@ -83,11 +83,18 @@ export default function GameLobby({ user }) {
 
     // When members join/leave, server emits updated team state
     sock.on("team_updated", ({ teamId, leader, members }) => {
-      if (currentTeam && currentTeam.teamId === teamId) {
+      const isInTeam = members.some(m => m.userId === user.id);
+      if (isInTeam) {
         const teamState = { teamId, leader, members };
         setCurrentTeam(teamState);
         localStorage.setItem('currentTeam', JSON.stringify(teamState));
-        setStatus("Team updated (member joined/left)");
+        setStatus("Team updated");
+      } else if (currentTeam && currentTeam.teamId === teamId) {
+        // Current user was removed from team
+        setCurrentTeam(null);
+        localStorage.removeItem('currentTeam');
+        localStorage.removeItem('isLeader');
+        setStatus("You were removed from the team.");
       }
     });
 
