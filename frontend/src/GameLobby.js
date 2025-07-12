@@ -29,6 +29,9 @@ export default function GameLobby({ user }) {
     } catch (err) {
       console.warn('[lobby] Failed to restore team from storage', err);
     }
+
+  }, []);
+
   // Notify server if user closes / refreshes while in a team
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -41,7 +44,6 @@ export default function GameLobby({ user }) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [currentTeam, user.id]);
-  }, []);
 
   useEffect(() => {
     const sock = socket;
