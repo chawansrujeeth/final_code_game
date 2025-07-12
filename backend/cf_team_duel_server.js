@@ -240,6 +240,43 @@ io.on("connection", (socket) => {
     io.emit("lobby_update", lobby.map(u => ({ userId: u.userId, name: u.name })));
   });
 
+  // Leave team
+  socket.on("leave_team", async ({ teamId, userId }) => {
+    const team = teams[teamId];
+    if (!team) return;
+
+    // Remove member
+    team.members = team.members.filter(m => m.userId !== userId);
+
+    // If leader left, choose new leader if members remain
+    if (team.leader === userId) {
+      team.leader = team.members[0] ? team.members[0].userId : null;
+    }
+
+    // If no members left => disband team
+    if (team.members.length === 0) {
+      delete teams[teamId];
+      io.emit('team_disbanded', { teamId });
+    } else {
+      // Otherwise broadcast updated team to remaining members
+      team.members.forEach(member => {
+        const memberSocket = userSockets[member.userId];
+        if (memberSocket) {
+          memberSocket.emit('team_updated', {
+            teamId,
+            leader: team.leader,
+            members: team.members
+          });
+        }
+      });
+    }
+
+    // Add the leaving user back to lobby
+    const name = await getUserName(userId);
+    lobby.push({ userId, name });
+    io.emit('lobby_update', lobby.map(u => ({ userId: u.userId, name: u.name })));
+  });
+
   // Start matchmaking
   socket.on("start_matchmaking", async ({ teamId }) => {
     const team = teams[teamId];
