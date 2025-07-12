@@ -15,6 +15,22 @@ export default function GameLobby({ user }) {
   const [status, setStatus] = useState("Connecting...");
   const [isLeader, setIsLeader] = useState(false);
 
+  // --- Restore team from localStorage on first mount ---
+  useEffect(() => {
+    try {
+      const storedTeam = localStorage.getItem('currentTeam');
+      const storedLeader = localStorage.getItem('isLeader');
+      if (storedTeam) {
+        setCurrentTeam(JSON.parse(storedTeam));
+      }
+      if (storedLeader !== null) {
+        setIsLeader(storedLeader === 'true');
+      }
+    } catch (err) {
+      console.warn('[lobby] Failed to restore team from storage', err);
+    }
+  }, []);
+
   useEffect(() => {
     const sock = socket;
 
@@ -25,12 +41,26 @@ export default function GameLobby({ user }) {
 
     sock.on("lobby_update", (lobbyUsers) => {
       console.log("[lobby] Lobby updated:", lobbyUsers);
-      setLobby(lobbyUsers.filter(u => u.userId !== user.id)); // Don't show self in lobby
+      // Remove self and deduplicate by userId
+      const unique = [];
+      const seen = new Set();
+      lobbyUsers.forEach(u => {
+        if (u.userId === user.id) return; // skip self
+        if (!seen.has(u.userId)) {
+          seen.add(u.userId);
+          unique.push(u);
+        }
+      });
+      setLobby(unique);
     });
 
     sock.on("team_created", ({ teamId, leader, members, isLeader: userIsLeader }) => {
       console.log("[team] Team created:", { teamId, leader, members, isLeader: userIsLeader });
-      setCurrentTeam({ teamId, leader, members });
+      const teamState = { teamId, leader, members };
+      setCurrentTeam(teamState);
+      // Persist team across refreshes
+      localStorage.setItem('currentTeam', JSON.stringify(teamState));
+      localStorage.setItem('isLeader', String(userIsLeader));
       setIsLeader(userIsLeader);
       setSelectedMembers([]);
       setStatus(userIsLeader ? "Team created! You are the leader." : "You joined a team!");
@@ -94,6 +124,9 @@ export default function GameLobby({ user }) {
   const leaveTeam = () => {
     setCurrentTeam(null);
     setIsLeader(false);
+    // Clear persisted state
+    localStorage.removeItem('currentTeam');
+    localStorage.removeItem('isLeader');
     setStatus("Left team. Back in lobby.");
     socket.emit("join_lobby", { userId: user.id, name: user.name || user.email });
   };
