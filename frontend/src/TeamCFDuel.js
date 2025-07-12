@@ -169,6 +169,8 @@ function TeamCFDuel({ user }) {
     const provider = new WebsocketProvider(wsUrl, roomName, ydoc);
     providerRef.current = provider;
 
+    let toastInterval;
+
     // Shared metadata for timer
     const meta = ydoc.getMap('meta');
 
@@ -187,6 +189,18 @@ function TeamCFDuel({ user }) {
     updateTimer();
     const metaObserver = () => updateTimer();
     meta.observe(metaObserver);
+
+    // Sync language from meta map
+    const syncLanguage = () => {
+      const l = meta.get('language');
+      if (l && l !== language) {
+        setLanguage(l);
+      }
+    };
+    syncLanguage();
+    meta.observe(event => {
+      if (event.keysChanged.has('language')) syncLanguage();
+    });
 
     // Local interval to update every second
     timerRef.current = setInterval(updateTimer, 1000);
@@ -219,6 +233,9 @@ function TeamCFDuel({ user }) {
         setLastEditor(name);
         // show toast
         setEditorToast({ name, ts: Date.now() });
+        toastIntervalRef.current = setInterval(() => {
+          setEditorToast(t => (t && Date.now() - t.ts > 2000 ? null : t));
+        }, 500);
       }
       // Update active users list
       const users = Array.from(provider.awareness.getStates().values()).map(s => s.user).filter(Boolean);
@@ -246,6 +263,9 @@ function TeamCFDuel({ user }) {
 
   const handleLanguageChange = (newLanguage) => {
     setLanguage(newLanguage);
+    try {
+      ydocRef.current?.getMap('meta').set('language', newLanguage);
+    } catch {}
   };
 
   const formatTime = (ms) => {
