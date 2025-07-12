@@ -42,6 +42,7 @@ function TeamCFDuel({ user }) {
   const [lastEditor, setLastEditor] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
   const [status, setStatus] = useState("Loading...");
+  const [editorToast, setEditorToast] = useState(null);
   const [duelOver, setDuelOver] = useState(false);
   const [connStatus, setConnStatus] = useState('online'); // online | reconnecting
   const TOTAL_TIME = 5 * 60 * 1000; // 5 minutes
@@ -214,7 +215,10 @@ function TeamCFDuel({ user }) {
       const changedId = [...added, ...updated][0];
       const state = states.find(([id]) => id === changedId)?.[1];
       if (state?.user?.name) {
-        setLastEditor(state.user.name === (user.name || user.email) ? 'You' : state.user.name);
+        const name = state.user.name === (user.name || user.email) ? 'You' : state.user.name;
+        setLastEditor(name);
+        // show toast
+        setEditorToast({ name, ts: Date.now() });
       }
       // Update active users list
       const users = Array.from(provider.awareness.getStates().values()).map(s => s.user).filter(Boolean);
@@ -229,6 +233,7 @@ function TeamCFDuel({ user }) {
       provider.awareness.off('change', awarenessHandler);
       meta.unobserve(metaObserver);
       if (timerRef.current) clearInterval(timerRef.current);
+      clearInterval(toastInterval);
       provider.destroy();
       ydoc.destroy();
     };
@@ -466,6 +471,24 @@ function TeamCFDuel({ user }) {
           marginBottom: 12 
         }}>
           <h3 style={{ margin: 0, color: '#7c3aed' }}>Collaborative Code Editor</h3>
+          {/* Toast for who is editing */}
+          {editorToast && (
+            <div style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              background: '#000a',
+              color: '#fff',
+              padding: '8px 12px',
+              borderRadius: 6,
+              fontSize: 14,
+              pointerEvents: 'none',
+              transition: 'opacity 0.3s',
+              opacity: Date.now() - editorToast.ts < 2000 ? 1 : 0
+            }}>
+              {editorToast.name} is editing...
+            </div>
+          )}
           {/* Active collaborators */}
           <div style={{ display: 'flex', gap: 6 }}>
             {activeUsers.map(u => (
@@ -523,6 +546,8 @@ function TeamCFDuel({ user }) {
                 providerRef.current?.awareness.setLocalStateField('cursor', {
                   index,
                   length: endIndex - index,
+                  name: user.name || user.email,
+                  color: stringToColor(user.id)
                 });
               };
               sendCursor();
