@@ -17,6 +17,12 @@ function stringToColor(str) {
   return `hsl(${hue}, 70%, 60%)`;
 }
 
+const languageTemplates = {
+  python: `def solve():\n    # TODO: implement\n    pass\n\nif __name__ == "__main__":\n    solve()`,
+  cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    // TODO: implement\n    return 0;\n}`,
+  javascript: `function main(){\n  // TODO: implement\n}\n\nmain();`
+};
+
 const languageOptions = [
   { id: "python", name: "Python 3" },
   { id: "cpp", name: "C++" },
@@ -262,6 +268,16 @@ function TeamCFDuel({ user }) {
     codeRef.current = value || "";
     setLastEditor('You');
   }, []);
+
+  const insertTemplate = () => {
+    const tpl = languageTemplates[language];
+    if (!tpl) return;
+    const yText = ydocRef.current?.getText('monaco');
+    if (yText) {
+      yText.delete(0, yText.length);
+      yText.insert(0, tpl);
+    }
+  };
 
   const handleLanguageChange = (newLanguage) => {
     setLanguage(newLanguage);
