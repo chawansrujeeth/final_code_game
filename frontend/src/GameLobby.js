@@ -29,6 +29,18 @@ export default function GameLobby({ user }) {
     } catch (err) {
       console.warn('[lobby] Failed to restore team from storage', err);
     }
+  // Notify server if user closes / refreshes while in a team
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentTeam) {
+        socket.emit('leave_team', { teamId: currentTeam.teamId, userId: user.id });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentTeam, user.id]);
   }, []);
 
   useEffect(() => {
@@ -54,6 +66,7 @@ export default function GameLobby({ user }) {
       setLobby(unique);
     });
 
+    // Team events
     sock.on("team_created", ({ teamId, leader, members, isLeader: userIsLeader }) => {
       console.log("[team] Team created:", { teamId, leader, members, isLeader: userIsLeader });
       const teamState = { teamId, leader, members };
@@ -64,6 +77,26 @@ export default function GameLobby({ user }) {
       setIsLeader(userIsLeader);
       setSelectedMembers([]);
       setStatus(userIsLeader ? "Team created! You are the leader." : "You joined a team!");
+    });
+
+    // When members join/leave, server emits updated team state
+    sock.on("team_updated", ({ teamId, leader, members }) => {
+      if (currentTeam && currentTeam.teamId === teamId) {
+        const teamState = { teamId, leader, members };
+        setCurrentTeam(teamState);
+        localStorage.setItem('currentTeam', JSON.stringify(teamState));
+        setStatus("Team updated (member joined/left)");
+      }
+    });
+
+    // If team is disbanded (e.g., leader leaves)
+    sock.on("team_disbanded", ({ teamId }) => {
+      if (currentTeam && currentTeam.teamId === teamId) {
+        setCurrentTeam(null);
+        localStorage.removeItem('currentTeam');
+        localStorage.removeItem('isLeader');
+        setStatus("Team was disbanded. Back in lobby.");
+      }
     });
 
     sock.on("waiting_match", ({ message }) => {
@@ -122,6 +155,9 @@ export default function GameLobby({ user }) {
   };
 
   const leaveTeam = () => {
+    if (currentTeam) {
+      socket.emit('leave_team', { teamId: currentTeam.teamId, userId: user.id });
+    }
     setCurrentTeam(null);
     setIsLeader(false);
     // Clear persisted state
