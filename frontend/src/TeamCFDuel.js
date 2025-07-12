@@ -51,6 +51,7 @@ function TeamCFDuel({ user }) {
   const ydocRef = useRef(null);
   const providerRef = useRef(null);
   const timerRef = useRef(null);
+  const toastIntervalRef = useRef(null);
 
   useEffect(() => {
     // Get match data from localStorage
@@ -233,6 +234,7 @@ function TeamCFDuel({ user }) {
         setLastEditor(name);
         // show toast
         setEditorToast({ name, ts: Date.now() });
+        if (toastIntervalRef.current) clearInterval(toastIntervalRef.current);
         toastIntervalRef.current = setInterval(() => {
           setEditorToast(t => (t && Date.now() - t.ts > 2000 ? null : t));
         }, 500);
@@ -250,7 +252,7 @@ function TeamCFDuel({ user }) {
       provider.awareness.off('change', awarenessHandler);
       meta.unobserve(metaObserver);
       if (timerRef.current) clearInterval(timerRef.current);
-      clearInterval(toastInterval);
+      if (toastIntervalRef.current) clearInterval(toastIntervalRef.current);
       provider.destroy();
       ydoc.destroy();
     };
