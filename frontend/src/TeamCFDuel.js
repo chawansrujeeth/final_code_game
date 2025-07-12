@@ -44,7 +44,8 @@ function TeamCFDuel({ user }) {
   const [status, setStatus] = useState("Loading...");
   const [duelOver, setDuelOver] = useState(false);
   const [connStatus, setConnStatus] = useState('online'); // online | reconnecting
-  const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000); // 5 minutes
+  const TOTAL_TIME = 5 * 60 * 1000; // 5 minutes
+  const [timeRemaining, setTimeRemaining] = useState(TOTAL_TIME);
   const editorRef = useRef(null);
   const ydocRef = useRef(null);
   const providerRef = useRef(null);
@@ -167,6 +168,28 @@ function TeamCFDuel({ user }) {
     const provider = new WebsocketProvider(wsUrl, roomName, ydoc);
     providerRef.current = provider;
 
+    // Shared metadata for timer
+    const meta = ydoc.getMap('meta');
+
+    // When first client connects, set startTime if missing
+    if (!meta.has('startTime')) {
+      meta.set('startTime', Date.now());
+    }
+
+    // Observe startTime changes
+    const updateTimer = () => {
+      const start = meta.get('startTime');
+      if (!start) return;
+      const elapsed = Date.now() - start;
+      setTimeRemaining(Math.max(TOTAL_TIME - elapsed, 0));
+    };
+    updateTimer();
+    const metaObserver = () => updateTimer();
+    meta.observe(metaObserver);
+
+    // Local interval to update every second
+    timerRef.current = setInterval(updateTimer, 1000);
+
     // track provider status for reconnection banner
     provider.on('status', ({status}) => {
       setConnStatus(status === 'connected' ? 'online' : 'reconnecting');
@@ -199,9 +222,13 @@ function TeamCFDuel({ user }) {
     };
     provider.awareness.on('change', awarenessHandler);
 
+    // Cleanup meta observer
+    provider.on('destroy', () => meta.unobserve(metaObserver));
     // Clean up on unmount
     return () => {
       provider.awareness.off('change', awarenessHandler);
+      meta.unobserve(metaObserver);
+      if (timerRef.current) clearInterval(timerRef.current);
       provider.destroy();
       ydoc.destroy();
     };
@@ -486,6 +513,22 @@ function TeamCFDuel({ user }) {
             defaultValue={codeRef.current}
             onChange={handleCodeChange}
             onMount={(editor) => {
+              // Update cursor position in awareness for remote display
+              const sendCursor = () => {
+                const selection = editor.getSelection();
+                if (!selection) return;
+                const model = editor.getModel();
+                const index = model.getOffsetAt(selection.getPosition());
+                const endIndex = model.getOffsetAt(selection.getEndPosition());
+                providerRef.current?.awareness.setLocalStateField('cursor', {
+                  index,
+                  length: endIndex - index,
+                });
+              };
+              sendCursor();
+              editor.onDidChangeCursorSelection(() => {
+                sendCursor();
+              });
               editorRef.current = editor;
             }}
             theme={isDark ? "vs-dark" : "vs-light"}
