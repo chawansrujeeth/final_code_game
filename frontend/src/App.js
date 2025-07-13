@@ -7,6 +7,7 @@ import Navbar from "./Navbar";
 import Profile from "./Profile";
 import Footer from "./Footer";
 import Auth from "./Auth";
+import AuthCallback from "./AuthCallback";
 import { supabase } from "./supabaseClient";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -74,6 +75,7 @@ function App() {
           <Route path="/code" element={<CodeRunner />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/login" element={<Auth />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/duel" element={
             user === null
               ? <div style={{ padding: 24 }}>Loading user info...</div>

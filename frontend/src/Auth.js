@@ -12,6 +12,14 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const handleSignUp = async () => {
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
     setLoading(true);
     setError('');
     setMessage('');
@@ -25,6 +33,10 @@ export default function Auth() {
   };
 
   const handleSignIn = async () => {
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
     setLoading(true);
     setError('');
     setMessage('');
