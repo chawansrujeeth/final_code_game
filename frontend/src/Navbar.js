@@ -100,7 +100,7 @@ export default function Navbar() {
             <Link to="/lobby" className="nav-link" style={linkStyle("/lobby")}>Lobby</Link>
             
             {!user && <Link to="/login" className="nav-link" style={linkStyle("/login")}>Login</Link>}
-            {user && <button onClick={handleLogout} style={{
+            {user && location.pathname !== '/' && <button onClick={handleLogout} style={{
               background: "none", border: "none", color: "#7c3aed", fontWeight: 600, fontSize: "1.1rem", cursor: "pointer", padding: 0, marginLeft: 8
             }}>Logout</button>}
           </div>

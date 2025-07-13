@@ -77,7 +77,7 @@ export default function LandingHome() {
         {user && (
           <button
             className="btn btn-shadow btn-rect"
-            style={{position:'fixed', bottom:24, right:24, zIndex:101}}
+            style={{position:'fixed', bottom:24, right:24, zIndex:101, padding:'0.6rem 1.4rem', fontSize:'0.9rem'}}
             onClick={handleLogout}
           >
             Logout
