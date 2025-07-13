@@ -104,6 +104,15 @@ body {
 .btn-purple:hover{background:#6d28d9;}
 .btn-blue:hover{background:#1e88e5;}
 
+/* Navbar link hover */
+.nav-link{
+  transition:color 0.2s, transform 0.15s;
+}
+.nav-link:hover{
+  color:var(--primary);
+  transform:translateY(-2px);
+}
+
 /* Vibrant variants */
 .btn-green{background:#10b981;color:#fff;}
 .btn-green:hover{background:#059669;}

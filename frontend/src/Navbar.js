@@ -93,13 +93,13 @@ export default function Navbar() {
           </Link>
           <div className="navbar-links" style={linksContainer}>
             <button onClick={toggleDark} style={{marginRight:16,padding:'4px 10px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>{isDark? '☀️' : '🌙'}</button>
-            <Link to="/" style={linkStyle("/")}>Home</Link>
+            <Link to="/" className="nav-link" style={linkStyle("/")}>Home</Link>
             {/* Duel button hidden for now */}
-            <Link to="/duel_cf" style={linkStyle("/duel_cf")}>Duel (CF)</Link>
-            <Link to="/team_duel_cf" style={linkStyle("/team_duel_cf")}>Team Duel (2v2)</Link>
-            <Link to="/lobby" style={linkStyle("/lobby")}>Lobby</Link>
-            {user && <Link to="/profile" style={linkStyle("/profile")}>Profile</Link>}
-            {!user && <Link to="/login" style={linkStyle("/login")}>Login</Link>}
+            <Link to="/duel_cf" className="nav-link" style={linkStyle("/duel_cf")}>Duel (CF)</Link>
+            <Link to="/team_duel_cf" className="nav-link" style={linkStyle("/team_duel_cf")}>Team Duel (2v2)</Link>
+            <Link to="/lobby" className="nav-link" style={linkStyle("/lobby")}>Lobby</Link>
+            {user && <Link to="/profile" className="nav-link" style={linkStyle("/profile")}>Profile</Link>}
+            {!user && <Link to="/login" className="nav-link" style={linkStyle("/login")}>Login</Link>}
             {user && <button onClick={handleLogout} style={{
               background: "none", border: "none", color: "#7c3aed", fontWeight: 600, fontSize: "1.1rem", cursor: "pointer", padding: 0, marginLeft: 8
             }}>Logout</button>}
