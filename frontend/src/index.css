@@ -13,8 +13,8 @@
 
 .dark {
   --bg: #121212;
-  --bg-gradient-start: #1a1a1a;
-  --bg-gradient-end: #0d0d0d;
+  --bg-gradient-start: #0f172a;
+  --bg-gradient-end: #1e293b;
   --text: #e2e2e2;
   --card: #1e1e1e;
   --primary: #7c3aed;
@@ -89,9 +89,13 @@ body {
   transition:background-color 0.25s, transform 0.15s, box-shadow 0.15s;
 }
 .btn-shadow {
+  background: var(--primary);
+  color:#fff;
   box-shadow:0 4px 24px rgba(0,0,0,0.15);
 }
+.btn-rect{border-radius:8px;}
 .btn-shadow:hover {
+  filter:brightness(1.15);
   transform:scale(1.05);
   box-shadow:0 6px 32px rgba(0,0,0,0.25);
 }
@@ -99,6 +103,12 @@ body {
 .btn-blue{background:#2196f3;color:#fff;}
 .btn-purple:hover{background:#6d28d9;}
 .btn-blue:hover{background:#1e88e5;}
+
+/* Vibrant variants */
+.btn-green{background:#10b981;color:#fff;}
+.btn-green:hover{background:#059669;}
+.btn-cyan{background:#06b6d4;color:#fff;}
+.btn-cyan:hover{background:#0891b2;}
 
 
 code {
