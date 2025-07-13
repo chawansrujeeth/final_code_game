@@ -109,6 +109,9 @@ body {
   transition:color 0.2s, transform 0.15s;
 }
 .nav-link:hover{
+  background: rgba(124,58,237,0.12);
+  border-radius:6px;
+
   color:var(--primary);
   transform:translateY(-2px);
 }

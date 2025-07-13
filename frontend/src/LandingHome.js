@@ -1,8 +1,21 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "./supabaseClient";
 
 export default function LandingHome() {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    navigate('/login');
+  };
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   return (
     <>
@@ -52,7 +65,24 @@ export default function LandingHome() {
           >
             Duel (CF)
           </button>
+          {user && (
+            <button
+              className="btn btn-shadow btn-rect"
+              onClick={() => navigate('/profile')}
+            >
+              Profile
+            </button>
+          )}
         </main>
+        {user && (
+          <button
+            className="btn btn-shadow btn-rect"
+            style={{position:'fixed', bottom:24, right:24, zIndex:101}}
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+        )}
       </div>
     </>
   );
