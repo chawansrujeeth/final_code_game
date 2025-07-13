@@ -25,20 +25,19 @@ export default function LandingHome() {
       `}</style>
       <div style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+        background: "linear-gradient(135deg, var(--bg) 0%, var(--card) 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif'"
+        fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif'",
+        padding: "0 1rem"
       }}>
-        <header className="landing-header" style={{ width: "100%", padding: "2rem 0 1rem 0", textAlign: "center" }}>
+        <header className="landing-header" style={{ width: "100%", maxWidth: 900, padding: "2rem 0 1rem 0", textAlign: "center" }}>
           <h1 className="landing-title" style={{ color: "#7c3aed", fontSize: "3rem", margin: 0, fontWeight: 800, letterSpacing: 1 }}>Code Stories</h1>
-          <p className="landing-tagline" style={{ color: "#444", fontSize: "1.3rem", marginTop: 16, marginBottom: 0 }}>
-            Dive into coding adventures with interactive manga and challenges.
-          </p>
+
         </header>
-        <main style={{ marginTop: 40, textAlign: "center" }}>
+        <main style={{ marginTop: 40, textAlign: "center", display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
             className="landing-main-btn"
             style={{
