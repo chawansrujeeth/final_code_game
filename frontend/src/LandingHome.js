@@ -9,6 +9,7 @@ export default function LandingHome() {
     navigate('/login');
   };
   const [user, setUser] = useState(null);
+  const [needsProfile, setNeedsProfile] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,6 +22,14 @@ export default function LandingHome() {
       setUser(u);
       if (!u) navigate('/login');
     });
+    // fetch profile row to check if registered
+    if (user) {
+      supabase.from('profiles').select('codeforces_handle').eq('user_id', user.id).single()
+        .then(({ data, error }) => {
+          if (error) return;
+          setNeedsProfile(!(data && data.codeforces_handle));
+        });
+    }
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -74,7 +83,8 @@ export default function LandingHome() {
           </button>
           {user && (
             <button
-              className="btn btn-shadow btn-rect"
+              className={needsProfile ? 'btn btn-attn btn-rect' : 'btn btn-shadow btn-rect'}
+              style={needsProfile ? {} : {minWidth:120}}
               onClick={() => navigate('/profile')}
             >
               Profile

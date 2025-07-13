@@ -427,28 +427,6 @@ const DuelCF = ({ user }) => {
             Join Duel
           </button>
           {!handle && <div style={{ color: '#e53935', marginTop: 16, fontSize: 16 }}>Set your Codeforces handle in your profile first.</div>}
-          <div style={{ marginTop: 32 }}>
-            <button
-              onClick={fetchRandomCFSample}
-              disabled={cfSampleLoading}
-              style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontWeight: 700, fontSize: 18, cursor: cfSampleLoading ? 'not-allowed' : 'pointer', marginBottom: 12 }}
-            >
-              {cfSampleLoading ? 'Loading...' : 'Get Random CF Problem & Sample'}
-            </button>
-            {cfSample && (
-              <div style={{ marginTop: 18, background: '#f7f8fa', borderRadius: 10, padding: 18, boxShadow: '0 2px 12px rgba(33,150,243,0.06)' }}>
-                <a href={cfSample.problem_url} target="_blank" rel="noopener noreferrer" style={{ color: '#2196f3', fontWeight: 700, fontSize: 18, textDecoration: 'none' }}>{cfSample.name || cfSample.problem_url}</a>
-                <div style={{ marginTop: 10 }}>
-                  <b>Sample Input:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.samples?.[0]?.input || '[none found]'}</pre>
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <b>Sample Output:</b>
-                  <pre style={{ background: '#eee', borderRadius: 6, padding: 8, fontSize: 15 }}>{cfSample.samples?.[0]?.output || '[none found]'}</pre>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
       {/* Waiting for opponent */}
