@@ -54,9 +54,9 @@ export default function LandingHome() {
               transition: "background 0.2s",
               marginRight: 16
             }}
-            onClick={() => navigate("/manga")}
+            onClick={() => navigate("/lobby")}
           >
-            Start Game
+            Lobby
           </button>
           <button
             className="landing-main-btn"
@@ -72,9 +72,9 @@ export default function LandingHome() {
               cursor: "pointer",
               transition: "background 0.2s"
             }}
-            onClick={() => navigate("/team_duel_cf")}
+            onClick={() => navigate("/duel_cf")}
           >
-            Team Duel (2v2)
+            Duel (CF)
           </button>
         </main>
       </div>

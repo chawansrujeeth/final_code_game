@@ -94,7 +94,7 @@ export default function Navbar() {
           <div className="navbar-links" style={linksContainer}>
             <button onClick={toggleDark} style={{marginRight:16,padding:'4px 10px',border:'1px solid var(--primary)',borderRadius:4,background:'transparent',color:'var(--text)',cursor:'pointer'}}>{isDark? '☀️' : '🌙'}</button>
             <Link to="/" style={linkStyle("/")}>Home</Link>
-            <Link to="/duel" style={linkStyle("/duel")}>Duel</Link>
+            {/* Duel button hidden for now */}
             <Link to="/duel_cf" style={linkStyle("/duel_cf")}>Duel (CF)</Link>
             <Link to="/team_duel_cf" style={linkStyle("/team_duel_cf")}>Team Duel (2v2)</Link>
             <Link to="/lobby" style={linkStyle("/lobby")}>Lobby</Link>
