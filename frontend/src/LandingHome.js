@@ -12,8 +12,15 @@ export default function LandingHome() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      if (!data.user) navigate('/login');
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (!u) navigate('/login');
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -52,14 +59,14 @@ export default function LandingHome() {
         </header>
         <main style={{ marginTop: 40, textAlign: "center", display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
-            className="btn btn-shadow"
+            className="btn btn-shadow btn-rect" style={{minWidth:120}}
 
             onClick={() => navigate("/lobby")}
           >
             Lobby
           </button>
           <button
-            className="btn btn-shadow"
+            className="btn btn-shadow btn-rect" style={{minWidth:120}}
 
             onClick={() => navigate("/duel_cf")}
           >
