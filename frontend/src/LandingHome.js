@@ -24,10 +24,11 @@ export default function LandingHome() {
     });
     // fetch profile row to check if registered
     if (user) {
-      supabase.from('profiles').select('codeforces_handle').eq('user_id', user.id).single()
+      supabase.from('profiles').select('name, codeforces_handle').eq('user_id', user.id).single()
         .then(({ data, error }) => {
           if (error) return;
-          setNeedsProfile(!(data && data.codeforces_handle));
+          const missing = !(data && data.name && data.name.trim() && data.codeforces_handle && data.codeforces_handle.trim());
+          setNeedsProfile(missing);
         });
     }
     return () => listener.subscription.unsubscribe();
