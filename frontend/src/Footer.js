@@ -14,10 +14,10 @@ export default function Footer() {
       <footer style={{
         background: "linear-gradient(135deg, #232b5d 0%, #3a4ca8 100%)",
         color: "#fff",
-        padding: "1.5rem 0 1.5rem 0",
+        padding: "0.4rem 0", minHeight:40,
         fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif'"
       }}>
-        <div className="footer-main" style={{ textAlign: "center", fontSize: 18, letterSpacing: 1 }}>
+        <div className="footer-main" style={{ textAlign: "right", fontSize: 12, letterSpacing: 0.5, paddingRight:16 }}>
           Created by Chawan Srujeeth
         </div>
       </footer>

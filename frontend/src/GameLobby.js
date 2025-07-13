@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { socket } from "./socket";
-import useDarkMode from "./useDarkMode";
+
 import VoiceChat from "./VoiceChat";
 
 export default function GameLobby({ user }) {
   const navigate = useNavigate();
-  const [isDark, toggleDark] = useDarkMode();
+  
   
   const [lobby, setLobby] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
@@ -180,12 +180,7 @@ export default function GameLobby({ user }) {
     <div className="max-w-3xl mx-auto p-8 font-sans min-h-[80vh]">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-primary m-0 text-2xl font-semibold">⚡ Team Duel Lobby</h2>
-        <button
-          onClick={toggleDark}
-          className="px-4 py-2 border border-primary rounded-md bg-transparent text-black dark:text-white hover:bg-primary hover:text-white transition-colors"
-        >
-          {isDark ? '☀️ Light' : '🌙 Dark'}
-        </button>
+        
       </div>
 
       <div className="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg mb-6">
