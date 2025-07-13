@@ -39,38 +39,15 @@ export default function LandingHome() {
         </header>
         <main style={{ marginTop: 40, textAlign: "center", display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
-            className="landing-main-btn"
-            style={{
-              background: "#7c3aed",
-              color: "#fff",
-              border: "none",
-              borderRadius: 32,
-              padding: "1rem 2.5rem",
-              fontSize: "1.3rem",
-              fontWeight: 700,
-              boxShadow: "0 4px 24px rgba(124,58,237,0.15)",
-              cursor: "pointer",
-              transition: "background 0.2s",
-              marginRight: 16
-            }}
+            className="btn btn-shadow"
+
             onClick={() => navigate("/lobby")}
           >
             Lobby
           </button>
           <button
-            className="landing-main-btn"
-            style={{
-              background: "#2196f3",
-              color: "#fff",
-              border: "none",
-              borderRadius: 32,
-              padding: "1rem 2.5rem",
-              fontSize: "1.3rem",
-              fontWeight: 700,
-              boxShadow: "0 4px 24px rgba(33,150,243,0.15)",
-              cursor: "pointer",
-              transition: "background 0.2s"
-            }}
+            className="btn btn-shadow"
+
             onClick={() => navigate("/duel_cf")}
           >
             Duel (CF)

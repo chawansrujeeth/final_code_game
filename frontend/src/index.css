@@ -4,6 +4,8 @@
 
 :root {
   --bg: #ffffff;
+  --bg-gradient-start: #f5f7fa;
+  --bg-gradient-end: #c3cfe2;
   --text: #111111;
   --card: #f2f2f2;
   --primary: #7c3aed;
@@ -11,6 +13,8 @@
 
 .dark {
   --bg: #121212;
+  --bg-gradient-start: #1a1a1a;
+  --bg-gradient-end: #0d0d0d;
   --text: #e2e2e2;
   --card: #1e1e1e;
   --primary: #7c3aed;
@@ -51,7 +55,7 @@ body {
 
 /* Smooth transitions for theme toggling */
 body, button, input, textarea {
-  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  transition: background-color 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.2s, transform 0.2s;
 }
 
 /* Themed scrollbar */
@@ -70,6 +74,31 @@ body {
 ::-webkit-scrollbar-track {
   background-color: var(--bg);
 }
+
+/* Reusable Button Styles */
+.btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0.9rem 2.2rem;
+  border:none;
+  border-radius:32px;
+  font-size:1.1rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:background-color 0.25s, transform 0.15s, box-shadow 0.15s;
+}
+.btn-shadow {
+  box-shadow:0 4px 24px rgba(0,0,0,0.15);
+}
+.btn-shadow:hover {
+  transform:scale(1.05);
+  box-shadow:0 6px 32px rgba(0,0,0,0.25);
+}
+.btn-purple{background:#7c3aed;color:#fff;}
+.btn-blue{background:#2196f3;color:#fff;}
+.btn-purple:hover{background:#6d28d9;}
+.btn-blue:hover{background:#1e88e5;}
 
 
 code {
