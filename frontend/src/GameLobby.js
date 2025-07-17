@@ -66,6 +66,12 @@ export default function GameLobby({ user }) {
         }
       });
       setLobby(unique);
+      
+      // Clean up selected members - remove any players who are now in teams
+      setSelectedMembers(prev => {
+        const playersInTeams = new Set(unique.filter(u => u.inTeam).map(u => u.userId));
+        return prev.filter(userId => !playersInTeams.has(userId));
+      });
     });
 
     // Team events
@@ -135,6 +141,13 @@ export default function GameLobby({ user }) {
   }, [user, navigate]);
 
   const toggleMemberSelection = (userId) => {
+    // Find the player in lobby to check if they're in a team
+    const player = lobby.find(p => p.userId === userId);
+    if (player && player.inTeam) {
+      // Don't allow selection of players already in teams
+      return;
+    }
+    
     setSelectedMembers(prev => 
       prev.includes(userId) 
         ? prev.filter(id => id !== userId)
@@ -202,25 +215,47 @@ export default function GameLobby({ user }) {
               <p className="text-gray-500 italic">No other players in lobby</p>
             ) : (
               <div className="grid gap-2">
-                {lobby.map(player => (
-                  <div 
-                    key={player.userId}
-                    className={`flex items-center p-3 rounded-md cursor-pointer border ${
-                      selectedMembers.includes(player.userId)
-                        ? 'bg-primary/10 border-primary'
-                        : 'bg-white border-gray-300'
-                    }`}
-                    onClick={() => toggleMemberSelection(player.userId)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedMembers.includes(player.userId)}
-                      readOnly
-                      className="mr-3"
-                    />
-                    <Link to={`/player/${player.userId}`} className="font-medium hover:underline">{player.name}</Link>
-                  </div>
-                ))}
+                {lobby.map(player => {
+                  const isInTeam = player.inTeam;
+                  const isSelected = selectedMembers.includes(player.userId);
+                  
+                  return (
+                    <div 
+                      key={player.userId}
+                      className={`flex items-center justify-between p-3 rounded-md border ${
+                        isInTeam
+                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
+                          : isSelected
+                          ? 'bg-primary/10 border-primary cursor-pointer'
+                          : 'bg-white border-gray-300 cursor-pointer'
+                      }`}
+                      onClick={() => !isInTeam && toggleMemberSelection(player.userId)}
+                    >
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={isInTeam}
+                          readOnly
+                          className="mr-3"
+                        />
+                        <Link 
+                          to={`/player/${player.userId}`} 
+                          className={`font-medium hover:underline ${
+                            isInTeam ? 'text-gray-500' : ''
+                          }`}
+                        >
+                          {player.name}
+                        </Link>
+                      </div>
+                      {isInTeam && (
+                        <span className="text-sm text-gray-500 italic">
+                          Already in team
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

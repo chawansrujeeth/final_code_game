@@ -96,6 +96,20 @@ function findUserTeam(userId) {
   return null;
 }
 
+// Helper function to broadcast lobby update with team status
+function broadcastLobbyUpdate() {
+  const lobbyWithTeamStatus = lobby.map(u => {
+    const userTeam = findUserTeam(u.userId);
+    return {
+      userId: u.userId,
+      name: u.name,
+      inTeam: !!userTeam,
+      teamId: userTeam?.teamId || null
+    };
+  });
+  io.emit("lobby_update", lobbyWithTeamStatus);
+}
+
 // Return a random Codeforces problem from Supabase (fallback to a hard-coded example on error)
 // Return a random Codeforces problem from Supabase (client-side random to avoid SQL randomness issues)
 function parseCFUrl(url) {
@@ -171,8 +185,27 @@ io.on("connection", (socket) => {
     if (existingTeam) {
       const { teamId, team } = existingTeam;
       team.members = team.members.filter(m => m.userId !== userId);
+      
+      // If leader left, choose new leader if members remain
+      if (team.leader === userId && team.members.length > 0) {
+        team.leader = team.members[0].userId;
+      }
+      
       if (team.members.length === 0) {
+        // Team disbanded
         delete teams[teamId];
+      } else {
+        // Notify remaining team members
+        team.members.forEach(member => {
+          const memberSocket = userSockets[member.userId];
+          if (memberSocket) {
+            memberSocket.emit('team_updated', {
+              teamId,
+              leader: team.leader,
+              members: team.members
+            });
+          }
+        });
       }
     }
     
@@ -192,8 +225,8 @@ io.on("connection", (socket) => {
     
     console.log(`[lobby] Current lobby:`, lobby.map(u => u.userId));
     
-    // Broadcast lobby update
-    io.emit("lobby_update", lobby.map(u => ({ userId: u.userId, name: u.name })));
+    // Broadcast lobby update with team status
+    broadcastLobbyUpdate();
   });
 
   // Create team
@@ -237,7 +270,7 @@ io.on("connection", (socket) => {
       }
     });
     
-    io.emit("lobby_update", lobby.map(u => ({ userId: u.userId, name: u.name })));
+    broadcastLobbyUpdate();
   });
 
   // Leave team
@@ -274,7 +307,7 @@ io.on("connection", (socket) => {
     // Add the leaving user back to lobby
     const name = await getUserName(userId);
     lobby.push({ userId, name });
-    io.emit('lobby_update', lobby.map(u => ({ userId: u.userId, name: u.name })));
+    broadcastLobbyUpdate();
   });
 
   // Start matchmaking
@@ -590,7 +623,7 @@ io.on("connection", (socket) => {
         const lobbyIndex = lobby.findIndex(u => u.userId === userId);
         if (lobbyIndex !== -1) {
           lobby.splice(lobbyIndex, 1);
-          io.emit("lobby_update", lobby.map(u => ({ userId: u.userId, name: u.name })));
+          broadcastLobbyUpdate();
         }
         
         break;
