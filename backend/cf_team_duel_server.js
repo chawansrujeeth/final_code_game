@@ -110,6 +110,43 @@ function broadcastLobbyUpdate() {
   io.emit("lobby_update", lobbyWithTeamStatus);
 }
 
+// Helper function to broadcast all online users
+function broadcastOnlineUsers() {
+  const onlineUsers = Object.entries(userSockets).map(([userId, socket]) => {
+    // Find user info from lobby or teams
+    let userName = userId; // fallback
+    
+    // Check if user is in lobby
+    const lobbyUser = lobby.find(u => u.userId === userId);
+    if (lobbyUser) {
+      userName = lobbyUser.name;
+    } else {
+      // Check if user is in any team
+      for (const team of Object.values(teams)) {
+        const teamMember = team.members.find(m => m.userId === userId);
+        if (teamMember) {
+          userName = teamMember.name;
+          break;
+        }
+      }
+    }
+    
+    const userTeam = findUserTeam(userId);
+    const isInLobby = lobby.some(u => u.userId === userId);
+    
+    return {
+      userId,
+      name: userName,
+      inTeam: !!userTeam,
+      teamId: userTeam?.teamId || null,
+      inLobby: isInLobby,
+      status: isInLobby ? 'lobby' : userTeam ? 'in_team' : 'online'
+    };
+  }).filter(user => user.userId); // Remove any invalid entries
+  
+  io.emit("online_users_update", onlineUsers);
+}
+
 // Return a random Codeforces problem from Supabase (fallback to a hard-coded example on error)
 // Return a random Codeforces problem from Supabase (client-side random to avoid SQL randomness issues)
 function parseCFUrl(url) {
@@ -227,6 +264,9 @@ io.on("connection", (socket) => {
     
     // Broadcast lobby update with team status
     broadcastLobbyUpdate();
+    
+    // Broadcast online users update
+    broadcastOnlineUsers();
   });
 
   // Create team
@@ -271,6 +311,7 @@ io.on("connection", (socket) => {
     });
     
     broadcastLobbyUpdate();
+    broadcastOnlineUsers();
   });
 
   // Leave team
@@ -308,6 +349,7 @@ io.on("connection", (socket) => {
     const name = await getUserName(userId);
     lobby.push({ userId, name });
     broadcastLobbyUpdate();
+    broadcastOnlineUsers();
   });
 
   // Start matchmaking
@@ -610,6 +652,99 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Friend system handlers
+  socket.on('send_friend_request', async ({ fromUserId, toUserId }) => {
+    try {
+      console.log(`[friend] Friend request from ${fromUserId} to ${toUserId}`);
+      
+      // Check if request already exists (in either direction)
+      const { data: existing } = await supabase
+        .from('friends')
+        .select('*')
+        .or(`and(user_id.eq.${fromUserId},friend_id.eq.${toUserId}),and(user_id.eq.${toUserId},friend_id.eq.${fromUserId})`)
+        .maybeSingle();
+      
+      if (existing) {
+        const message = existing.status === 'accepted' ? 'Already friends' : 'Friend request already sent';
+        socket.emit('friend_request_error', { message });
+        return;
+      }
+      
+      // Create friend request
+      const { error } = await supabase
+        .from('friends')
+        .insert({
+          user_id: fromUserId,
+          friend_id: toUserId,
+          status: 'pending'
+        });
+      
+      if (error) {
+        console.error('[friend] Error creating friend request:', error);
+        socket.emit('friend_request_error', { message: 'Failed to send friend request' });
+        return;
+      }
+      
+      // Get sender info
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', fromUserId)
+        .maybeSingle();
+      
+      socket.emit('friend_request_sent', { toUserId });
+      
+      // Notify recipient if online
+      const recipientSocket = userSockets[toUserId];
+      if (recipientSocket) {
+        recipientSocket.emit('friend_request_received', {
+          fromUserId,
+          fromName: senderProfile?.name || 'Unknown User'
+        });
+      }
+      
+    } catch (error) {
+      console.error('[friend] Error in send_friend_request:', error);
+      socket.emit('friend_request_error', { message: 'Server error' });
+    }
+  });
+  
+  socket.on('respond_friend_request', async ({ requestId, response, userId }) => {
+    try {
+      console.log(`[friend] Friend request response: ${response} for request ${requestId}`);
+      
+      // Update request status
+      const { data: request, error: updateError } = await supabase
+        .from('friends')
+        .update({ status: response })
+        .eq('id', requestId)
+        .eq('friend_id', userId)
+        .select('user_id, friend_id')
+        .maybeSingle();
+      
+      if (updateError || !request) {
+        socket.emit('friend_response_error', { message: 'Failed to update request' });
+        return;
+      }
+      
+      if (response === 'accepted') {
+        // Notify both users
+        socket.emit('friend_request_accepted', { friendUserId: request.user_id });
+        
+        const senderSocket = userSockets[request.user_id];
+        if (senderSocket) {
+          senderSocket.emit('friend_request_accepted', { friendUserId: request.friend_id });
+        }
+      }
+      
+      socket.emit('friend_response_success', { response });
+      
+    } catch (error) {
+      console.error('[friend] Error in respond_friend_request:', error);
+      socket.emit('friend_response_error', { message: 'Server error' });
+    }
+  });
+
   // Disconnect
   socket.on("disconnect", () => {
     console.log(`[disconnect] Socket ${socket.id} disconnected`);
@@ -625,6 +760,9 @@ io.on("connection", (socket) => {
           lobby.splice(lobbyIndex, 1);
           broadcastLobbyUpdate();
         }
+        
+        // Always broadcast online users update when someone disconnects
+        broadcastOnlineUsers();
         
         break;
       }

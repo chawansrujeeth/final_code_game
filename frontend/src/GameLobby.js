@@ -10,6 +10,7 @@ export default function GameLobby({ user }) {
   
   
   const [lobby, setLobby] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [currentTeam, setCurrentTeam] = useState(null);
   const [status, setStatus] = useState("Connecting...");
@@ -72,6 +73,21 @@ export default function GameLobby({ user }) {
         const playersInTeams = new Set(unique.filter(u => u.inTeam).map(u => u.userId));
         return prev.filter(userId => !playersInTeams.has(userId));
       });
+    });
+
+    sock.on("online_users_update", (users) => {
+      console.log("[online] Online users updated:", users);
+      // Remove self and deduplicate by userId
+      const unique = [];
+      const seen = new Set();
+      users.forEach(u => {
+        if (u.userId === user.id) return; // skip self
+        if (!seen.has(u.userId)) {
+          seen.add(u.userId);
+          unique.push(u);
+        }
+      });
+      setOnlineUsers(unique);
     });
 
     // Team events
@@ -253,6 +269,72 @@ export default function GameLobby({ user }) {
                           Already in team
                         </span>
                       )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Online Users Section */}
+          <div className="mb-6">
+            <h4 className="mb-3 font-semibold">All Online Users ({onlineUsers.length})</h4>
+            {onlineUsers.length === 0 ? (
+              <p className="text-gray-500 italic">No other users online</p>
+            ) : (
+              <div className="grid gap-2 max-h-48 overflow-y-auto">
+                {onlineUsers.map(user => {
+                  const isInTeam = user.inTeam;
+                  const isInLobby = user.inLobby;
+                  const isSelected = selectedMembers.includes(user.userId);
+                  const canSelect = !isInTeam && !isInLobby;
+                  
+                  return (
+                    <div 
+                      key={user.userId}
+                      className={`flex items-center justify-between p-3 rounded-md border ${
+                        !canSelect
+                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
+                          : isSelected
+                          ? 'bg-primary/10 border-primary cursor-pointer'
+                          : 'bg-white border-gray-300 cursor-pointer'
+                      }`}
+                      onClick={() => canSelect && toggleMemberSelection(user.userId)}
+                    >
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!canSelect}
+                          readOnly
+                          className="mr-3"
+                        />
+                        <Link 
+                          to={`/player/${user.userId}`} 
+                          className={`font-medium hover:underline ${
+                            !canSelect ? 'text-gray-500' : ''
+                          }`}
+                        >
+                          {user.name}
+                        </Link>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isInTeam && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                            In Team
+                          </span>
+                        )}
+                        {isInLobby && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            In Lobby
+                          </span>
+                        )}
+                        {!isInTeam && !isInLobby && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            Available
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { socket } from './socket';
+import { useAuth } from './AuthContext';
 
 // Helper to compute level and XP progress
 const getLevelData = (rating = 800) => ({
@@ -10,11 +12,15 @@ const getLevelData = (rating = 800) => ({
 
 export default function PlayerProfile() {
   const { id } = useParams();
+  const { user } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [matches, setMatches] = useState([]);
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [friendshipStatus, setFriendshipStatus] = useState(null); // 'none', 'pending', 'friends', 'sent'
+  const [friendRequestLoading, setFriendRequestLoading] = useState(false);
+  const [friendMessage, setFriendMessage] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -44,9 +50,121 @@ export default function PlayerProfile() {
         .limit(20);
       setSubs(s || []);
 
+      // Check friendship status if user is logged in and viewing someone else's profile
+      if (user && user.id !== id) {
+        await checkFriendshipStatus();
+      }
+
       setLoading(false);
     })();
-  }, [id]);
+  }, [id, user]);
+
+  const checkFriendshipStatus = async () => {
+    if (!user) return;
+
+    try {
+      // Check relationship in friends table (both directions)
+      const { data: friendship } = await supabase
+        .from('friends')
+        .select('*')
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${id}),and(user_id.eq.${id},friend_id.eq.${user.id})`)
+        .maybeSingle();
+
+      if (friendship) {
+        if (friendship.status === 'accepted') {
+          setFriendshipStatus('friends');
+        } else if (friendship.status === 'pending') {
+          // Check if current user sent the request or received it
+          if (friendship.user_id === user.id) {
+            setFriendshipStatus('sent');
+          } else {
+            setFriendshipStatus('pending');
+          }
+        }
+        return;
+      }
+
+      setFriendshipStatus('none');
+    } catch (error) {
+      console.error('Error checking friendship status:', error);
+      setFriendshipStatus('none');
+    }
+  };
+
+  const sendFriendRequest = async () => {
+    if (!user || friendRequestLoading) return;
+
+    setFriendRequestLoading(true);
+    setFriendMessage('');
+
+    socket.emit('send_friend_request', {
+      fromUserId: user.id,
+      toUserId: id
+    });
+
+    // Listen for response
+    const handleSuccess = () => {
+      setFriendshipStatus('sent');
+      setFriendMessage('Friend request sent!');
+      setFriendRequestLoading(false);
+      socket.off('friend_request_sent', handleSuccess);
+      socket.off('friend_request_error', handleError);
+    };
+
+    const handleError = ({ message }) => {
+      setFriendMessage(message || 'Failed to send friend request');
+      setFriendRequestLoading(false);
+      socket.off('friend_request_sent', handleSuccess);
+      socket.off('friend_request_error', handleError);
+    };
+
+    socket.on('friend_request_sent', handleSuccess);
+    socket.on('friend_request_error', handleError);
+  };
+
+  const renderFriendButton = () => {
+    if (!user || user.id === id) return null;
+
+    switch (friendshipStatus) {
+      case 'friends':
+        return (
+          <div className="flex items-center space-x-2 text-green-600">
+            <span>✓ Friends</span>
+          </div>
+        );
+      case 'sent':
+        return (
+          <button 
+            disabled
+            className="px-4 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
+          >
+            Friend Request Sent
+          </button>
+        );
+      case 'pending':
+        return (
+          <div className="text-orange-600">
+            <span>Friend request pending</span>
+          </div>
+        );
+      case 'none':
+        return (
+          <button 
+            onClick={sendFriendRequest}
+            disabled={friendRequestLoading}
+            className={`px-4 py-2 rounded-md text-white transition-colors ${
+              friendRequestLoading 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-primary hover:bg-primary/90'
+            }`}
+          >
+            {friendRequestLoading ? 'Sending...' : 'Add Friend'}
+          </button>
+        );
+      default:
+        return null;
+    }
+  };
 
   if (loading) return <div className="p-8 text-center">Loading profile…</div>;
   if (!profile) return <div className="p-8 text-center">Profile not found.</div>;
@@ -77,6 +195,20 @@ export default function PlayerProfile() {
         </div>
         {profile.codeforces_handle && <div className="text-sm text-gray-600">CF: {profile.codeforces_handle}</div>}
         <div className="text-sm text-gray-500">{profile.age ? `${profile.age} yrs` : ''} {profile.state && `• ${profile.state}`}</div>
+        
+        {/* Friend System */}
+        <div className="mt-4 flex flex-col items-center space-y-2">
+          {renderFriendButton()}
+          {friendMessage && (
+            <div className={`text-sm px-3 py-1 rounded ${
+              friendMessage.includes('sent') || friendMessage.includes('Success') 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-red-100 text-red-700'
+            }`}>
+              {friendMessage}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Recent Matches */}
