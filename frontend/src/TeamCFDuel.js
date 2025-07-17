@@ -307,11 +307,56 @@ function TeamCFDuel({ user }) {
       const l = meta.get('language');
       if (l && l !== language) {
         setLanguage(l);
+        
+        // Update Monaco editor language
+        if (editorRef.current) {
+          const model = editorRef.current.getModel();
+          if (model) {
+            window.monaco.editor.setModelLanguage(model, l);
+          }
+        }
+        
+        // Insert template if editor is empty or has minimal content
+        const template = languageTemplates[l];
+        if (template) {
+          const yText = ydoc.getText('monaco');
+          const currentContent = yText.toString().trim();
+          if (!currentContent || currentContent.length < 50) {
+            yText.delete(0, yText.length);
+            yText.insert(0, template);
+            codeRef.current = template;
+            
+            // Focus editor and set cursor to TODO comment
+            setTimeout(() => {
+              if (editorRef.current) {
+                const model = editorRef.current.getModel();
+                const todoMatch = model.findMatches('TODO: implement', false, false, false, null, false);
+                if (todoMatch.length > 0) {
+                  const range = todoMatch[0].range;
+                  editorRef.current.setSelection(range);
+                  editorRef.current.focus();
+                }
+              }
+            }, 100);
+          }
+        }
       }
     };
     syncLanguage();
     meta.observe(event => {
-      if (event.keysChanged.has('language')) syncLanguage();
+      if (event.keysChanged.has('language')) {
+        syncLanguage();
+        // Show notification when teammate changes language
+        const newLang = meta.get('language');
+        const langOption = languageOptions.find(opt => opt.id === newLang);
+        if (langOption) {
+          setEditorToast({
+            name: 'Teammate',
+            message: `Language changed to ${langOption.name}`,
+            ts: Date.now()
+          });
+        }
+      }
     });
 
     // Local interval to update every second
@@ -386,9 +431,41 @@ function TeamCFDuel({ user }) {
 
   const handleLanguageChange = (newLanguage) => {
     setLanguage(newLanguage);
+    
+    // Update language in shared document for all teammates
     try {
       ydocRef.current?.getMap('meta').set('language', newLanguage);
     } catch {}
+    
+    // Automatically insert template for the new language
+    const template = languageTemplates[newLanguage];
+    if (template) {
+      const yText = ydocRef.current?.getText('monaco');
+      if (yText) {
+        // Only insert template if editor is empty or has minimal content
+        const currentContent = yText.toString().trim();
+        if (!currentContent || currentContent.length < 50) {
+          yText.delete(0, yText.length);
+          yText.insert(0, template);
+          
+          // Update local state
+          codeRef.current = template;
+          
+          // Focus editor and set cursor to TODO comment
+          setTimeout(() => {
+            if (editorRef.current) {
+              const model = editorRef.current.getModel();
+              const todoMatch = model.findMatches('TODO: implement', false, false, false, null, false);
+              if (todoMatch.length > 0) {
+                const range = todoMatch[0].range;
+                editorRef.current.setSelection(range);
+                editorRef.current.focus();
+              }
+            }
+          }, 100);
+        }
+      }
+    }
   };
 
   const formatTime = (ms) => {
@@ -628,8 +705,8 @@ function TeamCFDuel({ user }) {
               pointerEvents: 'none',
               transition: 'opacity 0.3s',
               opacity: Date.now() - editorToast.ts < 2000 ? 1 : 0
-            }}>
-              {editorToast.name} is editing...
+             }}>
+              {editorToast.message || `${editorToast.name} is editing...`}
             </div>
           )}
           {/* Active collaborators */}
@@ -662,7 +739,7 @@ function TeamCFDuel({ user }) {
               }}
             >
               {languageOptions.map(lang => (
-                <option key={lang.id} value={lang.id}>{lang.name}</option>
+                <option key={lang.id} value={lang.id}>{lang.icon} {lang.name}</option>
               ))}
             </select>
           </div>
@@ -735,7 +812,10 @@ function TeamCFDuel({ user }) {
               
               editor.onDidChangeModelContent(handleTyping);
               
-              // Render remote cursors
+              // Store decoration IDs for cleanup
+              let currentDecorations = [];
+              
+              // Render remote cursors with proper Monaco decorations
               const renderRemoteCursors = () => {
                 const decorations = [];
                 const states = providerRef.current?.awareness?.getStates();
@@ -746,37 +826,17 @@ function TeamCFDuel({ user }) {
                     
                     const cursor = state.cursor;
                     if (cursor && cursor.line && cursor.column) {
-                      // Create cursor decoration
+                      // Create cursor line decoration (vertical line)
                       decorations.push({
                         range: new window.monaco.Range(
                           cursor.line, cursor.column,
                           cursor.line, cursor.column
                         ),
                         options: {
-                          className: 'remote-cursor',
-                          beforeContentClassName: 'remote-cursor-label',
-                          before: {
-                            content: cursor.name,
-                            backgroundColor: cursor.color,
-                            color: '#fff',
-                            fontSize: '11px',
-                            padding: '2px 4px',
-                            borderRadius: '3px',
-                            position: 'absolute',
-                            top: '-20px',
-                            left: '0',
-                            whiteSpace: 'nowrap',
-                            zIndex: 1000
-                          },
-                          afterContentClassName: 'remote-cursor-line',
-                          after: {
-                            content: '',
-                            backgroundColor: cursor.color,
-                            width: '2px',
-                            height: '20px',
-                            position: 'absolute',
-                            animation: 'blink 1s infinite'
-                          }
+                          className: `remote-cursor-${clientId}`,
+                          stickiness: window.monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+                          beforeContentClassName: `remote-cursor-before-${clientId}`,
+                          afterContentClassName: `remote-cursor-after-${clientId}`
                         }
                       });
                       
@@ -788,45 +848,82 @@ function TeamCFDuel({ user }) {
                             cursor.endLine, cursor.endColumn
                           ),
                           options: {
-                            className: 'remote-selection',
-                            backgroundColor: cursor.color + '30',
-                            borderColor: cursor.color,
-                            borderWidth: '1px',
-                            borderStyle: 'solid'
+                            className: `remote-selection-${clientId}`,
+                            stickiness: window.monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
                           }
                         });
                       }
+                      
+                      // Add CSS for this specific cursor
+                      const cursorId = `cursor-${clientId}`;
+                      let existingStyle = document.getElementById(cursorId);
+                      if (!existingStyle) {
+                        existingStyle = document.createElement('style');
+                        existingStyle.id = cursorId;
+                        document.head.appendChild(existingStyle);
+                      }
+                      
+                      existingStyle.textContent = `
+                        .remote-cursor-${clientId}::before {
+                          content: '${cursor.name}';
+                          position: absolute;
+                          top: -22px;
+                          left: 0;
+                          background: ${cursor.color};
+                          color: white;
+                          padding: 2px 6px;
+                          border-radius: 3px;
+                          font-size: 11px;
+                          font-weight: 500;
+                          white-space: nowrap;
+                          z-index: 1000;
+                          pointer-events: none;
+                        }
+                        .remote-cursor-${clientId}::after {
+                          content: '';
+                          position: absolute;
+                          top: 0;
+                          left: 0;
+                          width: 2px;
+                          height: 20px;
+                          background: ${cursor.color};
+                          animation: cursor-blink-${clientId} 1s infinite;
+                          z-index: 999;
+                          pointer-events: none;
+                        }
+                        .remote-selection-${clientId} {
+                          background: ${cursor.color}40 !important;
+                          border: 1px solid ${cursor.color}80;
+                        }
+                        @keyframes cursor-blink-${clientId} {
+                          0%, 50% { opacity: 1; }
+                          51%, 100% { opacity: 0.3; }
+                        }
+                      `;
                     }
                   });
                 }
                 
-                editor.deltaDecorations([], decorations);
+                // Update decorations
+                currentDecorations = editor.deltaDecorations(currentDecorations, decorations);
               };
               
-              // Listen for awareness changes
+              // Listen for awareness changes and render cursors
               providerRef.current?.awareness?.on('change', renderRemoteCursors);
               
-              // Initial cursor send
+              // Initial setup
               sendCursor();
+              renderRemoteCursors();
               
-              // Add CSS for cursor animations
-              const style = document.createElement('style');
-              style.textContent = `
-                .remote-cursor {
-                  position: relative;
-                }
-                .remote-cursor-line {
-                  animation: blink 1s infinite;
-                }
-                @keyframes blink {
-                  0%, 50% { opacity: 1; }
-                  51%, 100% { opacity: 0; }
-                }
-                .remote-selection {
-                  opacity: 0.3;
-                }
-              `;
-              document.head.appendChild(style);
+              // Re-render cursors when model content changes
+              editor.onDidChangeModelContent(() => {
+                setTimeout(renderRemoteCursors, 10);
+              });
+              
+              // Re-render cursors when editor is focused
+              editor.onDidFocusEditorText(() => {
+                setTimeout(renderRemoteCursors, 10);
+              });
             }}
             theme={isDark ? "vs-dark" : "vs-light"}
             options={{
