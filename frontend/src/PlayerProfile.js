@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { socket } from './socket';
-import { useAuth } from './AuthContext';
 
 // Helper to compute level and XP progress
 const getLevelData = (rating = 800) => ({
@@ -12,18 +11,22 @@ const getLevelData = (rating = 800) => ({
 
 export default function PlayerProfile() {
   const { id } = useParams();
-  const { user } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [matches, setMatches] = useState([]);
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const [friendshipStatus, setFriendshipStatus] = useState(null); // 'none', 'pending', 'friends', 'sent'
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [friendMessage, setFriendMessage] = useState('');
 
   useEffect(() => {
     (async () => {
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      setUser(userData?.user || null);
+
       // Profile
       const { data: prof } = await supabase
         .from('profiles')
@@ -51,23 +54,23 @@ export default function PlayerProfile() {
       setSubs(s || []);
 
       // Check friendship status if user is logged in and viewing someone else's profile
-      if (user && user.id !== id) {
-        await checkFriendshipStatus();
+      if (userData?.user && userData.user.id !== id) {
+        await checkFriendshipStatus(userData.user);
       }
 
       setLoading(false);
     })();
-  }, [id, user]);
+  }, [id]);
 
-  const checkFriendshipStatus = async () => {
-    if (!user) return;
+  const checkFriendshipStatus = async (currentUser) => {
+    if (!currentUser) return;
 
     try {
       // Check relationship in friends table (both directions)
       const { data: friendship } = await supabase
         .from('friends')
         .select('*')
-        .or(`and(user_id.eq.${user.id},friend_id.eq.${id}),and(user_id.eq.${id},friend_id.eq.${user.id})`)
+        .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${id}),and(user_id.eq.${id},friend_id.eq.${currentUser.id})`)
         .maybeSingle();
 
       if (friendship) {
@@ -75,7 +78,7 @@ export default function PlayerProfile() {
           setFriendshipStatus('friends');
         } else if (friendship.status === 'pending') {
           // Check if current user sent the request or received it
-          if (friendship.user_id === user.id) {
+          if (friendship.user_id === currentUser.id) {
             setFriendshipStatus('sent');
           } else {
             setFriendshipStatus('pending');
