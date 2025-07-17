@@ -18,15 +18,118 @@ function stringToColor(str) {
 }
 
 const languageTemplates = {
-  python: `def solve():\n    # TODO: implement\n    pass\n\nif __name__ == "__main__":\n    solve()`,
-  cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    // TODO: implement\n    return 0;\n}`,
-  javascript: `function main(){\n  // TODO: implement\n}\n\nmain();`
+  python: `def solve():
+    # Read input
+    n = int(input())
+    arr = list(map(int, input().split()))
+    
+    # TODO: implement solution
+    result = 0
+    
+    print(result)
+
+if __name__ == "__main__":
+    solve()`,
+  cpp: `#include <bits/stdc++.h>
+using namespace std;
+
+int main(){
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+    
+    int n;
+    cin >> n;
+    vector<int> arr(n);
+    for(int i = 0; i < n; i++) {
+        cin >> arr[i];
+    }
+    
+    // TODO: implement solution
+    int result = 0;
+    
+    cout << result << endl;
+    return 0;
+}`,
+  javascript: `function solve() {
+    const readline = require('readline');
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+    
+    let input = [];
+    rl.on('line', (line) => {
+        input.push(line);
+    });
+    
+    rl.on('close', () => {
+        const n = parseInt(input[0]);
+        const arr = input[1].split(' ').map(Number);
+        
+        // TODO: implement solution
+        let result = 0;
+        
+        console.log(result);
+    });
+}
+
+solve();`,
+  java: `import java.util.*;
+import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        
+        int n = Integer.parseInt(br.readLine());
+        String[] input = br.readLine().split(" ");
+        int[] arr = new int[n];
+        for(int i = 0; i < n; i++) {
+            arr[i] = Integer.parseInt(input[i]);
+        }
+        
+        // TODO: implement solution
+        int result = 0;
+        
+        System.out.println(result);
+    }
+}`,
+  go: `package main
+
+import (
+    "fmt"
+    "bufio"
+    "os"
+    "strconv"
+    "strings"
+)
+
+func main() {
+    scanner := bufio.NewScanner(os.Stdin)
+    
+    scanner.Scan()
+    n, _ := strconv.Atoi(scanner.Text())
+    
+    scanner.Scan()
+    arrStr := strings.Fields(scanner.Text())
+    arr := make([]int, n)
+    for i := 0; i < n; i++ {
+        arr[i], _ = strconv.Atoi(arrStr[i])
+    }
+    
+    // TODO: implement solution
+    result := 0
+    
+    fmt.Println(result)
+}`
 };
 
 const languageOptions = [
-  { id: "python", name: "Python 3" },
-  { id: "cpp", name: "C++" },
-  { id: "javascript", name: "JavaScript (Node.js)" },
+  { id: "python", name: "Python 3", icon: "🐍" },
+  { id: "cpp", name: "C++", icon: "⚡" },
+  { id: "javascript", name: "JavaScript (Node.js)", icon: "🟨" },
+  { id: "java", name: "Java", icon: "☕" },
+  { id: "go", name: "Go", icon: "🔷" },
 ];
 
 // Judge0 language IDs mapping
@@ -34,6 +137,8 @@ const judge0LangMap = {
   python: 71,
   cpp: 54,
   javascript: 63,
+  java: 62,
+  go: 60,
 };
 
 function TeamCFDuel({ user }) {
@@ -574,32 +679,224 @@ function TeamCFDuel({ user }) {
             defaultValue={codeRef.current}
             onChange={handleCodeChange}
             onMount={(editor) => {
-              // Update cursor position in awareness for remote display
-              const sendCursor = () => {
-                const selection = editor.getSelection();
-                if (!selection) return;
-                const model = editor.getModel();
-                const index = model.getOffsetAt(selection.getPosition());
-                const endIndex = model.getOffsetAt(selection.getEndPosition());
-                providerRef.current?.awareness.setLocalStateField('cursor', {
-                  index,
-                  length: endIndex - index,
-                  name: user.name || user.email,
-                  color: stringToColor(user.id)
-                });
-              };
-              sendCursor();
-              editor.onDidChangeCursorSelection(() => {
-                sendCursor();
-              });
               editorRef.current = editor;
+              
+              // Enhanced cursor tracking with debouncing for smooth updates
+              let cursorTimeout;
+              const sendCursor = () => {
+                clearTimeout(cursorTimeout);
+                cursorTimeout = setTimeout(() => {
+                  const selection = editor.getSelection();
+                  if (!selection || !providerRef.current?.awareness) return;
+                  
+                  const model = editor.getModel();
+                  const startPos = selection.getStartPosition();
+                  const endPos = selection.getEndPosition();
+                  const index = model.getOffsetAt(startPos);
+                  const endIndex = model.getOffsetAt(endPos);
+                  
+                  providerRef.current.awareness.setLocalStateField('cursor', {
+                    index,
+                    length: endIndex - index,
+                    line: startPos.lineNumber,
+                    column: startPos.column,
+                    endLine: endPos.lineNumber,
+                    endColumn: endPos.column,
+                    name: user.name || user.email,
+                    color: stringToColor(user.id),
+                    timestamp: Date.now()
+                  });
+                }, 50); // Debounce for smoother updates
+              };
+              
+              // Track cursor movements
+              editor.onDidChangeCursorSelection(sendCursor);
+              editor.onDidChangeCursorPosition(sendCursor);
+              
+              // Track when user starts/stops typing
+              let typingTimeout;
+              const handleTyping = () => {
+                clearTimeout(typingTimeout);
+                providerRef.current?.awareness.setLocalStateField('typing', {
+                  isTyping: true,
+                  name: user.name || user.email,
+                  color: stringToColor(user.id),
+                  timestamp: Date.now()
+                });
+                
+                typingTimeout = setTimeout(() => {
+                  providerRef.current?.awareness.setLocalStateField('typing', {
+                    isTyping: false,
+                    name: user.name || user.email,
+                    timestamp: Date.now()
+                  });
+                }, 1000);
+              };
+              
+              editor.onDidChangeModelContent(handleTyping);
+              
+              // Render remote cursors
+              const renderRemoteCursors = () => {
+                const decorations = [];
+                const states = providerRef.current?.awareness?.getStates();
+                
+                if (states) {
+                  states.forEach((state, clientId) => {
+                    if (clientId === providerRef.current?.awareness?.clientID) return;
+                    
+                    const cursor = state.cursor;
+                    if (cursor && cursor.line && cursor.column) {
+                      // Create cursor decoration
+                      decorations.push({
+                        range: new window.monaco.Range(
+                          cursor.line, cursor.column,
+                          cursor.line, cursor.column
+                        ),
+                        options: {
+                          className: 'remote-cursor',
+                          beforeContentClassName: 'remote-cursor-label',
+                          before: {
+                            content: cursor.name,
+                            backgroundColor: cursor.color,
+                            color: '#fff',
+                            fontSize: '11px',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            position: 'absolute',
+                            top: '-20px',
+                            left: '0',
+                            whiteSpace: 'nowrap',
+                            zIndex: 1000
+                          },
+                          afterContentClassName: 'remote-cursor-line',
+                          after: {
+                            content: '',
+                            backgroundColor: cursor.color,
+                            width: '2px',
+                            height: '20px',
+                            position: 'absolute',
+                            animation: 'blink 1s infinite'
+                          }
+                        }
+                      });
+                      
+                      // Add selection decoration if there's a selection
+                      if (cursor.length > 0 && cursor.endLine && cursor.endColumn) {
+                        decorations.push({
+                          range: new window.monaco.Range(
+                            cursor.line, cursor.column,
+                            cursor.endLine, cursor.endColumn
+                          ),
+                          options: {
+                            className: 'remote-selection',
+                            backgroundColor: cursor.color + '30',
+                            borderColor: cursor.color,
+                            borderWidth: '1px',
+                            borderStyle: 'solid'
+                          }
+                        });
+                      }
+                    }
+                  });
+                }
+                
+                editor.deltaDecorations([], decorations);
+              };
+              
+              // Listen for awareness changes
+              providerRef.current?.awareness?.on('change', renderRemoteCursors);
+              
+              // Initial cursor send
+              sendCursor();
+              
+              // Add CSS for cursor animations
+              const style = document.createElement('style');
+              style.textContent = `
+                .remote-cursor {
+                  position: relative;
+                }
+                .remote-cursor-line {
+                  animation: blink 1s infinite;
+                }
+                @keyframes blink {
+                  0%, 50% { opacity: 1; }
+                  51%, 100% { opacity: 0; }
+                }
+                .remote-selection {
+                  opacity: 0.3;
+                }
+              `;
+              document.head.appendChild(style);
             }}
             theme={isDark ? "vs-dark" : "vs-light"}
             options={{
-              fontSize: 14,
+              fontSize: 16,
+              fontFamily: 'JetBrains Mono, Consolas, Monaco, monospace',
+              lineHeight: 24,
               minimap: { enabled: false },
               wordWrap: 'on',
-              automaticLayout: true
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              renderLineHighlight: 'all',
+              cursorBlinking: 'smooth',
+              cursorSmoothCaretAnimation: true,
+              smoothScrolling: true,
+              mouseWheelZoom: true,
+              formatOnPaste: true,
+              formatOnType: true,
+              autoIndent: 'full',
+              tabSize: 4,
+              insertSpaces: true,
+              bracketPairColorization: { enabled: true },
+              guides: {
+                bracketPairs: true,
+                indentation: true
+              },
+              suggest: {
+                showKeywords: true,
+                showSnippets: true,
+                showFunctions: true,
+                showVariables: true,
+                showClasses: true,
+                showModules: true,
+                showProperties: true,
+                showValues: true,
+                showMethods: true,
+                showEvents: true,
+                showOperators: true,
+                showUnits: true,
+                showColors: true,
+                showFiles: true,
+                showReferences: true,
+                showFolders: true,
+                showTypeParameters: true,
+                showIssues: true,
+                showUsers: true,
+                showWords: true
+              },
+              quickSuggestions: {
+                other: true,
+                comments: true,
+                strings: true
+              },
+              parameterHints: {
+                enabled: true,
+                cycle: true
+              },
+              hover: {
+                enabled: true,
+                delay: 300
+              },
+              folding: true,
+              foldingHighlight: true,
+              showFoldingControls: 'always',
+              matchBrackets: 'always',
+              renderWhitespace: 'selection',
+              rulers: [80, 120],
+              codeLens: true,
+              lightbulb: {
+                enabled: true
+              }
             }}
           />
         </div>
