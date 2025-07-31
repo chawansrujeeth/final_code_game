@@ -49,6 +49,23 @@ export default function Auth() {
     setLoading(false);
   };
 
+  // Google OAuth login
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) setError(error.message);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #e0ecff 0%, #b6d0f7 100%)' }}>
       <div style={{ background: '#fff', padding: 36, borderRadius: 14, boxShadow: '0 4px 32px rgba(0,0,0,0.10)', minWidth: 320, maxWidth: 380, width: '100%' }}>
