@@ -104,17 +104,23 @@ export default function RadialNetwork() {
             'font-size': 10,
           },
         },
-        { selector: '.core', style: { 'background-color': 'red', width: 40, height: 40 } },
-        { selector: '.octagon', style: { 'background-color': 'orange' } },
-        { selector: '.outer', style: { 'background-color': 'green' } },
-        { selector: '.player', style: { 'background-color': 'blue', width: 36, height: 36 } },
+        { selector: '.core', style: { 'background-color': '#e63946', width: 42, height: 42 } },
+        { selector: '.octagon', style: { 'background-color': '#ffb703' } },
+        { selector: '.outer', style: { 'background-color': '#8ecae6' } },
+        { selector: '.player', style: { 'background-color': '#4361ee', width: 38, height: 38 } },
         {
           selector: 'edge',
           style: {
             width: 2,
-            'line-color': '#777',
+            'line-color': '#adb5bd',
+            'curve-style': 'straight',
           },
         },
+        { selector: "edge[group='core']", style: { 'line-color': '#e63946', 'line-style': 'dotted' } },
+        { selector: "edge[group='inner']", style: { 'line-color': '#ffb703' } },
+        { selector: "edge[group='radial']", style: { 'line-color': '#8ecae6', 'line-style': 'dotted' } },
+        { selector: "edge[group='outer']", style: { 'line-color': '#8ecae6' } },
+        { selector: "edge[group='player']", style: { 'line-color': '#4361ee' } },
         {
           selector: 'node:hover',
           style: {
