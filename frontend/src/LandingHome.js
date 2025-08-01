@@ -82,6 +82,12 @@ export default function LandingHome() {
           >
             Duel (CF)
           </button>
+          <button
+            className="btn btn-shadow btn-rect" style={{minWidth:120}}
+            onClick={() => navigate("/testing")}
+          >
+            Testing
+          </button>
           {user && (
             <button
               className={needsProfile ? 'btn btn-attn btn-rect' : 'btn btn-shadow btn-rect'}

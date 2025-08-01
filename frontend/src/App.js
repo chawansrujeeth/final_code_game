@@ -16,6 +16,7 @@ import DuelCF from "./DuelCF";
 import TeamCFDuel from "./TeamCFDuel";
 import GameLobby from "./GameLobby";
 import PlayerProfile from "./PlayerProfile";
+import Testing from "./Testing";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -104,7 +105,8 @@ function App() {
                 ? <Navigate to="/login" />
                 : <GameLobby user={user} />
           } />
-                    <Route path="/player/:id" element={<PlayerProfile />} />
+                    <Route path="/testing" element={<Testing />} />
+          <Route path="/player/:id" element={<PlayerProfile />} />
           </Routes>
       </div>
       <Footer />
