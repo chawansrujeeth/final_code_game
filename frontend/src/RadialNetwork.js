@@ -12,7 +12,7 @@ export default function RadialNetwork() {
     const H = 1000;
     const center = { x: W / 2, y: H / 2 };
     const R1 = 200; // radius for octagon
-    const R2 = 300; // radius for child ring
+    const R2 = 300; // radius for outer octagon
     const R3 = 380; // radius for players
 
     // helper to convert polar to cartesian
@@ -35,13 +35,13 @@ export default function RadialNetwork() {
       nodes.push({ data: { id, label: id, level: 1, class: 'octagon' }, position: pos });
     }
 
-    // Child ring nodes A1..D2
-    const childIds = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+    // Outer octagon nodes X1..X8
+    const outerIds = ['X1','X2','X3','X4','X5','X6','X7','X8'];
     for (let i = 0; i < 8; i++) {
-      const id = childIds[i];
-      const angle = -90 + i * 45 + 22.5; // halfway between octagon nodes
+      const id = outerIds[i];
+      const angle = -90 + i * 45 + 22.5; // halfway offset for symmetry
       const pos = polar(R2, angle);
-      nodes.push({ data: { id, label: id, level: 2, class: 'child' }, position: pos });
+      nodes.push({ data: { id, label: id, level: 2, class: 'outer' }, position: pos });
     }
 
     // Player nodes A B C D
@@ -56,29 +56,34 @@ export default function RadialNetwork() {
     // Edges array
     const edges = [];
 
+    // Edge helper to push with group and style
+    const pushEdge = (source, target, group, opts = {}) => {
+      edges.push({ data: { id: `${source}-${target}`, source, target, group, ...opts } });
+    };
+
     // Core to octagon
     for (let i = 1; i <= 8; i++) {
-      edges.push({ data: { id: `O-O${i}`, source: 'O', target: `O${i}` } });
+      pushEdge('O', `O${i}`, 'core', { dashed: true });
     }
 
-    // Octagon sibling edges & child edges
+    // Inner octagon sibling edges & links to outer
     for (let i = 1; i <= 8; i++) {
       const curr = `O${i}`;
-      const next = `O${i % 8 + 1}`; // wrap
-      const child = childIds[i - 1];
-      edges.push({ data: { id: `${curr}-${next}`, source: curr, target: next } });
-      edges.push({ data: { id: `${curr}-${child}`, source: curr, target: child } });
+      const next = `O${i % 8 + 1}`;
+      const outer = outerIds[i - 1];
+      pushEdge(curr, next, 'inner');
+      pushEdge(curr, outer, 'radial');
     }
 
-    // Child ring edges (adjacent) + to player
+    // Outer octagon sibling edges + to player
     for (let i = 0; i < 8; i++) {
-      const curr = childIds[i];
-      const next = childIds[(i + 1) % 8];
-      edges.push({ data: { id: `${curr}-${next}`, source: curr, target: next } });
+      const curr = outerIds[i];
+      const next = outerIds[(i + 1) % 8];
+      pushEdge(curr, next, 'outer');
 
-      // Map child to player
-      const player = playerIds[Math.floor(i / 2)]; // each pair maps to same player
-      edges.push({ data: { id: `${curr}-${player}`, source: curr, target: player } });
+      // map outer to player (each 2 share player)
+      const player = playerIds[Math.floor(i / 2)];
+      pushEdge(curr, player, 'player');
     }
 
     // Initialize cytoscape
@@ -101,7 +106,7 @@ export default function RadialNetwork() {
         },
         { selector: '.core', style: { 'background-color': 'red', width: 40, height: 40 } },
         { selector: '.octagon', style: { 'background-color': 'orange' } },
-        { selector: '.child', style: { 'background-color': 'green' } },
+        { selector: '.outer', style: { 'background-color': 'green' } },
         { selector: '.player', style: { 'background-color': 'blue', width: 36, height: 36 } },
         {
           selector: 'edge',
