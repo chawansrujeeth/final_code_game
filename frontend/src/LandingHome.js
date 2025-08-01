@@ -88,6 +88,12 @@ export default function LandingHome() {
           >
             Testing
           </button>
+          <button
+            className="btn btn-shadow btn-rect" style={{minWidth:120}}
+            onClick={() => navigate("/radial")}
+          >
+            Radial
+          </button>
           {user && (
             <button
               className={needsProfile ? 'btn btn-attn btn-rect' : 'btn btn-shadow btn-rect'}

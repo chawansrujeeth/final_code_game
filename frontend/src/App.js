@@ -17,6 +17,7 @@ import TeamCFDuel from "./TeamCFDuel";
 import GameLobby from "./GameLobby";
 import PlayerProfile from "./PlayerProfile";
 import Testing from "./Testing";
+import RadialNetwork from "./RadialNetwork";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -106,6 +107,7 @@ function App() {
                 : <GameLobby user={user} />
           } />
                     <Route path="/testing" element={<Testing />} />
+          <Route path="/radial" element={<RadialNetwork />} />
           <Route path="/player/:id" element={<PlayerProfile />} />
           </Routes>
       </div>
