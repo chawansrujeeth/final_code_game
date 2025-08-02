@@ -8,16 +8,16 @@ export default function RadialNetwork() {
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
 
-    // Canvas size - optimized for geometric shape
+    // Canvas size - optimized for concentric target structure
     const W = 1200;
     const H = 1200;
     const center = { x: W / 2, y: H / 2 };
     
-    // Diamond/Pyramid structure with clear geometric positioning
-    const R1 = 100; // inner diamond - very close to center
-    const R2 = 200; // middle diamond
-    const R3 = 300; // outer diamond
-    const R4 = 450; // player positions - cardinal points
+    // Concentric rings - target/bullseye structure
+    const R1 = 80;  // inner ring - close to target
+    const R2 = 160; // middle ring
+    const R3 = 240; // outer ring
+    const R4 = 380; // player ring - outermost
 
     // helper to convert polar to cartesian
     const polar = (r, angleDeg) => {
@@ -28,53 +28,55 @@ export default function RadialNetwork() {
     // Nodes array
     const nodes = [];
 
-    // Core node - centered
+    // TARGET - Core node at center
     nodes.push({ 
-      data: { id: 'CORE', label: 'CORE', level: 0, class: 'core' }, 
+      data: { id: 'TARGET', label: 'TARGET', level: 0, class: 'core' }, 
       position: center 
     });
 
-    // Layer 1: Inner diamond (4 nodes at 45° angles for clean diamond)
-    const layer1Angles = [45, 135, 225, 315]; // NE, NW, SW, SE
-    for (let i = 0; i < 4; i++) {
-      const id = `L1_${i + 1}`;
-      const angle = layer1Angles[i];
+    // RING 1: Inner ring (6 nodes evenly distributed)
+    const ring1Count = 6;
+    for (let i = 0; i < ring1Count; i++) {
+      const id = `R1_${i + 1}`;
+      const angle = (i * 360) / ring1Count; // evenly distributed
       const pos = polar(R1, angle);
       nodes.push({ 
-        data: { id, label: `L1-${i + 1}`, level: 1, class: 'layer1' }, 
+        data: { id, label: `R1-${i + 1}`, level: 1, class: 'layer1' }, 
         position: pos 
       });
     }
 
-    // Layer 2: Middle diamond (4 nodes at cardinal directions)
-    const layer2Angles = [0, 90, 180, 270]; // N, E, S, W
-    for (let i = 0; i < 4; i++) {
-      const id = `L2_${i + 1}`;
-      const angle = layer2Angles[i];
+    // RING 2: Middle ring (8 nodes for more density)
+    const ring2Count = 8;
+    for (let i = 0; i < ring2Count; i++) {
+      const id = `R2_${i + 1}`;
+      const angle = (i * 360) / ring2Count; // evenly distributed
       const pos = polar(R2, angle);
       nodes.push({ 
-        data: { id, label: `L2-${i + 1}`, level: 2, class: 'layer2' }, 
+        data: { id, label: `R2-${i + 1}`, level: 2, class: 'layer2' }, 
         position: pos 
       });
     }
 
-    // Layer 3: Outer diamond (4 nodes at 45° angles, aligned with L1)
-    for (let i = 0; i < 4; i++) {
-      const id = `L3_${i + 1}`;
-      const angle = layer1Angles[i]; // same angles as L1 for perfect alignment
+    // RING 3: Outer ring (12 nodes for highest density)
+    const ring3Count = 12;
+    for (let i = 0; i < ring3Count; i++) {
+      const id = `R3_${i + 1}`;
+      const angle = (i * 360) / ring3Count; // evenly distributed
       const pos = polar(R3, angle);
       nodes.push({ 
-        data: { id, label: `L3-${i + 1}`, level: 3, class: 'layer3' }, 
+        data: { id, label: `R3-${i + 1}`, level: 3, class: 'layer3' }, 
         position: pos 
       });
     }
 
-    // Layer 4: Player nodes (4 nodes at cardinal directions)
+    // PLAYERS: Outermost ring (4 players at cardinal directions)
     const playerIds = ['PLAYER_A', 'PLAYER_B', 'PLAYER_C', 'PLAYER_D'];
     const playerLabels = ['Player A', 'Player B', 'Player C', 'Player D'];
+    const playerAngles = [0, 90, 180, 270]; // N, E, S, W
     for (let i = 0; i < 4; i++) {
       const id = playerIds[i];
-      const angle = layer2Angles[i]; // same as L2 for alignment
+      const angle = playerAngles[i];
       const pos = polar(R4, angle);
       nodes.push({ 
         data: { id, label: playerLabels[i], level: 4, class: 'player' }, 
@@ -91,76 +93,64 @@ export default function RadialNetwork() {
       edges.push({ data: { id: `${source}-${target}`, source, target, group, ...opts } });
     };
 
-    // Core to Layer 1 connections (4 clean diagonal spokes)
-    for (let i = 0; i < 4; i++) {
-      pushEdge('CORE', `L1_${i + 1}`, 'core-to-layer1');
+    // TARGET to Ring 1 connections (radial spokes to all inner nodes)
+    for (let i = 1; i <= ring1Count; i++) {
+      pushEdge('TARGET', `R1_${i}`, 'target-to-ring1');
     }
 
-    // Layer 1 diamond connections (form perfect diamond shape)
-    const l1Connections = [
-      ['L1_1', 'L1_2'], // NE to NW
-      ['L1_2', 'L1_3'], // NW to SW  
-      ['L1_3', 'L1_4'], // SW to SE
-      ['L1_4', 'L1_1']  // SE to NE
-    ];
-    l1Connections.forEach(([from, to]) => {
-      pushEdge(from, to, 'layer1-ring');
-    });
+    // Ring 1 circular connections (form complete circle)
+    for (let i = 1; i <= ring1Count; i++) {
+      const curr = `R1_${i}`;
+      const next = `R1_${(i % ring1Count) + 1}`;
+      pushEdge(curr, next, 'ring1-circle');
+    }
 
-    // Layer 1 to Layer 2 connections (diagonal to cardinal mapping)
-    const l1ToL2Mapping = {
-      'L1_1': 'L2_1', // NE to N
-      'L1_2': 'L2_2', // NW to E  
-      'L1_3': 'L2_3', // SW to S
-      'L1_4': 'L2_4'  // SE to W
-    };
-    Object.entries(l1ToL2Mapping).forEach(([l1, l2]) => {
-      pushEdge(l1, l2, 'layer1-to-layer2');
-    });
+    // Ring 1 to Ring 2 connections (each R1 connects to nearest R2 nodes)
+    for (let i = 1; i <= ring1Count; i++) {
+      const r1Node = `R1_${i}`;
+      // Connect to 2 nearest R2 nodes for smooth transition
+      const r2Index1 = Math.floor(((i - 1) * ring2Count) / ring1Count) + 1;
+      const r2Index2 = (r2Index1 % ring2Count) + 1;
+      pushEdge(r1Node, `R2_${r2Index1}`, 'ring1-to-ring2');
+      pushEdge(r1Node, `R2_${r2Index2}`, 'ring1-to-ring2');
+    }
 
-    // Layer 2 square connections (form perfect square)
-    const l2Connections = [
-      ['L2_1', 'L2_2'], // N to E
-      ['L2_2', 'L2_3'], // E to S
-      ['L2_3', 'L2_4'], // S to W
-      ['L2_4', 'L2_1']  // W to N
-    ];
-    l2Connections.forEach(([from, to]) => {
-      pushEdge(from, to, 'layer2-ring');
-    });
+    // Ring 2 circular connections (form complete circle)
+    for (let i = 1; i <= ring2Count; i++) {
+      const curr = `R2_${i}`;
+      const next = `R2_${(i % ring2Count) + 1}`;
+      pushEdge(curr, next, 'ring2-circle');
+    }
 
-    // Layer 2 to Layer 3 connections (cardinal to diagonal mapping)
-    const l2ToL3Mapping = {
-      'L2_1': 'L3_1', // N to NE
-      'L2_2': 'L3_2', // E to NW
-      'L2_3': 'L3_3', // S to SW
-      'L2_4': 'L3_4'  // W to SE
-    };
-    Object.entries(l2ToL3Mapping).forEach(([l2, l3]) => {
-      pushEdge(l2, l3, 'layer2-to-layer3');
-    });
+    // Ring 2 to Ring 3 connections (each R2 connects to nearest R3 nodes)
+    for (let i = 1; i <= ring2Count; i++) {
+      const r2Node = `R2_${i}`;
+      // Connect to nearest R3 nodes
+      const r3Index1 = Math.floor(((i - 1) * ring3Count) / ring2Count) + 1;
+      const r3Index2 = (r3Index1 % ring3Count) + 1;
+      pushEdge(r2Node, `R3_${r3Index1}`, 'ring2-to-ring3');
+      pushEdge(r2Node, `R3_${r3Index2}`, 'ring2-to-ring3');
+    }
 
-    // Layer 3 diamond connections (outer diamond)
-    const l3Connections = [
-      ['L3_1', 'L3_2'], // NE to NW
-      ['L3_2', 'L3_3'], // NW to SW
-      ['L3_3', 'L3_4'], // SW to SE
-      ['L3_4', 'L3_1']  // SE to NE
-    ];
-    l3Connections.forEach(([from, to]) => {
-      pushEdge(from, to, 'layer3-ring');
-    });
+    // Ring 3 circular connections (form complete circle)
+    for (let i = 1; i <= ring3Count; i++) {
+      const curr = `R3_${i}`;
+      const next = `R3_${(i % ring3Count) + 1}`;
+      pushEdge(curr, next, 'ring3-circle');
+    }
 
-    // Layer 3 to Player connections (direct cardinal paths)
-    const playerToL3Mapping = {
-      'PLAYER_A': 'L3_1', // North player to NE
-      'PLAYER_B': 'L3_2', // East player to NW
-      'PLAYER_C': 'L3_3', // South player to SW
-      'PLAYER_D': 'L3_4'  // West player to SE
+    // Ring 3 to Player connections (strategic connections to cardinal players)
+    const playerToR3Mapping = {
+      'PLAYER_A': ['R3_1', 'R3_12', 'R3_2'], // North player (top)
+      'PLAYER_B': ['R3_3', 'R3_4', 'R3_5'],  // East player (right)
+      'PLAYER_C': ['R3_6', 'R3_7', 'R3_8'],  // South player (bottom)
+      'PLAYER_D': ['R3_9', 'R3_10', 'R3_11'] // West player (left)
     };
     
-    Object.entries(playerToL3Mapping).forEach(([player, l3Node]) => {
-      pushEdge(l3Node, player, 'layer3-to-player');
+    Object.entries(playerToR3Mapping).forEach(([player, r3Nodes]) => {
+      r3Nodes.forEach(r3Node => {
+        pushEdge(r3Node, player, 'ring3-to-player');
+      });
     });
 
     // Initialize cytoscape
@@ -273,71 +263,71 @@ export default function RadialNetwork() {
             'target-arrow-color': '#90a4ae',
           },
         },
-        // Core to Layer 1 edges - main pathways
+        // Target to Ring 1 edges - radial spokes
         { 
-          selector: "edge[group='core-to-layer1']", 
+          selector: "edge[group='target-to-ring1']", 
           style: { 
             'line-color': '#ff1744', 
-            width: 5,
+            width: 4,
             opacity: 0.9,
-            'target-arrow-color': '#ff1744',
-            'line-style': 'solid'
+            'target-arrow-color': '#ff1744'
           } 
         },
-        // Layer 1 ring edges
+        // Ring 1 circular edges
         { 
-          selector: "edge[group='layer1-ring']", 
+          selector: "edge[group='ring1-circle']", 
           style: { 
-            'line-color': '#fd7e14', 
-            width: 2.5
+            'line-color': '#ff9800', 
+            width: 3,
+            opacity: 0.8
           } 
         },
-        // Layer 1 to Layer 2 edges - connection paths
+        // Ring 1 to Ring 2 edges
         { 
-          selector: "edge[group='layer1-to-layer2']", 
+          selector: "edge[group='ring1-to-ring2']", 
           style: { 
             'line-color': '#ffb300', 
-            width: 4,
+            width: 3,
             opacity: 0.7,
             'target-arrow-color': '#ffb300'
           } 
         },
-        // Layer 2 ring edges
+        // Ring 2 circular edges
         { 
-          selector: "edge[group='layer2-ring']", 
+          selector: "edge[group='ring2-circle']", 
           style: { 
-            'line-color': '#20c997', 
-            width: 2.5
+            'line-color': '#26a69a', 
+            width: 3,
+            opacity: 0.8
           } 
         },
-        // Layer 2 to Layer 3 edges
+        // Ring 2 to Ring 3 edges
         { 
-          selector: "edge[group='layer2-to-layer3']", 
+          selector: "edge[group='ring2-to-ring3']", 
           style: { 
             'line-color': '#00acc1', 
-            width: 4,
+            width: 3,
             opacity: 0.7,
             'target-arrow-color': '#00acc1'
           } 
         },
-        // Layer 3 ring edges
+        // Ring 3 circular edges
         { 
-          selector: "edge[group='layer3-ring']", 
+          selector: "edge[group='ring3-circle']", 
           style: { 
-            'line-color': '#0dcaf0', 
-            width: 2.5
+            'line-color': '#29b6f6', 
+            width: 3,
+            opacity: 0.8
           } 
         },
-        // Layer 3 to Player edges - entry points
+        // Ring 3 to Player edges - final connections
         { 
-          selector: "edge[group='layer3-to-player']", 
+          selector: "edge[group='ring3-to-player']", 
           style: { 
             'line-color': '#7c4dff', 
-            width: 6,
+            width: 5,
             opacity: 0.9,
-            'target-arrow-color': '#7c4dff',
-            'source-arrow-shape': 'circle',
-            'source-arrow-color': '#7c4dff'
+            'target-arrow-color': '#7c4dff'
           } 
         },
         // Highlighted path elements
@@ -426,29 +416,33 @@ export default function RadialNetwork() {
       }
     });
     
-    // Helper function to find path from player to core (updated for diamond structure)
+    // Helper function to find path from player to target (updated for ring structure)
     const findPathToCore = (playerId) => {
       const nodes = [];
       const edges = [];
       
-      // Get player's connected L3 node
-      const l3Node = playerToL3Mapping[playerId];
-      nodes.push(playerId, l3Node);
-      edges.push(`${l3Node}-${playerId}`);
+      // Get player's connected R3 nodes (use first one as primary path)
+      const r3Nodes = playerToR3Mapping[playerId];
+      const primaryR3 = r3Nodes[0];
+      nodes.push(playerId, primaryR3);
+      edges.push(`${primaryR3}-${playerId}`);
       
-      // Find L2 node connected to this L3 node
-      const l2Node = Object.entries(l2ToL3Mapping).find(([l2, l3]) => l3 === l3Node)[0];
-      nodes.push(l2Node);
-      edges.push(`${l2Node}-${l3Node}`);
+      // Find R2 node connected to this R3 node (trace back the connection)
+      const r3Index = parseInt(primaryR3.split('_')[1]);
+      const r2Index = Math.ceil((r3Index * ring2Count) / ring3Count);
+      const r2Node = `R2_${r2Index}`;
+      nodes.push(r2Node);
+      edges.push(`${r2Node}-${primaryR3}`);
       
-      // Find L1 node connected to this L2 node
-      const l1Node = Object.entries(l1ToL2Mapping).find(([l1, l2]) => l2 === l2Node)[0];
-      nodes.push(l1Node);
-      edges.push(`${l1Node}-${l2Node}`);
+      // Find R1 node connected to this R2 node
+      const r1Index = Math.ceil((r2Index * ring1Count) / ring2Count);
+      const r1Node = `R1_${r1Index}`;
+      nodes.push(r1Node);
+      edges.push(`${r1Node}-${r2Node}`);
       
-      // Layer 1 to Core
-      nodes.push('CORE');
-      edges.push(`CORE-${l1Node}`);
+      // Ring 1 to Target
+      nodes.push('TARGET');
+      edges.push(`TARGET-${r1Node}`);
       
       return { nodes, edges };
     };
