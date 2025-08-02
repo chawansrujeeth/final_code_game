@@ -171,15 +171,15 @@ export default function RadialNetwork() {
             color: '#fff',
             'text-valign': 'center',
             'text-halign': 'center',
-            width: 30,
-            height: 30,
-            'font-size': 8,
+            width: 40,
+            height: 40,
+            'font-size': 10,
             'font-weight': 'bold',
-            'border-width': 2,
+            'border-width': 3,
             'border-color': '#fff',
-            'text-outline-width': 1,
+            'text-outline-width': 2,
             'text-outline-color': '#000',
-            'overlay-opacity': 0, // Remove selection overlay
+            'overlay-opacity': 0,
           },
         },
         // Target node styling - clean center
@@ -187,9 +187,9 @@ export default function RadialNetwork() {
           selector: '.core', 
           style: { 
             'background-color': '#e53e3e', 
-            width: 50, 
-            height: 50,
-            'font-size': 12,
+            width: 65, 
+            height: 65,
+            'font-size': 14,
             'border-width': 4,
             'border-color': '#fff',
             'font-weight': 'bold'
@@ -200,9 +200,9 @@ export default function RadialNetwork() {
           selector: '.layer1', 
           style: { 
             'background-color': '#fd7e14', 
-            width: 35, 
-            height: 35,
-            'font-size': 8
+            width: 50, 
+            height: 50,
+            'font-size': 10
           } 
         },
         // Ring 2 nodes - middle ring
@@ -210,9 +210,9 @@ export default function RadialNetwork() {
           selector: '.layer2', 
           style: { 
             'background-color': '#20c997', 
-            width: 32, 
-            height: 32,
-            'font-size': 7
+            width: 45, 
+            height: 45,
+            'font-size': 9
           } 
         },
         // Ring 3 nodes - outer ring
@@ -220,9 +220,9 @@ export default function RadialNetwork() {
           selector: '.layer3', 
           style: { 
             'background-color': '#0dcaf0', 
-            width: 28, 
-            height: 28,
-            'font-size': 7
+            width: 42, 
+            height: 42,
+            'font-size': 9
           } 
         },
         // Player nodes - prominent
@@ -230,25 +230,24 @@ export default function RadialNetwork() {
           selector: '.player', 
           style: { 
             'background-color': '#6f42c1', 
-            width: 55, 
-            height: 55,
-            'font-size': 10,
-            'border-width': 3,
+            width: 70, 
+            height: 70,
+            'font-size': 12,
+            'border-width': 4,
             'border-color': '#fff',
             'font-weight': 'bold'
           } 
         },
-        // Base edge styling - clean lines
+        // Base edge styling - undirected clean lines
         {
           selector: 'edge',
           style: {
-            width: 2,
-            'line-color': '#adb5bd',
+            width: 3,
+            'line-color': '#495057',
             'curve-style': 'straight',
-            opacity: 0.7,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#adb5bd',
-            'arrow-scale': 0.8
+            opacity: 0.8,
+            'target-arrow-shape': 'none', // Remove arrows for undirected graph
+            'source-arrow-shape': 'none'
           },
         },
         // Target to Ring 1 edges - radial spokes
@@ -256,9 +255,8 @@ export default function RadialNetwork() {
           selector: "edge[group='target-to-ring1']", 
           style: { 
             'line-color': '#e53e3e', 
-            width: 3,
-            opacity: 0.8,
-            'target-arrow-color': '#e53e3e'
+            width: 4,
+            opacity: 0.9
           } 
         },
         // Ring 1 circular edges
@@ -266,9 +264,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring1-circle']", 
           style: { 
             'line-color': '#fd7e14', 
-            width: 2,
-            opacity: 0.6,
-            'target-arrow-shape': 'none'
+            width: 3,
+            opacity: 0.8
           } 
         },
         // Ring 1 to Ring 2 edges
@@ -276,9 +273,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring1-to-ring2']", 
           style: { 
             'line-color': '#ffc107', 
-            width: 2,
-            opacity: 0.6,
-            'target-arrow-color': '#ffc107'
+            width: 3,
+            opacity: 0.7
           } 
         },
         // Ring 2 circular edges
@@ -286,9 +282,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring2-circle']", 
           style: { 
             'line-color': '#20c997', 
-            width: 2,
-            opacity: 0.6,
-            'target-arrow-shape': 'none'
+            width: 3,
+            opacity: 0.8
           } 
         },
         // Ring 2 to Ring 3 edges
@@ -296,9 +291,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring2-to-ring3']", 
           style: { 
             'line-color': '#17a2b8', 
-            width: 2,
-            opacity: 0.6,
-            'target-arrow-color': '#17a2b8'
+            width: 3,
+            opacity: 0.7
           } 
         },
         // Ring 3 circular edges
@@ -306,9 +300,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring3-circle']", 
           style: { 
             'line-color': '#0dcaf0', 
-            width: 2,
-            opacity: 0.6,
-            'target-arrow-shape': 'none'
+            width: 3,
+            opacity: 0.8
           } 
         },
         // Ring 3 to Player edges - final connections
@@ -316,9 +309,8 @@ export default function RadialNetwork() {
           selector: "edge[group='ring3-to-player']", 
           style: { 
             'line-color': '#6f42c1', 
-            width: 3,
-            opacity: 0.8,
-            'target-arrow-color': '#6f42c1'
+            width: 4,
+            opacity: 0.9
           } 
         },
         // Highlighted path elements
@@ -336,10 +328,8 @@ export default function RadialNetwork() {
           selector: 'edge.highlighted',
           style: {
             'line-color': '#ffeb3b',
-            width: 8,
+            width: 6,
             opacity: 1,
-            'target-arrow-color': '#ffeb3b',
-            'source-arrow-color': '#ffeb3b',
             'box-shadow': '0 0 15px #ffeb3b'
           },
         },
