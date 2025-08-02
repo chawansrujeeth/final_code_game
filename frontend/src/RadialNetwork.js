@@ -8,16 +8,16 @@ export default function RadialNetwork() {
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
 
-    // Canvas size - increased for better spacing
+    // Canvas size - optimized for geometric shape
     const W = 1200;
     const H = 1200;
     const center = { x: W / 2, y: H / 2 };
     
-    // Improved radii with better spacing to prevent overlaps
-    const R1 = 150; // radius for inner octagon (closer to center)
-    const R2 = 280; // radius for middle octagon (more spacing)
-    const R3 = 420; // radius for outer octagon
-    const R4 = 520; // radius for players (outermost layer)
+    // Clean geometric radii for diamond/hexagonal structure
+    const R1 = 120; // inner ring - close to center
+    const R2 = 220; // middle ring
+    const R3 = 320; // outer ring
+    const R4 = 450; // player ring - well spaced
 
     // helper to convert polar to cartesian
     const polar = (r, angleDeg) => {
@@ -34,10 +34,10 @@ export default function RadialNetwork() {
       position: center 
     });
 
-    // Layer 1: Inner octagon nodes (8 nodes)
-    for (let i = 0; i < 8; i++) {
+    // Layer 1: Inner hexagon (6 nodes for cleaner geometry)
+    for (let i = 0; i < 6; i++) {
       const id = `L1_${i + 1}`;
-      const angle = i * 45; // evenly spaced at 45° intervals
+      const angle = i * 60; // 60° intervals for hexagon
       const pos = polar(R1, angle);
       nodes.push({ 
         data: { id, label: `L1-${i + 1}`, level: 1, class: 'layer1' }, 
@@ -45,10 +45,10 @@ export default function RadialNetwork() {
       });
     }
 
-    // Layer 2: Middle octagon nodes (8 nodes, offset for better visual)
-    for (let i = 0; i < 8; i++) {
+    // Layer 2: Middle ring (6 nodes, offset for diamond pattern)
+    for (let i = 0; i < 6; i++) {
       const id = `L2_${i + 1}`;
-      const angle = i * 45 + 22.5; // offset by 22.5° for visual clarity
+      const angle = i * 60 + 30; // offset by 30° for diamond structure
       const pos = polar(R2, angle);
       nodes.push({ 
         data: { id, label: `L2-${i + 1}`, level: 2, class: 'layer2' }, 
@@ -56,10 +56,10 @@ export default function RadialNetwork() {
       });
     }
 
-    // Layer 3: Outer octagon nodes (8 nodes)
-    for (let i = 0; i < 8; i++) {
+    // Layer 3: Outer hexagon (6 nodes, aligned with layer 1)
+    for (let i = 0; i < 6; i++) {
       const id = `L3_${i + 1}`;
-      const angle = i * 45; // aligned with layer 1
+      const angle = i * 60; // aligned with layer 1 for symmetry
       const pos = polar(R3, angle);
       nodes.push({ 
         data: { id, label: `L3-${i + 1}`, level: 3, class: 'layer3' }, 
@@ -67,7 +67,7 @@ export default function RadialNetwork() {
       });
     }
 
-    // Layer 4: Player nodes (4 nodes at cardinal directions)
+    // Layer 4: Player nodes (4 nodes at cardinal directions for clear paths)
     const playerIds = ['PLAYER_A', 'PLAYER_B', 'PLAYER_C', 'PLAYER_D'];
     const playerLabels = ['Player A', 'Player B', 'Player C', 'Player D'];
     for (let i = 0; i < 4; i++) {
@@ -89,59 +89,63 @@ export default function RadialNetwork() {
       edges.push({ data: { id: `${source}-${target}`, source, target, group, ...opts } });
     };
 
-    // Core to Layer 1 connections (radial spokes)
-    for (let i = 0; i < 8; i++) {
+    // Core to Layer 1 connections (clean radial spokes)
+    for (let i = 0; i < 6; i++) {
       pushEdge('CORE', `L1_${i + 1}`, 'core-to-layer1');
     }
 
-    // Layer 1 ring connections (octagon)
-    for (let i = 0; i < 8; i++) {
+    // Layer 1 ring connections (hexagon)
+    for (let i = 0; i < 6; i++) {
       const curr = `L1_${i + 1}`;
-      const next = `L1_${(i + 1) % 8 + 1}`;
+      const next = `L1_${(i + 1) % 6 + 1}`;
       pushEdge(curr, next, 'layer1-ring');
     }
 
-    // Layer 1 to Layer 2 connections (every L1 node connects to 2 L2 nodes)
-    for (let i = 0; i < 8; i++) {
+    // Layer 1 to Layer 2 connections (strategic diamond pattern)
+    for (let i = 0; i < 6; i++) {
       const l1Node = `L1_${i + 1}`;
-      // Connect to the two nearest L2 nodes
+      // Each L1 connects to 2 L2 nodes for diamond structure
       const l2Node1 = `L2_${i + 1}`;
-      const l2Node2 = `L2_${(i + 1) % 8 + 1}`;
+      const l2Node2 = `L2_${(i + 1) % 6 + 1}`;
       pushEdge(l1Node, l2Node1, 'layer1-to-layer2');
       pushEdge(l1Node, l2Node2, 'layer1-to-layer2');
     }
 
-    // Layer 2 ring connections (octagon)
-    for (let i = 0; i < 8; i++) {
+    // Layer 2 ring connections (hexagon)
+    for (let i = 0; i < 6; i++) {
       const curr = `L2_${i + 1}`;
-      const next = `L2_${(i + 1) % 8 + 1}`;
+      const next = `L2_${(i + 1) % 6 + 1}`;
       pushEdge(curr, next, 'layer2-ring');
     }
 
-    // Layer 2 to Layer 3 connections
-    for (let i = 0; i < 8; i++) {
+    // Layer 2 to Layer 3 connections (clean mapping)
+    for (let i = 0; i < 6; i++) {
       const l2Node = `L2_${i + 1}`;
-      // Connect to nearest L3 node
-      const l3Node = `L3_${(i + 4) % 8 + 1}`; // offset mapping
+      // Map to corresponding L3 node with offset
+      const l3Node = `L3_${(i + 3) % 6 + 1}`;
       pushEdge(l2Node, l3Node, 'layer2-to-layer3');
     }
 
-    // Layer 3 ring connections (octagon)
-    for (let i = 0; i < 8; i++) {
+    // Layer 3 ring connections (hexagon)
+    for (let i = 0; i < 6; i++) {
       const curr = `L3_${i + 1}`;
-      const next = `L3_${(i + 1) % 8 + 1}`;
+      const next = `L3_${(i + 1) % 6 + 1}`;
       pushEdge(curr, next, 'layer3-ring');
     }
 
-    // Layer 3 to Player connections (each player connects to 2 L3 nodes)
-    for (let i = 0; i < 4; i++) {
-      const player = playerIds[i];
-      // Each player connects to 2 L3 nodes
-      const l3Node1 = `L3_${i * 2 + 1}`;
-      const l3Node2 = `L3_${i * 2 + 2}`;
-      pushEdge(l3Node1, player, 'layer3-to-player');
-      pushEdge(l3Node2, player, 'layer3-to-player');
-    }
+    // Layer 3 to Player connections (clear cardinal paths)
+    const playerToL3Mapping = {
+      'PLAYER_A': ['L3_1', 'L3_2'], // North player
+      'PLAYER_B': ['L3_2', 'L3_3'], // East player  
+      'PLAYER_C': ['L3_4', 'L3_5'], // South player
+      'PLAYER_D': ['L3_5', 'L3_6']  // West player
+    };
+    
+    playerIds.forEach(player => {
+      playerToL3Mapping[player].forEach(l3Node => {
+        pushEdge(l3Node, player, 'layer3-to-player');
+      });
+    });
 
     // Initialize cytoscape
     cyRef.current = cytoscape({
@@ -406,33 +410,33 @@ export default function RadialNetwork() {
       }
     });
     
-    // Helper function to find path from player to core
+    // Helper function to find path from player to core (updated for hexagonal structure)
     const findPathToCore = (playerId) => {
       const nodes = [];
       const edges = [];
       
-      // Player to Layer 3 connections
-      const playerIndex = playerIds.indexOf(playerId);
-      const l3Node1 = `L3_${playerIndex * 2 + 1}`;
-      const l3Node2 = `L3_${playerIndex * 2 + 2}`;
+      // Get player's connected L3 nodes
+      const l3Nodes = playerToL3Mapping[playerId];
+      const primaryL3 = l3Nodes[0]; // Use first connection as primary path
       
-      nodes.push(playerId, l3Node1);
-      edges.push(`${l3Node1}-${playerId}`);
+      nodes.push(playerId, primaryL3);
+      edges.push(`${primaryL3}-${playerId}`);
       
       // Layer 3 to Layer 2 (find connected L2 node)
-      const l2Node = `L2_${(playerIndex * 2 + 4) % 8 + 1}`;
+      const l3Index = parseInt(primaryL3.split('_')[1]) - 1;
+      const l2Node = `L2_${(l3Index + 3) % 6 + 1}`;
       nodes.push(l2Node);
-      edges.push(`${l2Node}-${l3Node1}`);
+      edges.push(`${l2Node}-${primaryL3}`);
       
       // Layer 2 to Layer 1 (find connected L1 nodes)
-      const l1Node1 = `L1_${(playerIndex * 2) % 8 + 1}`;
-      const l1Node2 = `L1_${(playerIndex * 2 + 1) % 8 + 1}`;
-      nodes.push(l1Node1);
-      edges.push(`${l1Node1}-${l2Node}`);
+      const l2Index = parseInt(l2Node.split('_')[1]) - 1;
+      const l1Node = `L1_${(l2Index + 3) % 6 + 1}`;
+      nodes.push(l1Node);
+      edges.push(`${l1Node}-${l2Node}`);
       
       // Layer 1 to Core
       nodes.push('CORE');
-      edges.push(`CORE-${l1Node1}`);
+      edges.push(`CORE-${l1Node}`);
       
       return { nodes, edges };
     };
