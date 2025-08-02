@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
-export default function RadialNetwork() {
+export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
   const cyRef = useRef(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
@@ -13,11 +13,11 @@ export default function RadialNetwork() {
     const H = 1200;
     const center = { x: W / 2, y: H / 2 };
     
-    // Concentric rings - target/bullseye structure
+    // Concentric rings - target/bullseye structure (scalable based on player count)
     const R1 = 80;  // inner ring - close to target
     const R2 = 160; // middle ring
     const R3 = 240; // outer ring
-    const R4 = 380; // player ring - outermost
+    const R4 = Math.max(380, 300 + (playerCount * 20)); // player ring - scales with player count
 
     // helper to convert polar to cartesian
     const polar = (r, angleDeg) => {
@@ -30,7 +30,14 @@ export default function RadialNetwork() {
 
     // TARGET - Core node at center
     nodes.push({ 
-      data: { id: 'TARGET', label: 'TARGET', level: 0, class: 'core' }, 
+      data: { 
+        id: 'TARGET', 
+        label: 'TARGET', 
+        level: 0, 
+        class: 'core',
+        nodeType: 'target',
+        ...nodeData.TARGET // Allow custom data injection
+      }, 
       position: center 
     });
 
@@ -41,7 +48,15 @@ export default function RadialNetwork() {
       const angle = (i * 360) / ring1Count; // evenly distributed
       const pos = polar(R1, angle);
       nodes.push({ 
-        data: { id, label: `R1-${i + 1}`, level: 1, class: 'layer1' }, 
+        data: { 
+          id, 
+          label: `R1-${i + 1}`, 
+          level: 1, 
+          class: 'layer1',
+          nodeType: 'ring1',
+          ringIndex: i,
+          ...nodeData[id] // Allow custom data injection
+        }, 
         position: pos 
       });
     }
@@ -53,7 +68,15 @@ export default function RadialNetwork() {
       const angle = (i * 360) / ring2Count; // evenly distributed
       const pos = polar(R2, angle);
       nodes.push({ 
-        data: { id, label: `R2-${i + 1}`, level: 2, class: 'layer2' }, 
+        data: { 
+          id, 
+          label: `R2-${i + 1}`, 
+          level: 2, 
+          class: 'layer2',
+          nodeType: 'ring2',
+          ringIndex: i,
+          ...nodeData[id] // Allow custom data injection
+        }, 
         position: pos 
       });
     }
@@ -65,21 +88,45 @@ export default function RadialNetwork() {
       const angle = (i * 360) / ring3Count; // evenly distributed
       const pos = polar(R3, angle);
       nodes.push({ 
-        data: { id, label: `R3-${i + 1}`, level: 3, class: 'layer3' }, 
+        data: { 
+          id, 
+          label: `R3-${i + 1}`, 
+          level: 3, 
+          class: 'layer3',
+          nodeType: 'ring3',
+          ringIndex: i,
+          ...nodeData[id] // Allow custom data injection
+        }, 
         position: pos 
       });
     }
 
-    // PLAYERS: Outermost ring (4 players at cardinal directions)
-    const playerIds = ['PLAYER_A', 'PLAYER_B', 'PLAYER_C', 'PLAYER_D'];
-    const playerLabels = ['Player A', 'Player B', 'Player C', 'Player D'];
-    const playerAngles = [0, 90, 180, 270]; // N, E, S, W
-    for (let i = 0; i < 4; i++) {
+    // PLAYERS: Outermost ring (variable player count)
+    const playerIds = [];
+    const playerLabels = [];
+    const playerAngles = [];
+    
+    // Generate player data based on playerCount
+    for (let i = 0; i < playerCount; i++) {
+      playerIds.push(`PLAYER_${String.fromCharCode(65 + i)}`);
+      playerLabels.push(`Player ${String.fromCharCode(65 + i)}`);
+      playerAngles.push((i * 360) / playerCount); // Evenly distribute around circle
+    }
+    
+    for (let i = 0; i < playerCount; i++) {
       const id = playerIds[i];
       const angle = playerAngles[i];
       const pos = polar(R4, angle);
       nodes.push({ 
-        data: { id, label: playerLabels[i], level: 4, class: 'player' }, 
+        data: { 
+          id, 
+          label: playerLabels[i], 
+          level: 4, 
+          class: 'player',
+          nodeType: 'player',
+          playerIndex: i,
+          ...nodeData[id] // Allow custom data injection
+        }, 
         position: pos 
       });
     }
@@ -139,13 +186,25 @@ export default function RadialNetwork() {
       pushEdge(curr, next, 'ring3-circle');
     }
 
-    // Ring 3 to Player connections (strategic connections to cardinal players)
-    const playerToR3Mapping = {
-      'PLAYER_A': ['R3_1', 'R3_12', 'R3_2'], // North player (top)
-      'PLAYER_B': ['R3_3', 'R3_4', 'R3_5'],  // East player (right)
-      'PLAYER_C': ['R3_6', 'R3_7', 'R3_8'],  // South player (bottom)
-      'PLAYER_D': ['R3_9', 'R3_10', 'R3_11'] // West player (left)
-    };
+    // Ring 3 to Player connections (dynamic based on player count)
+    const playerToR3Mapping = {};
+    const nodesPerPlayer = Math.floor(ring3Count / playerCount);
+    const extraNodes = ring3Count % playerCount;
+    
+    let r3NodeIndex = 0;
+    for (let i = 0; i < playerCount; i++) {
+      const playerId = playerIds[i];
+      const nodesToConnect = nodesPerPlayer + (i < extraNodes ? 1 : 0);
+      const connectedNodes = [];
+      
+      for (let j = 0; j < nodesToConnect; j++) {
+        const r3Id = `R3_${(r3NodeIndex % ring3Count) + 1}`;
+        connectedNodes.push(r3Id);
+        r3NodeIndex++;
+      }
+      
+      playerToR3Mapping[playerId] = connectedNodes;
+    }
     
     Object.entries(playerToR3Mapping).forEach(([player, r3Nodes]) => {
       r3Nodes.forEach(r3Node => {
@@ -432,12 +491,20 @@ export default function RadialNetwork() {
       return { nodes, edges };
     };
     
-    // Tooltip on hover
+    // Enhanced tooltip on hover with node data
     cyRef.current.on('mouseover', 'node', (evt) => {
       const node = evt.target;
+      const nodeData = node.data();
       const ele = document.createElement('div');
       ele.className = 'cy-tooltip';
-      ele.innerText = `${node.data('label')} (Level ${node.data('level')})`;
+      
+      // Build tooltip content with available data
+      let tooltipContent = `${nodeData.label} (Level ${nodeData.level})`;
+      if (nodeData.nodeType) tooltipContent += `\nType: ${nodeData.nodeType}`;
+      if (nodeData.playerIndex !== undefined) tooltipContent += `\nPlayer Index: ${nodeData.playerIndex}`;
+      if (nodeData.ringIndex !== undefined) tooltipContent += `\nRing Index: ${nodeData.ringIndex}`;
+      
+      ele.innerText = tooltipContent;
       document.body.appendChild(ele);
       const rect = node.renderedBoundingBox();
       ele.style.left = rect.x2 + 4 + 'px';
