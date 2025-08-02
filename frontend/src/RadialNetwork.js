@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
 export default function RadialNetwork() {
   const cyRef = useRef(null);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
@@ -159,83 +160,108 @@ export default function RadialNetwork() {
             height: 35,
             'font-size': 9,
             'font-weight': 'bold',
-            'border-width': 2,
+            'border-width': 3,
             'border-color': '#fff',
-            'text-outline-width': 1,
+            'text-outline-width': 2,
             'text-outline-color': '#000',
+            'box-shadow': '0 8px 16px rgba(0,0,0,0.3)',
+            'background-gradient-stop-colors': 'data(gradientColors)',
+            'background-gradient-stop-positions': '0% 100%',
+            'background-gradient-direction': 'to-bottom',
           },
         },
-        // Core node styling
+        // Core node styling - 3D effect
         { 
           selector: '.core', 
           style: { 
-            'background-color': '#dc3545', 
-            width: 50, 
-            height: 50,
-            'font-size': 12,
-            'border-width': 3,
-            'border-color': '#fff'
+            'background-color': '#ff1744', 
+            width: 60, 
+            height: 60,
+            'font-size': 14,
+            'border-width': 5,
+            'border-color': '#fff',
+            'box-shadow': '0 12px 24px rgba(255,23,68,0.4), inset 0 -8px 16px rgba(0,0,0,0.2)',
+            'background-gradient-stop-colors': '#ff1744 #d32f2f',
+            'z-index': 100
           } 
         },
-        // Layer 1 nodes
+        // Layer 1 nodes - elevated 3D
         { 
           selector: '.layer1', 
           style: { 
-            'background-color': '#fd7e14', 
-            width: 40, 
-            height: 40,
-            'font-size': 8
+            'background-color': '#ff9800', 
+            width: 45, 
+            height: 45,
+            'font-size': 9,
+            'box-shadow': '0 10px 20px rgba(255,152,0,0.3), inset 0 -6px 12px rgba(0,0,0,0.15)',
+            'background-gradient-stop-colors': '#ff9800 #f57c00',
+            'z-index': 80
           } 
         },
-        // Layer 2 nodes
+        // Layer 2 nodes - mid-level 3D
         { 
           selector: '.layer2', 
           style: { 
-            'background-color': '#20c997', 
-            width: 38, 
-            height: 38,
-            'font-size': 8
+            'background-color': '#26a69a', 
+            width: 42, 
+            height: 42,
+            'font-size': 8,
+            'box-shadow': '0 8px 16px rgba(38,166,154,0.25), inset 0 -5px 10px rgba(0,0,0,0.1)',
+            'background-gradient-stop-colors': '#26a69a #00695c',
+            'z-index': 60
           } 
         },
-        // Layer 3 nodes
+        // Layer 3 nodes - outer 3D
         { 
           selector: '.layer3', 
           style: { 
-            'background-color': '#0dcaf0', 
-            width: 36, 
-            height: 36,
-            'font-size': 8
+            'background-color': '#29b6f6', 
+            width: 40, 
+            height: 40,
+            'font-size': 8,
+            'box-shadow': '0 6px 12px rgba(41,182,246,0.2), inset 0 -4px 8px rgba(0,0,0,0.08)',
+            'background-gradient-stop-colors': '#29b6f6 #0277bd',
+            'z-index': 40
           } 
         },
-        // Player nodes
+        // Player nodes - prominent 3D
         { 
           selector: '.player', 
           style: { 
-            'background-color': '#6f42c1', 
-            width: 55, 
-            height: 55,
-            'font-size': 10,
-            'border-width': 3,
-            'border-color': '#fff'
+            'background-color': '#7c4dff', 
+            width: 65, 
+            height: 65,
+            'font-size': 11,
+            'border-width': 4,
+            'border-color': '#fff',
+            'box-shadow': '0 15px 30px rgba(124,77,255,0.4), inset 0 -10px 20px rgba(0,0,0,0.25)',
+            'background-gradient-stop-colors': '#7c4dff #512da8',
+            'z-index': 20
           } 
         },
-        // Base edge styling
+        // Base edge styling - 3D pathways
         {
           selector: 'edge',
           style: {
-            width: 2,
-            'line-color': '#dee2e6',
+            width: 3,
+            'line-color': '#90a4ae',
             'curve-style': 'straight',
-            opacity: 0.7,
+            opacity: 0.6,
+            'line-cap': 'round',
+            'source-arrow-shape': 'none',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#90a4ae',
           },
         },
-        // Core to Layer 1 edges
+        // Core to Layer 1 edges - main pathways
         { 
           selector: "edge[group='core-to-layer1']", 
           style: { 
-            'line-color': '#dc3545', 
-            width: 3,
-            opacity: 0.8
+            'line-color': '#ff1744', 
+            width: 5,
+            opacity: 0.9,
+            'target-arrow-color': '#ff1744',
+            'line-style': 'solid'
           } 
         },
         // Layer 1 ring edges
@@ -246,13 +272,14 @@ export default function RadialNetwork() {
             width: 2.5
           } 
         },
-        // Layer 1 to Layer 2 edges
+        // Layer 1 to Layer 2 edges - connection paths
         { 
           selector: "edge[group='layer1-to-layer2']", 
           style: { 
-            'line-color': '#ffc107', 
-            width: 2,
-            opacity: 0.6
+            'line-color': '#ffb300', 
+            width: 4,
+            opacity: 0.7,
+            'target-arrow-color': '#ffb300'
           } 
         },
         // Layer 2 ring edges
@@ -267,9 +294,10 @@ export default function RadialNetwork() {
         { 
           selector: "edge[group='layer2-to-layer3']", 
           style: { 
-            'line-color': '#17a2b8', 
-            width: 2,
-            opacity: 0.6
+            'line-color': '#00acc1', 
+            width: 4,
+            opacity: 0.7,
+            'target-arrow-color': '#00acc1'
           } 
         },
         // Layer 3 ring edges
@@ -280,14 +308,47 @@ export default function RadialNetwork() {
             width: 2.5
           } 
         },
-        // Layer 3 to Player edges
+        // Layer 3 to Player edges - entry points
         { 
           selector: "edge[group='layer3-to-player']", 
           style: { 
-            'line-color': '#6f42c1', 
-            width: 3,
-            opacity: 0.8
+            'line-color': '#7c4dff', 
+            width: 6,
+            opacity: 0.9,
+            'target-arrow-color': '#7c4dff',
+            'source-arrow-shape': 'circle',
+            'source-arrow-color': '#7c4dff'
           } 
+        },
+        // Highlighted path elements
+        {
+          selector: '.highlighted',
+          style: {
+            'border-color': '#ffeb3b',
+            'border-width': 6,
+            'box-shadow': '0 0 20px #ffeb3b, 0 0 40px #ffeb3b',
+            opacity: 1,
+            'z-index': 999
+          },
+        },
+        {
+          selector: 'edge.highlighted',
+          style: {
+            'line-color': '#ffeb3b',
+            width: 8,
+            opacity: 1,
+            'target-arrow-color': '#ffeb3b',
+            'source-arrow-color': '#ffeb3b',
+            'box-shadow': '0 0 15px #ffeb3b'
+          },
+        },
+        // Dimmed non-path elements
+        {
+          selector: '.dimmed',
+          style: {
+            opacity: 0.2,
+            'z-index': 1
+          },
         },
         // Hover effects
         {
@@ -295,7 +356,6 @@ export default function RadialNetwork() {
           style: {
             'border-color': '#ffc107',
             'border-width': 4,
-            'background-color': 'data(hoverColor)',
           },
         },
         {
@@ -313,6 +373,70 @@ export default function RadialNetwork() {
       maxZoom: 2,
     });
 
+    // Player click handler - highlight path to core
+    cyRef.current.on('tap', '.player', (evt) => {
+      const player = evt.target;
+      const playerId = player.id();
+      
+      // Reset all styles first
+      cyRef.current.elements().removeClass('highlighted dimmed');
+      
+      // Find path from player to core
+      const pathToCore = findPathToCore(playerId);
+      
+      // Highlight the path
+      pathToCore.nodes.forEach(nodeId => {
+        cyRef.current.getElementById(nodeId).addClass('highlighted');
+      });
+      pathToCore.edges.forEach(edgeId => {
+        cyRef.current.getElementById(edgeId).addClass('highlighted');
+      });
+      
+      // Dim non-path elements
+      cyRef.current.elements().not('.highlighted').addClass('dimmed');
+      
+      setSelectedPlayer(playerId);
+    });
+    
+    // Click on background to reset
+    cyRef.current.on('tap', (evt) => {
+      if (evt.target === cyRef.current) {
+        cyRef.current.elements().removeClass('highlighted dimmed');
+        setSelectedPlayer(null);
+      }
+    });
+    
+    // Helper function to find path from player to core
+    const findPathToCore = (playerId) => {
+      const nodes = [];
+      const edges = [];
+      
+      // Player to Layer 3 connections
+      const playerIndex = playerIds.indexOf(playerId);
+      const l3Node1 = `L3_${playerIndex * 2 + 1}`;
+      const l3Node2 = `L3_${playerIndex * 2 + 2}`;
+      
+      nodes.push(playerId, l3Node1);
+      edges.push(`${l3Node1}-${playerId}`);
+      
+      // Layer 3 to Layer 2 (find connected L2 node)
+      const l2Node = `L2_${(playerIndex * 2 + 4) % 8 + 1}`;
+      nodes.push(l2Node);
+      edges.push(`${l2Node}-${l3Node1}`);
+      
+      // Layer 2 to Layer 1 (find connected L1 nodes)
+      const l1Node1 = `L1_${(playerIndex * 2) % 8 + 1}`;
+      const l1Node2 = `L1_${(playerIndex * 2 + 1) % 8 + 1}`;
+      nodes.push(l1Node1);
+      edges.push(`${l1Node1}-${l2Node}`);
+      
+      // Layer 1 to Core
+      nodes.push('CORE');
+      edges.push(`CORE-${l1Node1}`);
+      
+      return { nodes, edges };
+    };
+    
     // Tooltip on hover
     cyRef.current.on('mouseover', 'node', (evt) => {
       const node = evt.target;
@@ -336,13 +460,55 @@ export default function RadialNetwork() {
     };
   }, []);
 
+  // Add CSS for tooltips and 3D effects
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .cy-tooltip {
+        position: absolute;
+        background: linear-gradient(145deg, #2c3e50, #34495e);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        border: 1px solid #fff;
+        backdrop-filter: blur(10px);
+      }
+      
+      .network-container {
+        background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .network-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+          radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
+          radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);
+        pointer-events: none;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   return (
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
       alignItems: 'center',
       padding: '20px',
-      backgroundColor: '#f8f9fa',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       minHeight: '100vh'
     }}>
       <h2 style={{
@@ -351,6 +517,22 @@ export default function RadialNetwork() {
         fontSize: '28px',
         fontWeight: 'bold'
       }}>Radial Multi-Level Network</h2>
+      
+      <div style={{
+        marginBottom: '15px',
+        textAlign: 'center'
+      }}>
+        <p style={{ 
+          fontSize: '16px', 
+          color: '#6c757d', 
+          marginBottom: '10px',
+          fontWeight: '500'
+        }}>
+          {selectedPlayer 
+            ? `Showing path from ${selectedPlayer.replace('PLAYER_', 'Player ')} to Core` 
+            : 'Click on any player to see their path to the core'}
+        </p>
+      </div>
       
       <div style={{
         marginBottom: '15px',
@@ -383,13 +565,14 @@ export default function RadialNetwork() {
       
       <div 
         id="radial-net" 
+        className="network-container"
         style={{ 
           width: '1200px', 
           height: '1200px', 
-          border: '2px solid #dee2e6',
-          borderRadius: '10px',
-          backgroundColor: '#fff',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          border: '3px solid rgba(255,255,255,0.2)',
+          borderRadius: '20px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.3), inset 0 0 50px rgba(255,255,255,0.1)',
+          position: 'relative'
         }} 
       />
     </div>
