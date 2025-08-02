@@ -1,10 +1,63 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
-export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
+export default function RadialNetwork({ 
+  playerCount = 4, 
+  nodeData = {},
+  gameState = {},
+  onNodeClick = () => {},
+  onPlayerMove = () => {} 
+}) {
   const cyRef = useRef(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [blueZoneLevel, setBlueZoneLevel] = useState(0); // 0 = no blue zone, 1 = outer ring danger, etc.
+  const [gameTimer, setGameTimer] = useState(0);
 
+  // Blue zone timer effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setGameTimer(prev => {
+        const newTimer = prev + 1;
+        
+        // Blue zone progression every 30 seconds
+        if (newTimer % 30 === 0 && blueZoneLevel < 3) {
+          setBlueZoneLevel(prev => prev + 1);
+        }
+        
+        return newTimer;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [blueZoneLevel]);
+  
+  // Update blue zone styling when zone level changes
+  useEffect(() => {
+    if (!cyRef.current) return;
+    
+    // Remove all blue zone classes first
+    cyRef.current.nodes().removeClass('blue-zone');
+    
+    // Apply blue zone based on current level
+    if (blueZoneLevel >= 1) {
+      cyRef.current.nodes('.layer3').addClass('blue-zone');
+    }
+    if (blueZoneLevel >= 2) {
+      cyRef.current.nodes('.layer2').addClass('blue-zone');
+    }
+    if (blueZoneLevel >= 3) {
+      cyRef.current.nodes('.layer1').addClass('blue-zone');
+    }
+    
+    // Update zone type in node data
+    cyRef.current.nodes().forEach(node => {
+      const nodeData = node.data();
+      if (nodeData.level >= 4 - blueZoneLevel && nodeData.level > 0) {
+        node.data('zoneType', 'danger');
+      }
+    });
+  }, [blueZoneLevel]);
+  
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
 
@@ -28,15 +81,18 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
     // Nodes array
     const nodes = [];
 
-    // TARGET - Core node at center
+    // SAFE ZONE - Core node at center (final safe zone)
     nodes.push({ 
       data: { 
         id: 'TARGET', 
-        label: 'TARGET', 
+        label: 'SAFE ZONE', 
         level: 0, 
         class: 'core',
         nodeType: 'target',
-        ...nodeData.TARGET // Allow custom data injection
+        questionId: null, // No question for final safe zone
+        isWinCondition: true,
+        zoneType: 'safe',
+        ...nodeData.TARGET
       }, 
       position: center 
     });
@@ -50,12 +106,15 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
       nodes.push({ 
         data: { 
           id, 
-          label: `R1-${i + 1}`, 
+          label: `Zone 1-${i + 1}`, 
           level: 1, 
           class: 'layer1',
           nodeType: 'ring1',
           ringIndex: i,
-          ...nodeData[id] // Allow custom data injection
+          questionId: `q1_${i + 1}`, // Each node has a question
+          zoneType: 'safe', // Initially safe
+          maxHealth: 100,
+          ...nodeData[id]
         }, 
         position: pos 
       });
@@ -70,12 +129,15 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
       nodes.push({ 
         data: { 
           id, 
-          label: `R2-${i + 1}`, 
+          label: `Zone 2-${i + 1}`, 
           level: 2, 
           class: 'layer2',
           nodeType: 'ring2',
           ringIndex: i,
-          ...nodeData[id] // Allow custom data injection
+          questionId: `q2_${i + 1}`,
+          zoneType: 'safe',
+          maxHealth: 100,
+          ...nodeData[id]
         }, 
         position: pos 
       });
@@ -90,12 +152,15 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
       nodes.push({ 
         data: { 
           id, 
-          label: `R3-${i + 1}`, 
+          label: `Zone 3-${i + 1}`, 
           level: 3, 
           class: 'layer3',
           nodeType: 'ring3',
           ringIndex: i,
-          ...nodeData[id] // Allow custom data injection
+          questionId: `q3_${i + 1}`,
+          zoneType: 'safe',
+          maxHealth: 100,
+          ...nodeData[id]
         }, 
         position: pos 
       });
@@ -125,7 +190,13 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
           class: 'player',
           nodeType: 'player',
           playerIndex: i,
-          ...nodeData[id] // Allow custom data injection
+          health: 100,
+          maxHealth: 100,
+          currentZone: 4, // Start in outermost zone
+          isAlive: true,
+          questionsAnswered: 0,
+          canMoveTo: [3], // Can only move to ring 3 initially
+          ...nodeData[id]
         }, 
         position: pos 
       });
@@ -214,7 +285,7 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
 
     // Initialize cytoscape with fixed layout
     cyRef.current = cytoscape({
-      container: document.getElementById('radial-net'),
+      container: document.getElementById('cy'),
       elements: { nodes, edges },
       layout: {
         name: 'preset', // Use preset positions
@@ -241,47 +312,75 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
             'overlay-opacity': 0,
           },
         },
-        // Target node styling - clean center
+        // Safe Zone styling - green center
         { 
           selector: '.core', 
           style: { 
-            'background-color': '#e53e3e', 
+            'background-color': '#28a745', 
             width: 65, 
             height: 65,
-            'font-size': 14,
+            'font-size': 12,
             'border-width': 4,
             'border-color': '#fff',
-            'font-weight': 'bold'
+            'font-weight': 'bold',
+            'text-wrap': 'wrap'
           } 
         },
-        // Ring 1 nodes - inner ring
+        // Zone 1 nodes - inner safe zone
         { 
           selector: '.layer1', 
           style: { 
-            'background-color': '#fd7e14', 
+            'background-color': '#17a2b8', 
             width: 50, 
             height: 50,
-            'font-size': 10
+            'font-size': 9
           } 
         },
-        // Ring 2 nodes - middle ring
+        // Zone 1 - Blue zone (danger)
+        { 
+          selector: '.layer1.blue-zone', 
+          style: { 
+            'background-color': '#007bff',
+            'border-color': '#0056b3',
+            'border-width': 3
+          } 
+        },
+        // Zone 2 nodes - middle zone
         { 
           selector: '.layer2', 
           style: { 
-            'background-color': '#20c997', 
+            'background-color': '#ffc107', 
             width: 45, 
             height: 45,
             'font-size': 9
           } 
         },
-        // Ring 3 nodes - outer ring
+        // Zone 2 - Blue zone (danger)
+        { 
+          selector: '.layer2.blue-zone', 
+          style: { 
+            'background-color': '#007bff',
+            'border-color': '#0056b3',
+            'border-width': 3
+          } 
+        },
+        // Zone 3 nodes - outer zone
         { 
           selector: '.layer3', 
           style: { 
-            'background-color': '#0dcaf0', 
+            'background-color': '#fd7e14', 
             width: 42, 
             height: 42,
             'font-size': 9
+          } 
+        },
+        // Zone 3 - Blue zone (danger)
+        { 
+          selector: '.layer3.blue-zone', 
+          style: { 
+            'background-color': '#007bff',
+            'border-color': '#0056b3',
+            'border-width': 3
           } 
         },
         // Player nodes - prominent
@@ -295,6 +394,41 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
             'border-width': 4,
             'border-color': '#fff',
             'font-weight': 'bold'
+          } 
+        },
+        // Available move highlighting
+        { 
+          selector: '.available', 
+          style: { 
+            'border-color': '#28a745',
+            'border-width': 4,
+            'border-style': 'dashed'
+          } 
+        },
+        // Blue zone overlay effect
+        { 
+          selector: '.blue-zone', 
+          style: { 
+            'overlay-color': '#007bff',
+            'overlay-opacity': 0.3,
+            'overlay-shape': 'round-rectangle'
+          } 
+        },
+        // Dead player styling
+        { 
+          selector: '.player.dead', 
+          style: { 
+            'background-color': '#6c757d',
+            opacity: 0.5,
+            'border-color': '#dc3545'
+          } 
+        },
+        // Low health player styling
+        { 
+          selector: '.player.low-health', 
+          style: { 
+            'border-color': '#dc3545',
+            'border-width': 5
           } 
         },
         // Base edge styling - undirected clean lines
@@ -427,30 +561,85 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
       autounselectify: false,
     });
 
-    // Player click handler - highlight path to core
-    cyRef.current.on('tap', '.player', (evt) => {
-      const player = evt.target;
-      const playerId = player.id();
+    // Node click handler - attempt to solve question or move
+    cyRef.current.on('tap', 'node', (evt) => {
+      const node = evt.target;
+      const nodeData = node.data();
       
-      // Reset all styles first
-      cyRef.current.elements().removeClass('highlighted dimmed');
-      
-      // Find path from player to core
-      const pathToCore = findPathToCore(playerId);
-      
-      // Highlight the path
-      pathToCore.nodes.forEach(nodeId => {
-        cyRef.current.getElementById(nodeId).addClass('highlighted');
-      });
-      pathToCore.edges.forEach(edgeId => {
-        cyRef.current.getElementById(edgeId).addClass('highlighted');
-      });
-      
-      // Dim non-path elements
-      cyRef.current.elements().not('.highlighted').addClass('dimmed');
-      
-      setSelectedPlayer(playerId);
+      if (nodeData.nodeType === 'player') {
+        // Player selection
+        setSelectedPlayer(nodeData.id);
+        highlightPlayerOptions(nodeData.id);
+      } else {
+        // Zone/question node clicked
+        onNodeClick(nodeData);
+      }
     });
+    
+    // Function to highlight available moves for selected player
+    const highlightPlayerOptions = (playerId) => {
+      cyRef.current.elements().removeClass('highlighted dimmed available');
+      
+      const playerNode = cyRef.current.getElementById(playerId);
+      const playerData = playerNode.data();
+      
+      if (!playerData.isAlive) return;
+      
+      // Highlight available zones player can move to
+      playerData.canMoveTo?.forEach(level => {
+        cyRef.current.nodes().forEach(node => {
+          const nodeData = node.data();
+          if (nodeData.level === level && nodeData.nodeType !== 'player') {
+            node.addClass('available');
+          }
+        });
+      });
+      
+      // Dim unavailable nodes
+      cyRef.current.elements().not('.available').not(`#${playerId}`).addClass('dimmed');
+    };
+    
+    // Game mechanics helper functions
+    const updatePlayerHealth = (playerId, healthChange) => {
+      const playerNode = cyRef.current.getElementById(playerId);
+      const currentHealth = playerNode.data('health');
+      const newHealth = Math.max(0, Math.min(100, currentHealth + healthChange));
+      
+      playerNode.data('health', newHealth);
+      
+      // Update visual styling based on health
+      if (newHealth <= 0) {
+        playerNode.data('isAlive', false);
+        playerNode.addClass('dead');
+      } else if (newHealth <= 30) {
+        playerNode.addClass('low-health');
+      } else {
+        playerNode.removeClass('low-health');
+      }
+    };
+    
+    const movePlayerToZone = (playerId, targetZoneLevel) => {
+      const playerNode = cyRef.current.getElementById(playerId);
+      const playerData = playerNode.data();
+      
+      if (!playerData.isAlive) return false;
+      if (!playerData.canMoveTo.includes(targetZoneLevel)) return false;
+      
+      // Update player's current zone
+      playerNode.data('currentZone', targetZoneLevel);
+      
+      // Update available moves (can move to current zone or one level inward)
+      const newCanMoveTo = [];
+      if (targetZoneLevel > 0) newCanMoveTo.push(targetZoneLevel - 1);
+      if (targetZoneLevel < 4) newCanMoveTo.push(targetZoneLevel);
+      
+      playerNode.data('canMoveTo', newCanMoveTo);
+      
+      // Trigger callback
+      onPlayerMove(playerId, targetZoneLevel);
+      
+      return true;
+    };
     
     // Click on background to reset
     cyRef.current.on('tap', (evt) => {
@@ -491,18 +680,32 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
       return { nodes, edges };
     };
     
-    // Enhanced tooltip on hover with node data
+    // Enhanced game tooltip on hover
     cyRef.current.on('mouseover', 'node', (evt) => {
       const node = evt.target;
       const nodeData = node.data();
       const ele = document.createElement('div');
       ele.className = 'cy-tooltip';
       
-      // Build tooltip content with available data
-      let tooltipContent = `${nodeData.label} (Level ${nodeData.level})`;
-      if (nodeData.nodeType) tooltipContent += `\nType: ${nodeData.nodeType}`;
-      if (nodeData.playerIndex !== undefined) tooltipContent += `\nPlayer Index: ${nodeData.playerIndex}`;
-      if (nodeData.ringIndex !== undefined) tooltipContent += `\nRing Index: ${nodeData.ringIndex}`;
+      // Build game-specific tooltip content
+      let tooltipContent = `${nodeData.label}`;
+      
+      if (nodeData.nodeType === 'player') {
+        tooltipContent += `\nHealth: ${nodeData.health}/${nodeData.maxHealth}`;
+        tooltipContent += `\nZone: ${nodeData.currentZone}`;
+        tooltipContent += `\nStatus: ${nodeData.isAlive ? 'Alive' : 'Dead'}`;
+        tooltipContent += `\nQuestions: ${nodeData.questionsAnswered}`;
+      } else if (nodeData.questionId) {
+        tooltipContent += `\nQuestion: ${nodeData.questionId}`;
+        tooltipContent += `\nZone Type: ${nodeData.zoneType}`;
+        if (nodeData.zoneType === 'danger') {
+          tooltipContent += `\n💀 Damage: -10 HP/turn`;
+        }
+        tooltipContent += `\n🎯 Click to attempt question`;
+      } else if (nodeData.isWinCondition) {
+        tooltipContent += `\n🏆 Win Condition: Reach here to win!`;
+        tooltipContent += `\n✨ No questions required`;
+      }
       
       ele.innerText = tooltipContent;
       document.body.appendChild(ele);
@@ -565,78 +768,77 @@ export default function RadialNetwork({ playerCount = 4, nodeData = {} }) {
   }, []);
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center',
-      padding: '20px',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      minHeight: '100vh'
-    }}>
-      <h2 style={{
-        color: '#495057',
-        marginBottom: '20px',
-        fontSize: '28px',
-        fontWeight: 'bold'
-      }}>Radial Multi-Level Network</h2>
-      
+    <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
+      {/* Game HUD */}
       <div style={{
-        marginBottom: '15px',
-        textAlign: 'center'
+        position: 'absolute',
+        top: '10px',
+        left: '10px',
+        zIndex: 1000,
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '10px',
+        borderRadius: '8px',
+        fontFamily: 'monospace'
       }}>
-        <p style={{ 
-          fontSize: '16px', 
-          color: '#6c757d', 
-          marginBottom: '10px',
-          fontWeight: '500'
-        }}>
-          {selectedPlayer 
-            ? `Showing path from ${selectedPlayer.replace('PLAYER_', 'Player ')} to Core` 
-            : 'Click on any player to see their path to the core'}
-        </p>
+        <div>⏱️ Game Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
+        <div>🔵 Blue Zone Level: {blueZoneLevel}/3</div>
+        <div>⚠️ Next Zone: {blueZoneLevel < 3 ? `${30 - (gameTimer % 30)}s` : 'Final Zone'}</div>
+        {selectedPlayer && (
+          <div style={{ marginTop: '10px', borderTop: '1px solid #666', paddingTop: '10px' }}>
+            <div>🎯 Selected: {selectedPlayer}</div>
+            <div>💡 Click zones to answer questions</div>
+            <div>🏃 Move to inner zones to survive</div>
+          </div>
+        )}
       </div>
       
+      {/* Zone Legend */}
       <div style={{
-        marginBottom: '15px',
-        display: 'flex',
-        gap: '20px',
-        flexWrap: 'wrap',
-        justifyContent: 'center'
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        zIndex: 1000,
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '12px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '20px', height: '20px', backgroundColor: '#dc3545', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '14px', color: '#495057' }}>Core</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '20px', height: '20px', backgroundColor: '#fd7e14', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '14px', color: '#495057' }}>Layer 1</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '20px', height: '20px', backgroundColor: '#20c997', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '14px', color: '#495057' }}>Layer 2</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '20px', height: '20px', backgroundColor: '#0dcaf0', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '14px', color: '#495057' }}>Layer 3</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '20px', height: '20px', backgroundColor: '#6f42c1', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '14px', color: '#495057' }}>Players</span>
-        </div>
+        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Zone Status</div>
+        <div style={{ color: '#28a745' }}>🟢 Safe Zone (Center)</div>
+        <div style={{ color: '#17a2b8' }}>🔵 Zone 1 (Safe)</div>
+        <div style={{ color: '#ffc107' }}>🟡 Zone 2 (Safe)</div>
+        <div style={{ color: '#fd7e14' }}>🟠 Zone 3 (Safe)</div>
+        <div style={{ color: '#007bff' }}>💀 Blue Zone (Danger -10HP)</div>
       </div>
       
       <div 
-        id="radial-net" 
-        className="network-container"
+        id="cy" 
         style={{ 
-          width: '1200px', 
-          height: '1200px', 
-          border: '3px solid rgba(255,255,255,0.2)',
-          borderRadius: '20px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.3), inset 0 0 50px rgba(255,255,255,0.1)',
-          position: 'relative'
-        }} 
+          width: '100%', 
+          height: '100%',
+          border: '2px solid #333',
+          borderRadius: '8px'
+        }}
       />
+      
+      {/* Tooltip styling */}
+      <style jsx>{`
+        .cy-tooltip {
+          position: absolute;
+          background: rgba(0, 0, 0, 0.9);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          white-space: pre-line;
+          z-index: 1000;
+          pointer-events: none;
+          max-width: 200px;
+          border: 1px solid #666;
+        }
+      `}</style>
     </div>
   );
 }
