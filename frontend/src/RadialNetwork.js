@@ -153,10 +153,15 @@ export default function RadialNetwork() {
       });
     });
 
-    // Initialize cytoscape
+    // Initialize cytoscape with fixed layout
     cyRef.current = cytoscape({
       container: document.getElementById('radial-net'),
       elements: { nodes, edges },
+      layout: {
+        name: 'preset', // Use preset positions
+        fit: true,
+        padding: 50
+      },
       style: [
         {
           selector: 'node',
@@ -166,168 +171,154 @@ export default function RadialNetwork() {
             color: '#fff',
             'text-valign': 'center',
             'text-halign': 'center',
-            width: 35,
-            height: 35,
-            'font-size': 9,
+            width: 30,
+            height: 30,
+            'font-size': 8,
             'font-weight': 'bold',
-            'border-width': 3,
+            'border-width': 2,
             'border-color': '#fff',
-            'text-outline-width': 2,
+            'text-outline-width': 1,
             'text-outline-color': '#000',
-            'box-shadow': '0 8px 16px rgba(0,0,0,0.3)',
-            'background-gradient-stop-colors': 'data(gradientColors)',
-            'background-gradient-stop-positions': '0% 100%',
-            'background-gradient-direction': 'to-bottom',
+            'overlay-opacity': 0, // Remove selection overlay
           },
         },
-        // Core node styling - 3D effect
+        // Target node styling - clean center
         { 
           selector: '.core', 
           style: { 
-            'background-color': '#ff1744', 
-            width: 60, 
-            height: 60,
-            'font-size': 14,
-            'border-width': 5,
+            'background-color': '#e53e3e', 
+            width: 50, 
+            height: 50,
+            'font-size': 12,
+            'border-width': 4,
             'border-color': '#fff',
-            'box-shadow': '0 12px 24px rgba(255,23,68,0.4), inset 0 -8px 16px rgba(0,0,0,0.2)',
-            'background-gradient-stop-colors': '#ff1744 #d32f2f',
-            'z-index': 100
+            'font-weight': 'bold'
           } 
         },
-        // Layer 1 nodes - elevated 3D
+        // Ring 1 nodes - inner ring
         { 
           selector: '.layer1', 
           style: { 
-            'background-color': '#ff9800', 
-            width: 45, 
-            height: 45,
-            'font-size': 9,
-            'box-shadow': '0 10px 20px rgba(255,152,0,0.3), inset 0 -6px 12px rgba(0,0,0,0.15)',
-            'background-gradient-stop-colors': '#ff9800 #f57c00',
-            'z-index': 80
+            'background-color': '#fd7e14', 
+            width: 35, 
+            height: 35,
+            'font-size': 8
           } 
         },
-        // Layer 2 nodes - mid-level 3D
+        // Ring 2 nodes - middle ring
         { 
           selector: '.layer2', 
           style: { 
-            'background-color': '#26a69a', 
-            width: 42, 
-            height: 42,
-            'font-size': 8,
-            'box-shadow': '0 8px 16px rgba(38,166,154,0.25), inset 0 -5px 10px rgba(0,0,0,0.1)',
-            'background-gradient-stop-colors': '#26a69a #00695c',
-            'z-index': 60
+            'background-color': '#20c997', 
+            width: 32, 
+            height: 32,
+            'font-size': 7
           } 
         },
-        // Layer 3 nodes - outer 3D
+        // Ring 3 nodes - outer ring
         { 
           selector: '.layer3', 
           style: { 
-            'background-color': '#29b6f6', 
-            width: 40, 
-            height: 40,
-            'font-size': 8,
-            'box-shadow': '0 6px 12px rgba(41,182,246,0.2), inset 0 -4px 8px rgba(0,0,0,0.08)',
-            'background-gradient-stop-colors': '#29b6f6 #0277bd',
-            'z-index': 40
+            'background-color': '#0dcaf0', 
+            width: 28, 
+            height: 28,
+            'font-size': 7
           } 
         },
-        // Player nodes - prominent 3D
+        // Player nodes - prominent
         { 
           selector: '.player', 
           style: { 
-            'background-color': '#7c4dff', 
-            width: 65, 
-            height: 65,
-            'font-size': 11,
-            'border-width': 4,
+            'background-color': '#6f42c1', 
+            width: 55, 
+            height: 55,
+            'font-size': 10,
+            'border-width': 3,
             'border-color': '#fff',
-            'box-shadow': '0 15px 30px rgba(124,77,255,0.4), inset 0 -10px 20px rgba(0,0,0,0.25)',
-            'background-gradient-stop-colors': '#7c4dff #512da8',
-            'z-index': 20
+            'font-weight': 'bold'
           } 
         },
-        // Base edge styling - 3D pathways
+        // Base edge styling - clean lines
         {
           selector: 'edge',
           style: {
-            width: 3,
-            'line-color': '#90a4ae',
+            width: 2,
+            'line-color': '#adb5bd',
             'curve-style': 'straight',
-            opacity: 0.6,
-            'line-cap': 'round',
-            'source-arrow-shape': 'none',
+            opacity: 0.7,
             'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#90a4ae',
+            'target-arrow-color': '#adb5bd',
+            'arrow-scale': 0.8
           },
         },
         // Target to Ring 1 edges - radial spokes
         { 
           selector: "edge[group='target-to-ring1']", 
           style: { 
-            'line-color': '#ff1744', 
-            width: 4,
-            opacity: 0.9,
-            'target-arrow-color': '#ff1744'
+            'line-color': '#e53e3e', 
+            width: 3,
+            opacity: 0.8,
+            'target-arrow-color': '#e53e3e'
           } 
         },
         // Ring 1 circular edges
         { 
           selector: "edge[group='ring1-circle']", 
           style: { 
-            'line-color': '#ff9800', 
-            width: 3,
-            opacity: 0.8
+            'line-color': '#fd7e14', 
+            width: 2,
+            opacity: 0.6,
+            'target-arrow-shape': 'none'
           } 
         },
         // Ring 1 to Ring 2 edges
         { 
           selector: "edge[group='ring1-to-ring2']", 
           style: { 
-            'line-color': '#ffb300', 
-            width: 3,
-            opacity: 0.7,
-            'target-arrow-color': '#ffb300'
+            'line-color': '#ffc107', 
+            width: 2,
+            opacity: 0.6,
+            'target-arrow-color': '#ffc107'
           } 
         },
         // Ring 2 circular edges
         { 
           selector: "edge[group='ring2-circle']", 
           style: { 
-            'line-color': '#26a69a', 
-            width: 3,
-            opacity: 0.8
+            'line-color': '#20c997', 
+            width: 2,
+            opacity: 0.6,
+            'target-arrow-shape': 'none'
           } 
         },
         // Ring 2 to Ring 3 edges
         { 
           selector: "edge[group='ring2-to-ring3']", 
           style: { 
-            'line-color': '#00acc1', 
-            width: 3,
-            opacity: 0.7,
-            'target-arrow-color': '#00acc1'
+            'line-color': '#17a2b8', 
+            width: 2,
+            opacity: 0.6,
+            'target-arrow-color': '#17a2b8'
           } 
         },
         // Ring 3 circular edges
         { 
           selector: "edge[group='ring3-circle']", 
           style: { 
-            'line-color': '#29b6f6', 
-            width: 3,
-            opacity: 0.8
+            'line-color': '#0dcaf0', 
+            width: 2,
+            opacity: 0.6,
+            'target-arrow-shape': 'none'
           } 
         },
         // Ring 3 to Player edges - final connections
         { 
           selector: "edge[group='ring3-to-player']", 
           style: { 
-            'line-color': '#7c4dff', 
-            width: 5,
-            opacity: 0.9,
-            'target-arrow-color': '#7c4dff'
+            'line-color': '#6f42c1', 
+            width: 3,
+            opacity: 0.8,
+            'target-arrow-color': '#6f42c1'
           } 
         },
         // Highlighted path elements
@@ -376,11 +367,15 @@ export default function RadialNetwork() {
           },
         },
       ],
-      userZoomingEnabled: true,
-      userPanningEnabled: true,
-      wheelSensitivity: 0.1,
-      minZoom: 0.3,
-      maxZoom: 2,
+      // Disable all user interactions to keep nodes fixed
+      userZoomingEnabled: false,
+      userPanningEnabled: false,
+      zoomingEnabled: false,
+      panningEnabled: false,
+      boxSelectionEnabled: false,
+      selectionType: 'single',
+      autoungrabify: true, // Make nodes ungrabbable
+      autounselectify: false,
     });
 
     // Player click handler - highlight path to core
