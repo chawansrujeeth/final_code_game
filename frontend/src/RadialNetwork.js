@@ -58,6 +58,7 @@ export default function RadialNetwork() {
 
     // Edge helper to push with group and style
     const pushEdge = (source, target, group, opts = {}) => {
+      if (source === target) return; // avoid self loops
       edges.push({ data: { id: `${source}-${target}`, source, target, group, ...opts } });
     };
 
