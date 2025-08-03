@@ -124,13 +124,28 @@ export default function BattleRoyaleGame() {
   };
   
   const handleEdgeClick = (edgeData) => {
-    if (!edgeData.id || !gameState.isGameActive) return;
+    console.log('=== HANDLE EDGE CLICK START ===');
+    console.log('Edge data received:', edgeData);
+    console.log('Game state active:', gameState.isGameActive);
+    console.log('Selected player:', selectedPlayer);
+    
+    if (!edgeData.id || !gameState.isGameActive) {
+      console.log('Early return - no edge ID or game not active');
+      return;
+    }
     
     const currentPlayer = players[selectedPlayer];
-    if (!currentPlayer || !currentPlayer.isAlive) return;
+    console.log('Current player:', currentPlayer);
+    
+    if (!currentPlayer || !currentPlayer.isAlive) {
+      console.log('Early return - no current player or player not alive');
+      return;
+    }
     
     // Check if this edge is accessible from current player position
     const isAccessible = isEdgeAccessible(edgeData.id, currentPlayer.currentNode);
+    console.log('Edge accessible:', isAccessible, 'from node:', currentPlayer.currentNode);
+    
     if (!isAccessible) {
       console.log('Edge not accessible from current position');
       return;
@@ -155,20 +170,27 @@ export default function BattleRoyaleGame() {
     
     // Get edge properties and generate question
     const { difficulty, pathType } = getEdgeProperties(actualSource, actualTarget);
+    console.log('Edge properties:', { difficulty, pathType });
+    
     const question = getQuestionForEdge(edgeData.id, difficulty, pathType);
+    console.log('Generated question:', question);
     
     console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
     
-    setCurrentQuestion({
+    const questionToSet = {
       ...question,
       edgeId: edgeData.id,
       sourceNode: actualSource,
       targetNode: actualTarget,
       pathDescription: `${actualSource} → ${actualTarget}`,
       playerId: selectedPlayer
-    });
+    };
+    
+    console.log('Setting current question:', questionToSet);
+    setCurrentQuestion(questionToSet);
     setPlayerAnswer('');
     setShowResult(false);
+    console.log('=== HANDLE EDGE CLICK END ===');
   };
   
   // Check if an edge is accessible from current player position
@@ -386,6 +408,7 @@ export default function BattleRoyaleGame() {
           </div>
           
           {/* Current Question Display */}
+          {console.log('Rendering question display, currentQuestion:', currentQuestion)}
           {currentQuestion ? (
             <div style={{
               background: 'rgba(0, 255, 136, 0.1)',

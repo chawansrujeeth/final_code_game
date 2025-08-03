@@ -783,9 +783,16 @@ export default function RadialNetwork({
       const edge = evt.target;
       const edgeData = edge.data();
       
-      if (edgeData.hasQuestion) {
+      console.log('Edge clicked:', edgeData);
+      console.log('Has question:', edgeData.hasQuestion);
+      console.log('onEdgeClick function:', onEdgeClick);
+      
+      if (edgeData.hasQuestion && onEdgeClick) {
         // Edge with question clicked - attempt traversal
+        console.log('Calling onEdgeClick with:', edgeData);
         onEdgeClick(edgeData);
+      } else {
+        console.log('Edge click not processed - hasQuestion:', edgeData.hasQuestion, 'onEdgeClick:', !!onEdgeClick);
       }
     });
     
