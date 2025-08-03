@@ -67,45 +67,71 @@ export default function RadialNetwork({
   useEffect(() => {
     if (cyRef.current) {
       if (isMinimized) {
-        // Minimap mode - enhance visibility
+        // Minimap mode - smaller elements for overview
         cyRef.current.style()
           .selector('node')
           .style({
-            'font-size': '8px',
-            'border-width': '2px',
-            width: '35px',
-            height: '35px'
+            'font-size': '6px',
+            'border-width': '1px',
+            width: '20px',
+            height: '20px'
+          })
+          .selector('.core')
+          .style({
+            width: '25px',
+            height: '25px',
+            'font-size': '7px'
+          })
+          .selector('.player')
+          .style({
+            width: '25px',
+            height: '25px',
+            'font-size': '7px'
           })
           .selector('edge')
           .style({
-            'font-size': '10px',
-            width: '3px',
-            opacity: '1'
+            'font-size': '8px',
+            width: '1px',
+            opacity: '0.8'
           })
           .update();
           
         setTimeout(() => {
           cyRef.current.fit();
           cyRef.current.zoom({
-            level: cyRef.current.zoom() * 0.7, // Zoom out more for better overview
+            level: cyRef.current.zoom() * 0.6, // Zoom out more for better overview
             renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
           });
-        }, 100);
+        }, 200);
       } else {
         // Full screen mode - restore normal styling
         cyRef.current.style()
           .selector('node')
           .style({
-            'font-size': '11px',
-            'border-width': '3px',
-            width: '45px',
-            height: '45px'
+            'font-size': '8px',
+            'border-width': '2px',
+            width: '30px',
+            height: '30px'
+          })
+          .selector('.core')
+          .style({
+            width: '40px',
+            height: '40px',
+            'font-size': '10px',
+            'border-width': '3px'
+          })
+          .selector('.player')
+          .style({
+            width: '40px',
+            height: '40px',
+            'font-size': '10px',
+            'border-width': '3px'
           })
           .selector('edge')
           .style({
-            'font-size': '12px',
-            width: '4px',
-            opacity: '0.9'
+            'font-size': '10px',
+            width: '2px',
+            opacity: '0.8'
           })
           .update();
       }
@@ -264,15 +290,13 @@ export default function RadialNetwork({
       if (source === target) return; // avoid self loops
       const edgeId = `${source}-${target}`;
       
-      // Create edge label based on question info
+      // Create simple edge label based on question info
       let edgeLabel = '';
       if (opts.hasQuestion) {
-        const difficultyIcon = opts.questionDifficulty === 'easy' ? '🟢' : 
-                              opts.questionDifficulty === 'medium' ? '🟡' : '🔴';
-        const pathIcon = opts.pathType === 'inward' ? '→' : 
-                        opts.pathType === 'lateral' ? '↔' : 
-                        opts.pathType === 'final' ? '🎯' : '?';
-        edgeLabel = `${difficultyIcon}${pathIcon}`;
+        // Simple text labels instead of emojis
+        const difficultyText = opts.questionDifficulty === 'easy' ? 'E' : 
+                              opts.questionDifficulty === 'medium' ? 'M' : 'H';
+        edgeLabel = difficultyText;
       }
       
       edges.push({ 
@@ -410,22 +434,19 @@ export default function RadialNetwork({
         {
           selector: 'node',
           style: {
-            'background-color': '#6c757d',
+            'background-color': '#4a90e2',
             label: 'data(label)',
             color: '#fff',
             'text-valign': 'center',
             'text-halign': 'center',
-            width: 45,
-            height: 45,
-            'font-size': 11,
+            width: 30,
+            height: 30,
+            'font-size': 8,
             'font-weight': 'bold',
-            'border-width': 3,
+            'border-width': 2,
             'border-color': '#fff',
-            'text-outline-width': 2,
-            'text-outline-color': '#000',
-            'overlay-opacity': 0,
-            'text-wrap': 'wrap',
-            'text-max-width': '80px'
+            'text-outline-width': 1,
+            'text-outline-color': '#000'
           },
         },
         // Safe Zone styling - green center
@@ -433,23 +454,21 @@ export default function RadialNetwork({
           selector: '.core', 
           style: { 
             'background-color': '#28a745', 
-            width: 65, 
-            height: 65,
-            'font-size': 12,
-            'border-width': 4,
-            'border-color': '#fff',
-            'font-weight': 'bold',
-            'text-wrap': 'wrap'
+            width: 40, 
+            height: 40,
+            'font-size': 10,
+            'border-width': 3,
+            'border-color': '#fff'
           } 
         },
         // Zone 1 nodes - inner safe zone
         { 
           selector: '.layer1', 
           style: { 
-            'background-color': '#17a2b8', 
-            width: 50, 
-            height: 50,
-            'font-size': 9
+            'background-color': '#fd7e14', 
+            width: 35, 
+            height: 35,
+            'font-size': 8
           } 
         },
         // Zone 1 - Blue zone (danger)
@@ -466,9 +485,9 @@ export default function RadialNetwork({
           selector: '.layer2', 
           style: { 
             'background-color': '#ffc107', 
-            width: 45, 
-            height: 45,
-            'font-size': 9
+            width: 32, 
+            height: 32,
+            'font-size': 8
           } 
         },
         // Zone 2 - Blue zone (danger)
@@ -484,10 +503,10 @@ export default function RadialNetwork({
         { 
           selector: '.layer3', 
           style: { 
-            'background-color': '#fd7e14', 
-            width: 42, 
-            height: 42,
-            'font-size': 9
+            'background-color': '#17a2b8', 
+            width: 30, 
+            height: 30,
+            'font-size': 8
           } 
         },
         // Zone 3 - Blue zone (danger)
@@ -504,10 +523,10 @@ export default function RadialNetwork({
           selector: '.player', 
           style: { 
             'background-color': '#6f42c1', 
-            width: 70, 
-            height: 70,
-            'font-size': 12,
-            'border-width': 4,
+            width: 40, 
+            height: 40,
+            'font-size': 10,
+            'border-width': 3,
             'border-color': '#fff',
             'font-weight': 'bold'
           } 
@@ -547,27 +566,23 @@ export default function RadialNetwork({
             'border-width': 5
           } 
         },
-        // Base edge styling - with labels and better visibility
+        // Base edge styling - simple and clean
         {
           selector: 'edge',
           style: {
-            width: 4,
-            'line-color': '#495057',
+            width: 2,
+            'line-color': '#666',
             'curve-style': 'straight',
-            opacity: 0.9,
-            'target-arrow-shape': 'none',
-            'source-arrow-shape': 'none',
+            opacity: 0.8,
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#666',
             label: 'data(label)',
-            'font-size': 12,
+            'font-size': 10,
             'font-weight': 'bold',
             'text-background-color': '#000',
-            'text-background-opacity': 0.8,
-            'text-background-padding': '3px',
-            'text-background-shape': 'round-rectangle',
-            color: '#fff',
-            'text-outline-width': 1,
-            'text-outline-color': '#000',
-            'edge-text-rotation': 'autorotate'
+            'text-background-opacity': 0.7,
+            'text-background-padding': '2px',
+            color: '#fff'
           },
         },
         // Ring 1 to Target edges - final approach (hardest questions)
@@ -575,11 +590,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring1-to-target']", 
           style: { 
             'line-color': '#dc3545', 
-            width: 5,
-            opacity: 1,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#dc3545',
-            'curve-style': 'straight'
+            width: 3
           } 
         },
         // Ring 1 circular edges (lateral hard questions)
@@ -587,9 +598,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring1-circle']", 
           style: { 
             'line-color': '#fd7e14', 
-            width: 4,
-            opacity: 0.9,
-            'curve-style': 'bezier'
+            width: 2
           } 
         },
         // Ring 2 to Ring 1 edges (inward medium questions)
@@ -597,10 +606,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring2-to-ring1']", 
           style: { 
             'line-color': '#ffc107', 
-            width: 4,
-            opacity: 0.8,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#ffc107'
+            width: 3
           } 
         },
         // Ring 2 circular edges (lateral medium questions)
@@ -608,9 +614,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring2-circle']", 
           style: { 
             'line-color': '#20c997', 
-            width: 4,
-            opacity: 0.8,
-            'curve-style': 'bezier'
+            width: 2
           } 
         },
         // Ring 3 to Ring 2 edges (inward easy questions)
@@ -618,10 +622,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring3-to-ring2']", 
           style: { 
             'line-color': '#17a2b8', 
-            width: 4,
-            opacity: 0.8,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#17a2b8'
+            width: 3
           } 
         },
         // Ring 3 circular edges (lateral easy questions)
@@ -629,9 +630,7 @@ export default function RadialNetwork({
           selector: "edge[group='ring3-circle']", 
           style: { 
             'line-color': '#0dcaf0', 
-            width: 4,
-            opacity: 0.8,
-            'curve-style': 'bezier'
+            width: 2
           } 
         },
         // Player to Ring 3 edges - spawn connections (no questions)
@@ -639,43 +638,15 @@ export default function RadialNetwork({
           selector: "edge[group='player-to-ring3']", 
           style: { 
             'line-color': '#6f42c1', 
-            width: 3,
-            opacity: 0.6,
+            width: 2,
             'line-style': 'dashed'
           } 
         },
-        // Question edges - special styling for edges with questions
+        // Question edges - simple styling
         {
           selector: "edge[hasQuestion='true']",
           style: {
-            'line-style': 'solid',
-            'target-arrow-shape': 'triangle',
-            'source-endpoint': 'outside-to-node',
-            'target-endpoint': 'outside-to-node'
-          }
-        },
-        // Easy difficulty edges
-        {
-          selector: "edge[questionDifficulty='easy']",
-          style: {
-            'line-color': '#28a745',
-            width: 3
-          }
-        },
-        // Medium difficulty edges  
-        {
-          selector: "edge[questionDifficulty='medium']",
-          style: {
-            'line-color': '#ffc107',
-            width: 4
-          }
-        },
-        // Hard difficulty edges
-        {
-          selector: "edge[questionDifficulty='hard']",
-          style: {
-            'line-color': '#dc3545',
-            width: 5
+            'target-arrow-shape': 'triangle'
           }
         },
         // Highlighted path elements
