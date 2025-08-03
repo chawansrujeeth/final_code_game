@@ -16,7 +16,6 @@ export default function RadialNetwork({
   enablePan = false
 }) {
   const cyRef = useRef(null);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [blueZoneLevel, setBlueZoneLevel] = useState(0); // 0 = no blue zone, 1 = outer ring danger, etc.
   const [gameTimer, setGameTimer] = useState(0);
 
@@ -752,9 +751,8 @@ export default function RadialNetwork({
       const nodeData = node.data();
       
       if (nodeData.nodeType === 'player') {
-        // Player selection
-        setSelectedPlayer(nodeData.id);
-        highlightPlayerOptions(nodeData.id);
+        // Player selection - handled by parent component now
+        // highlightPlayerOptions(nodeData.id); // Removed since we use currentPlayerNode prop
       } else {
         // Safe point clicked - show information
         onNodeClick(nodeData);
@@ -772,28 +770,7 @@ export default function RadialNetwork({
       }
     });
     
-    // Function to highlight available moves for selected player
-    const highlightPlayerOptions = (playerId) => {
-      cyRef.current.elements().removeClass('highlighted dimmed available');
-      
-      const playerNode = cyRef.current.getElementById(playerId);
-      const playerData = playerNode.data();
-      
-      if (!playerData.isAlive) return;
-      
-      // Highlight available zones player can move to
-      playerData.canMoveTo?.forEach(level => {
-        cyRef.current.nodes().forEach(node => {
-          const nodeData = node.data();
-          if (nodeData.level === level && nodeData.nodeType !== 'player') {
-            node.addClass('available');
-          }
-        });
-      });
-      
-      // Dim unavailable nodes
-      cyRef.current.elements().not('.available').not(`#${playerId}`).addClass('dimmed');
-    };
+    // Player highlighting is now handled by the currentPlayerNode prop effect
     
     // Game mechanics helper functions
     const updatePlayerHealth = (playerId, healthChange) => {
@@ -841,7 +818,7 @@ export default function RadialNetwork({
     cyRef.current.on('tap', (evt) => {
       if (evt.target === cyRef.current) {
         cyRef.current.elements().removeClass('highlighted dimmed');
-        setSelectedPlayer(null);
+        // Player selection now handled by parent component
       }
     });
     
