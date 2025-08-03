@@ -443,6 +443,26 @@ export default function BattleRoyaleGame() {
               <div>🎯 Zone: <span style={{ color: '#00ff88' }}>{players[selectedPlayer]?.currentZone}</span></div>
               <div>✅ Questions: <span style={{ color: '#ffc107' }}>{players[selectedPlayer]?.questionsAnswered}</span></div>
             </div>
+            
+            {/* Spawn Guidance */}
+            {players[selectedPlayer]?.currentNode?.startsWith('PLAYER_') && (
+              <div style={{
+                background: 'rgba(0, 191, 255, 0.1)',
+                border: '2px solid #00bfff',
+                borderRadius: '8px',
+                padding: '15px',
+                marginTop: '15px',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#00bfff', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  🚀 Ready to Enter the Battle!
+                </div>
+                <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4' }}>
+                  Click the <span style={{ color: '#00bfff', fontWeight: 'bold' }}>blue dashed edges</span> to move from spawn to the outer ring.
+                  <br />No questions required for initial movement!
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Current Question Display */}

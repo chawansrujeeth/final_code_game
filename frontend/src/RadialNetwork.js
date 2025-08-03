@@ -151,12 +151,21 @@ export default function RadialNetwork({
       // Highlight accessible edges (bidirectional - undirected graph)
       cyRef.current.edges().forEach(edge => {
         const edgeData = edge.data();
-        const isAccessible = (edgeData.source === currentPlayerNode || edgeData.target === currentPlayerNode) && edgeData.hasQuestion;
+        const isConnectedToPlayer = (edgeData.source === currentPlayerNode || edgeData.target === currentPlayerNode);
+        const isQuestionEdge = edgeData.hasQuestion === true;
+        const isSpawnEdge = edgeData.hasQuestion === false && edgeData.pathType === 'spawn';
+        
+        // Edge is accessible if player is connected to it AND it's either a question edge or spawn edge
+        const isAccessible = isConnectedToPlayer && (isQuestionEdge || isSpawnEdge);
         
         if (isAccessible) {
           edge.addClass('accessible-edge');
-        } else if (edgeData.hasQuestion) {
-          // Dim non-accessible edges for better contrast
+          if (isSpawnEdge) {
+            // Add special highlighting for spawn edges
+            edge.addClass('spawn-edge');
+          }
+        } else if (isQuestionEdge) {
+          // Dim non-accessible question edges for better contrast
           edge.addClass('dimmed-edge');
         }
       });
@@ -688,6 +697,22 @@ export default function RadialNetwork({
             'shadow-blur': 10,
             'shadow-color': '#00ff88',
             'shadow-opacity': 0.8
+          }
+        },
+        // Spawn edges - special blue highlighting
+        {
+          selector: '.spawn-edge',
+          style: {
+            'line-color': '#00bfff',
+            width: 6,
+            opacity: 1,
+            'z-index': 101,
+            // Add blue glow effect
+            'shadow-blur': 15,
+            'shadow-color': '#00bfff',
+            'shadow-opacity': 1,
+            // Dashed line to indicate it's a spawn edge
+            'line-style': 'dashed'
           }
         },
         // Non-accessible edges when player is selected - dimmed
