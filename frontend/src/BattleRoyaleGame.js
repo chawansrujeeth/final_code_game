@@ -25,6 +25,79 @@ export default function BattleRoyaleGame() {
   const [selectedPlayer, setSelectedPlayer] = useState('PLAYER_A'); // Current player
   const [accessibleEdges, setAccessibleEdges] = useState([]);
   
+  // Get all accessible edges for current player
+  const getAccessibleEdges = (currentNode) => {
+    if (!currentNode) return [];
+    
+    // This would normally come from the network data, but for now we'll simulate it
+    // In a real implementation, this would query the actual network structure
+    const allEdges = [
+      // Spawn edges
+      { id: 'PLAYER_A-R3_1', source: 'PLAYER_A', target: 'R3_1', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_A-R3_2', source: 'PLAYER_A', target: 'R3_2', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_A-R3_3', source: 'PLAYER_A', target: 'R3_3', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_B-R3_4', source: 'PLAYER_B', target: 'R3_4', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_B-R3_5', source: 'PLAYER_B', target: 'R3_5', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_B-R3_6', source: 'PLAYER_B', target: 'R3_6', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_C-R3_7', source: 'PLAYER_C', target: 'R3_7', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_C-R3_8', source: 'PLAYER_C', target: 'R3_8', difficulty: 'easy', pathType: 'spawn' },
+      { id: 'PLAYER_D-R3_1', source: 'PLAYER_D', target: 'R3_1', difficulty: 'easy', pathType: 'spawn' },
+      
+      // R3 circular edges
+      { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_4-R3_5', source: 'R3_4', target: 'R3_5', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_5-R3_6', source: 'R3_5', target: 'R3_6', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_6-R3_7', source: 'R3_6', target: 'R3_7', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
+      
+      // R3 to R2 edges
+      { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_4-R2_2', source: 'R3_4', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_5-R2_3', source: 'R3_5', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_6-R2_3', source: 'R3_6', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      
+      // R2 circular edges
+      { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
+      
+      // R2 to R1 edges
+      { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_2-R1_3', source: 'R2_2', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_3-R1_3', source: 'R2_3', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_3-R1_4', source: 'R2_3', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+      
+      // R1 circular edges
+      { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_4-R1_1', source: 'R1_4', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
+      
+      // R1 to TARGET edges
+      { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_4-TARGET', source: 'R1_4', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    ];
+    
+    // Filter edges that are connected to the current node
+    return allEdges.filter(edge => 
+      edge.source === currentNode || edge.target === currentNode
+    );
+  };
+  
   // Pool of questions for different difficulties
   const questionPools = {
     easy: [
@@ -89,6 +162,15 @@ export default function BattleRoyaleGame() {
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [playerAnswer, setPlayerAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
+  
+  // Update accessible edges when player or position changes
+  React.useEffect(() => {
+    const currentPlayerData = players[selectedPlayer];
+    if (currentPlayerData) {
+      const edges = getAccessibleEdges(currentPlayerData.currentNode);
+      setAccessibleEdges(edges);
+    }
+  }, [selectedPlayer, players]);
   const [resultMessage, setResultMessage] = useState('');
   
   // Handle edge clicks (when player tries to traverse a path)
@@ -437,6 +519,88 @@ export default function BattleRoyaleGame() {
                 </div>
               </div>
             )}
+            
+            {/* Accessible Edges Display */}
+            <div style={{
+              background: 'rgba(255, 193, 7, 0.1)',
+              border: '2px solid #ffc107',
+              borderRadius: '8px',
+              padding: '15px',
+              marginTop: '15px'
+            }}>
+              <div style={{ color: '#ffc107', fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>
+                🛤️ Available Paths ({accessibleEdges.length})
+              </div>
+              <div style={{ color: '#fff', fontSize: '12px', marginBottom: '10px' }}>
+                From: <span style={{ color: '#6f42c1', fontWeight: 'bold' }}>{players[selectedPlayer]?.currentNode}</span>
+              </div>
+              <div style={{ 
+                maxHeight: '150px', 
+                overflowY: 'auto',
+                display: 'grid',
+                gap: '8px'
+              }}>
+                {accessibleEdges.length > 0 ? (
+                  accessibleEdges.map((edge, index) => {
+                    const targetNode = edge.source === players[selectedPlayer]?.currentNode ? edge.target : edge.source;
+                    const difficultyColor = edge.difficulty === 'easy' ? '#28a745' : 
+                                           edge.difficulty === 'medium' ? '#ffc107' : '#dc3545';
+                    const pathTypeColor = edge.pathType === 'spawn' ? '#00bfff' :
+                                         edge.pathType === 'inward' ? '#17a2b8' :
+                                         edge.pathType === 'lateral' ? '#ffc107' :
+                                         edge.pathType === 'final' ? '#dc3545' : '#6c757d';
+                    
+                    return (
+                      <div key={index} style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '6px',
+                        padding: '8px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '12px'
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: '#fff', fontWeight: 'bold' }}>
+                            {edge.id}
+                          </div>
+                          <div style={{ color: '#ccc', fontSize: '11px' }}>
+                            → <span style={{ color: '#6f42c1' }}>{targetNode}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <span style={{
+                            background: difficultyColor,
+                            color: edge.difficulty === 'medium' ? '#000' : '#fff',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            fontSize: '10px',
+                            fontWeight: 'bold'
+                          }}>
+                            {edge.difficulty.toUpperCase()}
+                          </span>
+                          <span style={{
+                            background: pathTypeColor,
+                            color: edge.pathType === 'lateral' ? '#000' : '#fff',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            fontSize: '10px',
+                            fontWeight: 'bold'
+                          }}>
+                            {edge.pathType.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>
+                    No accessible paths from current position
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           
           {/* Current Question Display */}
