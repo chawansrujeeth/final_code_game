@@ -799,27 +799,7 @@ export default function RadialNetwork({
         </div>
       )}
       
-      {/* Zone Legend - only show if not minimized and HUD enabled */}
-      {showHUD && !isMinimized && (
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
-          zIndex: 1000,
-          background: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          padding: '10px',
-          borderRadius: '8px',
-          fontSize: isMinimized ? '10px' : '12px'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Zone Status</div>
-          <div style={{ color: '#28a745' }}>🟢 Safe Zone (Center)</div>
-          <div style={{ color: '#17a2b8' }}>🔵 Zone 1 (Safe)</div>
-          <div style={{ color: '#ffc107' }}>🟡 Zone 2 (Safe)</div>
-          <div style={{ color: '#fd7e14' }}>🟠 Zone 3 (Safe)</div>
-          <div style={{ color: '#007bff' }}>💀 Blue Zone (Danger -10HP)</div>
-        </div>
-      )}
+
       
       <div 
         id="cy" 

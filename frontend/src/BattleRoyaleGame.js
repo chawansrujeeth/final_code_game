@@ -151,7 +151,7 @@ export default function BattleRoyaleGame() {
         position: 'absolute',
         top: 0,
         left: 0,
-        right: mapState.isMinimized ? '320px' : 0,
+        right: 0,
         bottom: 0,
         background: 'linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         display: 'flex',
@@ -173,17 +173,18 @@ export default function BattleRoyaleGame() {
       
       {/* Minimap Container */}
       <div style={{
-        position: 'absolute',
-        top: mapState.isFullscreen ? 0 : '10px',
-        right: mapState.isFullscreen ? 0 : '10px',
-        width: mapState.isFullscreen ? '100%' : (mapState.isMinimized ? '300px' : '100%'),
-        height: mapState.isFullscreen ? '100%' : (mapState.isMinimized ? '300px' : '100%'),
-        zIndex: mapState.isFullscreen ? 2000 : 1000,
-        border: mapState.isMinimized ? '2px solid #fff' : 'none',
-        borderRadius: mapState.isMinimized ? '12px' : '0px',
+        position: 'fixed',
+        top: mapState.isFullscreen ? 0 : '20px',
+        right: mapState.isFullscreen ? 0 : '20px',
+        width: mapState.isFullscreen ? '100vw' : (mapState.isMinimized ? '280px' : '80vw'),
+        height: mapState.isFullscreen ? '100vh' : (mapState.isMinimized ? '280px' : '80vh'),
+        zIndex: mapState.isFullscreen ? 3000 : 1500,
+        border: mapState.isMinimized ? '3px solid #00ff88' : (mapState.isFullscreen ? 'none' : '2px solid #fff'),
+        borderRadius: mapState.isMinimized ? '15px' : '0px',
         overflow: 'hidden',
-        boxShadow: mapState.isMinimized ? '0 8px 32px rgba(0,0,0,0.5)' : 'none',
-        transition: 'all 0.3s ease'
+        boxShadow: mapState.isMinimized ? '0 10px 40px rgba(0,255,136,0.3)' : (mapState.isFullscreen ? 'none' : '0 8px 32px rgba(0,0,0,0.5)'),
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: '#1a1a2e'
       }}>
         <RadialNetwork 
           playerCount={4}
@@ -199,26 +200,30 @@ export default function BattleRoyaleGame() {
         {/* Map Controls */}
         <div style={{
           position: 'absolute',
-          top: '10px',
-          left: '10px',
-          zIndex: 1001,
+          top: '8px',
+          left: '8px',
+          zIndex: 3001,
           display: 'flex',
-          gap: '5px'
+          gap: '6px'
         }}>
           {mapState.isMinimized && (
             <button
               onClick={toggleMap}
               style={{
-                background: 'rgba(0,0,0,0.8)',
-                color: 'white',
+                background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+                color: '#000',
                 border: 'none',
-                borderRadius: '6px',
-                padding: '8px 12px',
+                borderRadius: '8px',
+                padding: '6px 10px',
                 cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold'
+                fontSize: '10px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(0,255,136,0.3)',
+                transition: 'all 0.2s ease'
               }}
               title="Expand Map"
+              onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
             >
               🗺️ EXPAND
             </button>
@@ -229,14 +234,15 @@ export default function BattleRoyaleGame() {
               <button
                 onClick={toggleFullscreen}
                 style={{
-                  background: 'rgba(0,0,0,0.8)',
+                  background: 'linear-gradient(45deg, #007bff, #0056b3)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   padding: '8px 12px',
                   cursor: 'pointer',
                   fontSize: '12px',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 8px rgba(0,123,255,0.3)'
                 }}
                 title={mapState.isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
               >
@@ -245,14 +251,15 @@ export default function BattleRoyaleGame() {
               <button
                 onClick={toggleMap}
                 style={{
-                  background: 'rgba(0,0,0,0.8)',
+                  background: 'linear-gradient(45deg, #dc3545, #c82333)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   padding: '8px 12px',
                   cursor: 'pointer',
                   fontSize: '12px',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
                 }}
                 title="Minimize Map"
               >
@@ -266,16 +273,17 @@ export default function BattleRoyaleGame() {
         {mapState.isMinimized && (
           <div style={{
             position: 'absolute',
-            bottom: '5px',
+            bottom: '8px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.8)',
-            color: 'white',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '10px',
+            background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+            color: '#000',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontSize: '9px',
             fontWeight: 'bold',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            boxShadow: '0 2px 8px rgba(0,255,136,0.4)'
           }}>
             🗺️ BATTLE MAP
           </div>
