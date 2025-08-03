@@ -153,10 +153,10 @@ export default function RadialNetwork({
         const edgeData = edge.data();
         const isConnectedToPlayer = (edgeData.source === currentPlayerNode || edgeData.target === currentPlayerNode);
         const isQuestionEdge = edgeData.hasQuestion === true;
-        const isSpawnEdge = edgeData.hasQuestion === false && edgeData.pathType === 'spawn';
+        const isSpawnEdge = edgeData.pathType === 'spawn';
         
-        // Edge is accessible if player is connected to it AND it's either a question edge or spawn edge
-        const isAccessible = isConnectedToPlayer && (isQuestionEdge || isSpawnEdge);
+        // Edge is accessible if player is connected to it AND it has a question (including spawn edges)
+        const isAccessible = isConnectedToPlayer && isQuestionEdge;
         
         if (isAccessible) {
           edge.addClass('accessible-edge');
@@ -452,7 +452,8 @@ export default function RadialNetwork({
     Object.entries(playerToR3Mapping).forEach(([player, r3Nodes]) => {
       r3Nodes.forEach(r3Node => {
         pushEdge(player, r3Node, 'player-to-ring3', {
-          hasQuestion: false, // No question needed to move from player spawn to outer ring
+          hasQuestion: true, // Questions required even for spawn movement
+          questionDifficulty: 'easy', // Easy questions for spawn movement
           pathType: 'spawn'
         });
       });
@@ -812,21 +813,21 @@ export default function RadialNetwork({
       console.log('Has question:', edgeData.hasQuestion);
       console.log('onEdgeClick function:', onEdgeClick);
       
-      // Handle both question edges and spawn edges
+      // All edges now have questions (including spawn edges)
       const hasQuestion = edgeData.hasQuestion === true;
-      const isSpawnEdge = edgeData.hasQuestion === false && edgeData.pathType === 'spawn';
+      const isSpawnEdge = edgeData.pathType === 'spawn';
       
       if (onEdgeClick && typeof onEdgeClick === 'function') {
         if (hasQuestion) {
           // Edge with question clicked - attempt traversal with question
-          console.log('Calling onEdgeClick with question edge:', edgeData);
-          onEdgeClick(edgeData);
-        } else if (isSpawnEdge) {
-          // Spawn edge clicked - allow free movement
-          console.log('Calling onEdgeClick with spawn edge (no question):', edgeData);
+          if (isSpawnEdge) {
+            console.log('Calling onEdgeClick with spawn edge (with question):', edgeData);
+          } else {
+            console.log('Calling onEdgeClick with regular question edge:', edgeData);
+          }
           onEdgeClick(edgeData);
         } else {
-          console.log('Edge click not processed - not a question edge or spawn edge');
+          console.log('Edge click not processed - no question on edge');
         }
       } else {
         console.log('Edge click not processed - onEdgeClick not available:', !!onEdgeClick, 'typeof:', typeof onEdgeClick);
