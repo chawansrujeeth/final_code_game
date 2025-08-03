@@ -25,48 +25,66 @@ export default function BattleRoyaleGame() {
   const [selectedPlayer, setSelectedPlayer] = useState('PLAYER_A'); // Current player
   const [accessibleEdges, setAccessibleEdges] = useState([]);
   
-  // Edge-based questions - each edge represents a path with a question to traverse
-  const [edgeQuestions] = useState({
-    // Ring 3 to Ring 2 questions (easiest - outer to middle)
-    'R3_1-R2_1': { question: "What is 2 + 2?", answer: "4", difficulty: "easy", pathType: "inward" },
-    'R3_2-R2_1': { question: "What color is the sky?", answer: "blue", difficulty: "easy", pathType: "inward" },
-    'R3_3-R2_2': { question: "How many legs does a cat have?", answer: "4", difficulty: "easy", pathType: "inward" },
-    'R3_4-R2_2': { question: "What is the capital of France?", answer: "paris", difficulty: "easy", pathType: "inward" },
-    'R3_5-R2_3': { question: "What is 5 x 3?", answer: "15", difficulty: "easy", pathType: "inward" },
-    'R3_6-R2_3': { question: "Which planet is closest to the sun?", answer: "mercury", difficulty: "easy", pathType: "inward" },
-    'R3_7-R2_4': { question: "What is 10 - 7?", answer: "3", difficulty: "easy", pathType: "inward" },
-    'R3_8-R2_4': { question: "How many days in a week?", answer: "7", difficulty: "easy", pathType: "inward" },
-    'R3_9-R2_5': { question: "What is the largest ocean?", answer: "pacific", difficulty: "easy", pathType: "inward" },
-    'R3_10-R2_5': { question: "What gas do plants produce?", answer: "oxygen", difficulty: "easy", pathType: "inward" },
-    'R3_11-R2_6': { question: "What is 8 / 2?", answer: "4", difficulty: "easy", pathType: "inward" },
-    'R3_12-R2_6': { question: "What is 6 + 4?", answer: "10", difficulty: "easy", pathType: "inward" },
+  // Pool of questions for different difficulties
+  const questionPools = {
+    easy: [
+      { question: "What is 2 + 2?", answer: "4" },
+      { question: "What color is the sky?", answer: "blue" },
+      { question: "How many legs does a cat have?", answer: "4" },
+      { question: "What is the capital of France?", answer: "paris" },
+      { question: "What is 5 x 3?", answer: "15" },
+      { question: "Which planet is closest to the sun?", answer: "mercury" },
+      { question: "What is 10 - 7?", answer: "3" },
+      { question: "How many days in a week?", answer: "7" },
+      { question: "What is the largest ocean?", answer: "pacific" },
+      { question: "What gas do plants produce?", answer: "oxygen" },
+      { question: "What is 8 / 2?", answer: "4" },
+      { question: "What is 6 + 4?", answer: "10" },
+      { question: "What is 3 + 5?", answer: "8" },
+      { question: "How many continents are there?", answer: "7" },
+      { question: "What is 9 - 4?", answer: "5" },
+      { question: "How many sides does a triangle have?", answer: "3" }
+    ],
+    medium: [
+      { question: "What is the square root of 64?", answer: "8" },
+      { question: "Who wrote Romeo and Juliet?", answer: "shakespeare" },
+      { question: "What is the chemical symbol for gold?", answer: "au" },
+      { question: "In which year did World War II end?", answer: "1945" },
+      { question: "What is 15% of 200?", answer: "30" },
+      { question: "Which programming language is known for AI?", answer: "python" },
+      { question: "What is the powerhouse of the cell?", answer: "mitochondria" },
+      { question: "What is 7 x 8?", answer: "56" },
+      { question: "What is 12 / 4?", answer: "3" },
+      { question: "What is the capital of Italy?", answer: "rome" },
+      { question: "What is 25% of 80?", answer: "20" },
+      { question: "Who painted the Mona Lisa?", answer: "leonardo" }
+    ],
+    hard: [
+      { question: "What is the derivative of x²?", answer: "2x" },
+      { question: "Who developed the theory of relativity?", answer: "einstein" },
+      { question: "What is the time complexity of binary search?", answer: "o(log n)" },
+      { question: "What is the 10th Fibonacci number?", answer: "55" },
+      { question: "What is the atomic number of carbon?", answer: "6" },
+      { question: "In which year was JavaScript created?", answer: "1995" },
+      { question: "What is 15²?", answer: "225" },
+      { question: "What is the speed of light in m/s?", answer: "299792458" },
+      { question: "What is the square root of 144?", answer: "12" },
+      { question: "What is 8! (8 factorial)?", answer: "40320" }
+    ]
+  };
+  
+  // Function to get question for any edge
+  const getQuestionForEdge = (edgeId, difficulty, pathType) => {
+    const pool = questionPools[difficulty] || questionPools.easy;
+    const questionIndex = Math.abs(edgeId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % pool.length;
+    const selectedQuestion = pool[questionIndex];
     
-    // Ring 2 to Ring 1 questions (medium difficulty)
-    'R2_1-R1_1': { question: "What is the square root of 64?", answer: "8", difficulty: "medium", pathType: "inward" },
-    'R2_2-R1_1': { question: "Who wrote Romeo and Juliet?", answer: "shakespeare", difficulty: "medium", pathType: "inward" },
-    'R2_3-R1_2': { question: "What is the chemical symbol for gold?", answer: "au", difficulty: "medium", pathType: "inward" },
-    'R2_4-R1_2': { question: "In which year did World War II end?", answer: "1945", difficulty: "medium", pathType: "inward" },
-    'R2_5-R1_3': { question: "What is 15% of 200?", answer: "30", difficulty: "medium", pathType: "inward" },
-    'R2_6-R1_3': { question: "Which programming language is known for AI?", answer: "python", difficulty: "medium", pathType: "inward" },
-    'R2_7-R1_4': { question: "What is the powerhouse of the cell?", answer: "mitochondria", difficulty: "medium", pathType: "inward" },
-    'R2_8-R1_4': { question: "What is 7 x 8?", answer: "56", difficulty: "medium", pathType: "inward" },
-    
-    // Ring 1 to Target questions (hardest - final approach)
-    'R1_1-TARGET': { question: "What is the derivative of x²?", answer: "2x", difficulty: "hard", pathType: "final" },
-    'R1_2-TARGET': { question: "Who developed the theory of relativity?", answer: "einstein", difficulty: "hard", pathType: "final" },
-    'R1_3-TARGET': { question: "What is the time complexity of binary search?", answer: "o(log n)", difficulty: "hard", pathType: "final" },
-    'R1_4-TARGET': { question: "What is the 10th Fibonacci number?", answer: "55", difficulty: "hard", pathType: "final" },
-    'R1_5-TARGET': { question: "What is the atomic number of carbon?", answer: "6", difficulty: "hard", pathType: "final" },
-    'R1_6-TARGET': { question: "In which year was JavaScript created?", answer: "1995", difficulty: "hard", pathType: "final" },
-    
-    // Circular movement questions (lateral movement within same ring)
-    'R3_1-R3_2': { question: "What is 3 + 5?", answer: "8", difficulty: "easy", pathType: "lateral" },
-    'R3_2-R3_3': { question: "How many continents are there?", answer: "7", difficulty: "easy", pathType: "lateral" },
-    'R2_1-R2_2': { question: "What is 12 / 4?", answer: "3", difficulty: "medium", pathType: "lateral" },
-    'R2_2-R2_3': { question: "What is the capital of Italy?", answer: "rome", difficulty: "medium", pathType: "lateral" },
-    'R1_1-R1_2': { question: "What is 15²?", answer: "225", difficulty: "hard", pathType: "lateral" },
-    'R1_2-R1_3': { question: "What is the speed of light?", answer: "299792458", difficulty: "hard", pathType: "lateral" }
-  });
+    return {
+      ...selectedQuestion,
+      difficulty,
+      pathType
+    };
+  };
   
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [playerAnswer, setPlayerAnswer] = useState('');
@@ -74,6 +92,37 @@ export default function BattleRoyaleGame() {
   const [resultMessage, setResultMessage] = useState('');
   
   // Handle edge clicks (when player tries to traverse a path)
+  // Function to determine difficulty and path type based on edge
+  const getEdgeProperties = (sourceNode, targetNode) => {
+    // Determine difficulty based on rings
+    let difficulty = 'easy';
+    let pathType = 'lateral';
+    
+    // Extract ring numbers
+    const sourceRing = sourceNode.includes('R3') ? 3 : sourceNode.includes('R2') ? 2 : sourceNode.includes('R1') ? 1 : 0;
+    const targetRing = targetNode.includes('R3') ? 3 : targetNode.includes('R2') ? 2 : targetNode.includes('R1') ? 1 : targetNode === 'TARGET' ? 0 : 0;
+    
+    // Determine path type and difficulty
+    if (targetNode === 'TARGET') {
+      difficulty = 'hard';
+      pathType = 'final';
+    } else if (sourceRing > targetRing) {
+      // Moving inward
+      pathType = 'inward';
+      if (sourceRing === 3 && targetRing === 2) difficulty = 'easy';
+      else if (sourceRing === 2 && targetRing === 1) difficulty = 'medium';
+      else if (sourceRing === 1 && targetRing === 0) difficulty = 'hard';
+    } else if (sourceRing === targetRing) {
+      // Lateral movement within same ring
+      pathType = 'lateral';
+      if (sourceRing === 3) difficulty = 'easy';
+      else if (sourceRing === 2) difficulty = 'medium';
+      else if (sourceRing === 1) difficulty = 'hard';
+    }
+    
+    return { difficulty, pathType };
+  };
+  
   const handleEdgeClick = (edgeData) => {
     if (!edgeData.id || !gameState.isGameActive) return;
     
@@ -87,18 +136,35 @@ export default function BattleRoyaleGame() {
       return;
     }
     
-    const question = edgeQuestions[edgeData.id];
-    if (!question) return;
+    // Determine actual source and target based on player position (for undirected graph)
+    const edgeSource = edgeData.source;
+    const edgeTarget = edgeData.target;
+    const playerNode = currentPlayer.currentNode;
     
-    const sourceNode = edgeData.source;
-    const targetNode = edgeData.target;
+    let actualSource, actualTarget;
+    if (edgeSource === playerNode) {
+      actualSource = edgeSource;
+      actualTarget = edgeTarget;
+    } else if (edgeTarget === playerNode) {
+      actualSource = edgeTarget;
+      actualTarget = edgeSource;
+    } else {
+      console.log('Edge not connected to current player position');
+      return;
+    }
+    
+    // Get edge properties and generate question
+    const { difficulty, pathType } = getEdgeProperties(actualSource, actualTarget);
+    const question = getQuestionForEdge(edgeData.id, difficulty, pathType);
+    
+    console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
     
     setCurrentQuestion({
       ...question,
       edgeId: edgeData.id,
-      sourceNode,
-      targetNode,
-      pathDescription: `${sourceNode} → ${targetNode}`,
+      sourceNode: actualSource,
+      targetNode: actualTarget,
+      pathDescription: `${actualSource} → ${actualTarget}`,
       playerId: selectedPlayer
     });
     setPlayerAnswer('');
@@ -108,8 +174,8 @@ export default function BattleRoyaleGame() {
   // Check if an edge is accessible from current player position
   const isEdgeAccessible = (edgeId, currentNode) => {
     const [source, target] = edgeId.split('-');
-    // Player can traverse edge if they are at the source node
-    return source === currentNode;
+    // Player can traverse edge in both directions (undirected graph)
+    return source === currentNode || target === currentNode;
   };
   
   // Handle node clicks (safe points - no questions, just information)

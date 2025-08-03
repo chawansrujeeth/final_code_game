@@ -143,18 +143,26 @@ export default function RadialNetwork({
   useEffect(() => {
     if (cyRef.current && currentPlayerNode) {
       // Remove all previous highlights
-      cyRef.current.elements().removeClass('accessible-edge current-player');
+      cyRef.current.elements().removeClass('accessible-edge current-player dimmed-edge');
       
       // Highlight current player node
       cyRef.current.getElementById(currentPlayerNode).addClass('current-player');
       
-      // Highlight accessible edges (edges that start from current player position)
+      // Highlight accessible edges (bidirectional - undirected graph)
       cyRef.current.edges().forEach(edge => {
         const edgeData = edge.data();
-        if (edgeData.source === currentPlayerNode && edgeData.hasQuestion) {
+        const isAccessible = (edgeData.source === currentPlayerNode || edgeData.target === currentPlayerNode) && edgeData.hasQuestion;
+        
+        if (isAccessible) {
           edge.addClass('accessible-edge');
+        } else if (edgeData.hasQuestion) {
+          // Dim non-accessible edges for better contrast
+          edge.addClass('dimmed-edge');
         }
       });
+    } else {
+      // No player selected - remove all highlights
+      cyRef.current?.elements().removeClass('accessible-edge current-player dimmed-edge');
     }
   }, [currentPlayerNode, selectedPlayer]);
   
@@ -586,16 +594,15 @@ export default function RadialNetwork({
             'border-width': 5
           } 
         },
-        // Base edge styling - simple and clean
+        // Base edge styling - simple and clean (undirected)
         {
           selector: 'edge',
           style: {
             width: 2,
             'line-color': '#666',
             'curve-style': 'straight',
-            opacity: 0.8,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#666',
+            opacity: 0.6,
+            // No arrows for undirected graph
             label: 'data(label)',
             'font-size': 10,
             'font-weight': 'bold',
@@ -666,18 +673,30 @@ export default function RadialNetwork({
         {
           selector: "edge[hasQuestion='true']",
           style: {
-            'target-arrow-shape': 'triangle'
+            // No arrows for undirected graph
           }
         },
-        // Accessible edges - highlight for current player
+        // Accessible edges - bright highlight for current player
         {
           selector: '.accessible-edge',
           style: {
             'line-color': '#00ff88',
-            width: 4,
+            width: 5,
             opacity: 1,
-            'target-arrow-color': '#00ff88',
-            'z-index': 100
+            'z-index': 100,
+            // Add glow effect
+            'shadow-blur': 10,
+            'shadow-color': '#00ff88',
+            'shadow-opacity': 0.8
+          }
+        },
+        // Non-accessible edges when player is selected - dimmed
+        {
+          selector: '.dimmed-edge',
+          style: {
+            'line-color': '#333',
+            opacity: 0.3,
+            'z-index': 1
           }
         },
         // Current player highlighting
