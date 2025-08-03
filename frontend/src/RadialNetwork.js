@@ -9,7 +9,8 @@ export default function RadialNetwork({
   onPlayerMove = () => {},
   isMinimized = false,
   showHUD = true,
-  enableZoom = false
+  enableZoom = false,
+  enablePan = false
 }) {
   const cyRef = useRef(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -555,9 +556,9 @@ export default function RadialNetwork({
       ],
       // Configure user interactions based on props
       userZoomingEnabled: enableZoom,
-      userPanningEnabled: false, // Always disabled - no panning
+      userPanningEnabled: enablePan,
       zoomingEnabled: enableZoom,
-      panningEnabled: false,
+      panningEnabled: enablePan,
       boxSelectionEnabled: false,
       selectionType: 'single',
       autoungrabify: true, // Make nodes ungrabbable

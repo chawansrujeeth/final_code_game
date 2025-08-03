@@ -557,7 +557,8 @@ export default function BattleRoyaleGame() {
                   onPlayerMove={handlePlayerMove}
                   isMinimized={false}
                   showHUD={true}
-                  enableZoom={false}
+                  enableZoom={true}
+                  enablePan={true}
                 />
         
                 {/* Map Controls */}
@@ -586,6 +587,23 @@ export default function BattleRoyaleGame() {
                   >
                     ➖ CLOSE
                   </button>
+                </div>
+                
+                {/* Instructions for zoom/pan */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  left: '8px',
+                  background: 'rgba(0, 0, 0, 0.8)',
+                  color: '#00ff88',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  zIndex: 3001,
+                  border: '1px solid #00ff88'
+                }}>
+                  🖱️ Scroll to zoom • Drag to pan
                 </div>
         
               </div>
