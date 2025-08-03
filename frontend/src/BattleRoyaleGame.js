@@ -16,11 +16,14 @@ export default function BattleRoyaleGame() {
   });
   
   const [players, setPlayers] = useState({
-    PLAYER_A: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true },
-    PLAYER_B: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true },
-    PLAYER_C: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true },
-    PLAYER_D: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true }
+    PLAYER_A: { health: 100, currentZone: 4, currentNode: 'PLAYER_A', questionsAnswered: 0, isAlive: true },
+    PLAYER_B: { health: 100, currentZone: 4, currentNode: 'PLAYER_B', questionsAnswered: 0, isAlive: true },
+    PLAYER_C: { health: 100, currentZone: 4, currentNode: 'PLAYER_C', questionsAnswered: 0, isAlive: true },
+    PLAYER_D: { health: 100, currentZone: 4, currentNode: 'PLAYER_D', questionsAnswered: 0, isAlive: true }
   });
+  
+  const [selectedPlayer, setSelectedPlayer] = useState('PLAYER_A'); // Current player
+  const [accessibleEdges, setAccessibleEdges] = useState([]);
   
   // Edge-based questions - each edge represents a path with a question to traverse
   const [edgeQuestions] = useState({
@@ -74,10 +77,19 @@ export default function BattleRoyaleGame() {
   const handleEdgeClick = (edgeData) => {
     if (!edgeData.id || !gameState.isGameActive) return;
     
+    const currentPlayer = players[selectedPlayer];
+    if (!currentPlayer || !currentPlayer.isAlive) return;
+    
+    // Check if this edge is accessible from current player position
+    const isAccessible = isEdgeAccessible(edgeData.id, currentPlayer.currentNode);
+    if (!isAccessible) {
+      console.log('Edge not accessible from current position');
+      return;
+    }
+    
     const question = edgeQuestions[edgeData.id];
     if (!question) return;
     
-    // Check if player can traverse this edge
     const sourceNode = edgeData.source;
     const targetNode = edgeData.target;
     
@@ -86,10 +98,18 @@ export default function BattleRoyaleGame() {
       edgeId: edgeData.id,
       sourceNode,
       targetNode,
-      pathDescription: `${sourceNode} → ${targetNode}`
+      pathDescription: `${sourceNode} → ${targetNode}`,
+      playerId: selectedPlayer
     });
     setPlayerAnswer('');
     setShowResult(false);
+  };
+  
+  // Check if an edge is accessible from current player position
+  const isEdgeAccessible = (edgeId, currentNode) => {
+    const [source, target] = edgeId.split('-');
+    // Player can traverse edge if they are at the source node
+    return source === currentNode;
   };
   
   // Handle node clicks (safe points - no questions, just information)
@@ -130,21 +150,52 @@ export default function BattleRoyaleGame() {
     if (isCorrect) {
       setResultMessage(`✅ Correct! Path unlocked: ${currentQuestion.pathDescription}`);
       
+      // Move player to target node
+      const targetNode = currentQuestion.targetNode;
+      const playerId = currentQuestion.playerId;
+      
+      setPlayers(prev => ({
+        ...prev,
+        [playerId]: {
+          ...prev[playerId],
+          currentNode: targetNode,
+          currentZone: getZoneFromNode(targetNode),
+          questionsAnswered: prev[playerId].questionsAnswered + 1
+        }
+      }));
+      
       // Handle successful traversal
       if (currentQuestion.pathType === 'inward') {
         setResultMessage(prev => prev + " You moved closer to the center!");
       } else if (currentQuestion.pathType === 'final') {
         setResultMessage(prev => prev + " Final approach to victory!");
+        
+        // Check win condition
+        if (targetNode === 'TARGET') {
+          setGameState(prev => ({
+            ...prev,
+            isGameActive: false,
+            winner: playerId
+          }));
+          setResultMessage(prev => prev + " 🎉 VICTORY! You reached the center!");
+        }
       } else if (currentQuestion.pathType === 'lateral') {
         setResultMessage(prev => prev + " You repositioned within the zone.");
       }
       
-      // TODO: Implement actual player movement logic
     } else {
       setResultMessage(`❌ Wrong answer! Path blocked. The correct answer was: ${currentQuestion.answer}`);
       
-      // Handle failed traversal - player takes damage or loses turn
-      setResultMessage(prev => prev + " You cannot traverse this path.");
+      // Handle failed traversal - player takes damage
+      setPlayers(prev => ({
+        ...prev,
+        [currentQuestion.playerId]: {
+          ...prev[currentQuestion.playerId],
+          health: Math.max(0, prev[currentQuestion.playerId].health - 10)
+        }
+      }));
+      
+      setResultMessage(prev => prev + " You lost 10 health!");
     }
     
     setShowResult(true);
@@ -152,6 +203,16 @@ export default function BattleRoyaleGame() {
       setCurrentQuestion(null);
       setShowResult(false);
     }, 4000);
+  };
+  
+  // Helper function to get zone level from node ID
+  const getZoneFromNode = (nodeId) => {
+    if (nodeId === 'TARGET') return 0;
+    if (nodeId.startsWith('R1_')) return 1;
+    if (nodeId.startsWith('R2_')) return 2;
+    if (nodeId.startsWith('R3_')) return 3;
+    if (nodeId.startsWith('PLAYER_')) return 4;
+    return 4;
   };
   
   // Prepare node data for the network
@@ -219,6 +280,43 @@ export default function BattleRoyaleGame() {
             <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
               Click edges to traverse paths - answer questions to unlock routes
             </p>
+          </div>
+          
+          {/* Player Selection */}
+          <div style={{
+            background: 'rgba(111, 66, 193, 0.1)',
+            border: '2px solid #6f42c1',
+            borderRadius: '12px',
+            padding: '15px',
+            marginBottom: '20px'
+          }}>
+            <h4 style={{ color: '#6f42c1', margin: '0 0 10px 0' }}>👤 Current Player</h4>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+              {Object.keys(players).map(playerId => (
+                <button
+                  key={playerId}
+                  onClick={() => setSelectedPlayer(playerId)}
+                  style={{
+                    background: selectedPlayer === playerId ? '#6f42c1' : 'rgba(111, 66, 193, 0.3)',
+                    color: 'white',
+                    border: selectedPlayer === playerId ? '2px solid #fff' : '2px solid #6f42c1',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {playerId.replace('PLAYER_', '')}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: '14px', color: '#ccc' }}>
+              <div>📍 Position: <span style={{ color: '#6f42c1' }}>{players[selectedPlayer]?.currentNode}</span></div>
+              <div>❤️ Health: <span style={{ color: players[selectedPlayer]?.health > 50 ? '#28a745' : '#dc3545' }}>{players[selectedPlayer]?.health}/100</span></div>
+              <div>🎯 Zone: <span style={{ color: '#00ff88' }}>{players[selectedPlayer]?.currentZone}</span></div>
+              <div>✅ Questions: <span style={{ color: '#ffc107' }}>{players[selectedPlayer]?.questionsAnswered}</span></div>
+            </div>
           </div>
           
           {/* Current Question Display */}
@@ -356,22 +454,25 @@ export default function BattleRoyaleGame() {
               background: 'rgba(255, 255, 255, 0.05)',
               border: '2px dashed #666',
               borderRadius: '12px',
-              padding: '40px',
+              padding: '30px',
               textAlign: 'center',
               color: '#999'
             }}>
-              <h3 style={{ margin: '0 0 10px 0' }}>🛤️ Select a Path</h3>
-              <p style={{ margin: 0 }}>Click on an edge (path) in the map to traverse it</p>
+              <h3 style={{ margin: '0 0 15px 0' }}>🛤️ How to Play</h3>
               <div style={{ 
-                marginTop: '15px', 
-                fontSize: '12px', 
-                color: '#666',
+                fontSize: '13px', 
+                color: '#ccc',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px'
+                gap: '8px',
+                textAlign: 'left'
               }}>
-                <div>🔵 Nodes = Safe Points (no questions)</div>
-                <div>➡️ Edges = Paths with Questions</div>
+                <div>👤 <strong>Select a player</strong> above to control</div>
+                <div>🟢 <strong>Green edges</strong> = paths you can take</div>
+                <div>❓ <strong>Click green edges</strong> to see questions</div>
+                <div>✅ <strong>Answer correctly</strong> to move forward</div>
+                <div>❌ <strong>Wrong answers</strong> = lose 10 health</div>
+                <div>🎯 <strong>Reach TARGET</strong> to win!</div>
               </div>
             </div>
           )}
@@ -383,14 +484,14 @@ export default function BattleRoyaleGame() {
             borderRadius: '8px',
             padding: '15px'
           }}>
-            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 New Game Rules:</h4>
+            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 Player Movement System:</h4>
             <ul style={{ color: '#ccc', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
-              <li>🔵 <strong>Nodes</strong> are safe points - no questions, just rest stops</li>
-              <li>➡️ <strong>Edges</strong> are paths with questions - click to traverse</li>
-              <li>🟢 Green edges = Easy questions (outer ring movement)</li>
-              <li>🟡 Yellow edges = Medium questions (middle ring movement)</li>
-              <li>🔴 Red edges = Hard questions (inner ring & final approach)</li>
-              <li>🎯 Reach the center victory zone to win!</li>
+              <li>👤 <strong>Select player</strong> to control from buttons above</li>
+              <li>🟢 <strong>Green highlighted edges</strong> = accessible paths</li>
+              <li>❓ <strong>Click accessible edges</strong> to answer questions</li>
+              <li>✅ <strong>Correct answers</strong> = move to new position</li>
+              <li>❌ <strong>Wrong answers</strong> = lose health, stay in place</li>
+              <li>🎯 <strong>Reach TARGET node</strong> to win the game!</li>
             </ul>
           </div>
         </div>
@@ -552,6 +653,8 @@ export default function BattleRoyaleGame() {
                 onNodeClick={handleNodeClick}
                 onEdgeClick={handleEdgeClick}
                 onPlayerMove={handlePlayerMove}
+                selectedPlayer={selectedPlayer}
+                currentPlayerNode={players[selectedPlayer]?.currentNode}
                 isMinimized={true}
                 showHUD={false}
                 enableZoom={false}
@@ -637,6 +740,8 @@ export default function BattleRoyaleGame() {
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
                   onPlayerMove={handlePlayerMove}
+                  selectedPlayer={selectedPlayer}
+                  currentPlayerNode={players[selectedPlayer]?.currentNode}
                   isMinimized={false}
                   showHUD={true}
                   enableZoom={true}

@@ -8,6 +8,8 @@ export default function RadialNetwork({
   onNodeClick = () => {},
   onEdgeClick = () => {},
   onPlayerMove = () => {},
+  selectedPlayer = null,
+  currentPlayerNode = null,
   isMinimized = false,
   showHUD = true,
   enableZoom = false,
@@ -137,6 +139,25 @@ export default function RadialNetwork({
       }
     }
   }, [isMinimized]);
+  
+  // Highlight accessible edges when current player changes
+  useEffect(() => {
+    if (cyRef.current && currentPlayerNode) {
+      // Remove all previous highlights
+      cyRef.current.elements().removeClass('accessible-edge current-player');
+      
+      // Highlight current player node
+      cyRef.current.getElementById(currentPlayerNode).addClass('current-player');
+      
+      // Highlight accessible edges (edges that start from current player position)
+      cyRef.current.edges().forEach(edge => {
+        const edgeData = edge.data();
+        if (edgeData.source === currentPlayerNode && edgeData.hasQuestion) {
+          edge.addClass('accessible-edge');
+        }
+      });
+    }
+  }, [currentPlayerNode, selectedPlayer]);
   
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
@@ -647,6 +668,27 @@ export default function RadialNetwork({
           selector: "edge[hasQuestion='true']",
           style: {
             'target-arrow-shape': 'triangle'
+          }
+        },
+        // Accessible edges - highlight for current player
+        {
+          selector: '.accessible-edge',
+          style: {
+            'line-color': '#00ff88',
+            width: 4,
+            opacity: 1,
+            'target-arrow-color': '#00ff88',
+            'z-index': 100
+          }
+        },
+        // Current player highlighting
+        {
+          selector: '.current-player',
+          style: {
+            'border-color': '#00ff88',
+            'border-width': 4,
+            'box-shadow': '0 0 20px #00ff88',
+            'z-index': 100
           }
         },
         // Highlighted path elements
