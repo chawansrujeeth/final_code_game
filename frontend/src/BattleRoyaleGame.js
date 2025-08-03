@@ -168,7 +168,35 @@ export default function BattleRoyaleGame() {
       return;
     }
     
-    // Get edge properties and generate question
+    // Check if this is a spawn edge (no question required)
+    const isSpawnEdge = edgeData.hasQuestion === false && edgeData.pathType === 'spawn';
+    
+    if (isSpawnEdge) {
+      // Handle spawn edge - direct movement without question
+      console.log('Spawn edge detected - moving player directly');
+      console.log(`Spawn movement: ${actualSource} → ${actualTarget}`);
+      
+      // Move player directly
+      const targetZoneLevel = actualTarget.includes('R3') ? 3 : 
+                             actualTarget.includes('R2') ? 2 : 
+                             actualTarget.includes('R1') ? 1 : 
+                             actualTarget === 'TARGET' ? 0 : 4;
+      
+      setPlayers(prev => ({
+        ...prev,
+        [selectedPlayer]: {
+          ...prev[selectedPlayer],
+          currentNode: actualTarget,
+          currentZone: targetZoneLevel
+        }
+      }));
+      
+      console.log(`Player ${selectedPlayer} moved to ${actualTarget} (Zone ${targetZoneLevel})`);
+      console.log('=== SPAWN EDGE MOVEMENT COMPLETE ===');
+      return;
+    }
+    
+    // Get edge properties and generate question for non-spawn edges
     const { difficulty, pathType } = getEdgeProperties(actualSource, actualTarget);
     console.log('Edge properties:', { difficulty, pathType });
     

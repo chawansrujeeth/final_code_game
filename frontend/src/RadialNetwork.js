@@ -787,17 +787,25 @@ export default function RadialNetwork({
       console.log('Has question:', edgeData.hasQuestion);
       console.log('onEdgeClick function:', onEdgeClick);
       
-      // Check if edge has question (most edges should have questions except spawn edges)
-      const hasQuestion = edgeData.hasQuestion !== false; // Default to true unless explicitly false
+      // Handle both question edges and spawn edges
+      const hasQuestion = edgeData.hasQuestion === true;
+      const isSpawnEdge = edgeData.hasQuestion === false && edgeData.pathType === 'spawn';
       
-      if (hasQuestion && onEdgeClick && typeof onEdgeClick === 'function') {
-        // Edge with question clicked - attempt traversal
-        console.log('Calling onEdgeClick with:', edgeData);
-        onEdgeClick(edgeData);
+      if (onEdgeClick && typeof onEdgeClick === 'function') {
+        if (hasQuestion) {
+          // Edge with question clicked - attempt traversal with question
+          console.log('Calling onEdgeClick with question edge:', edgeData);
+          onEdgeClick(edgeData);
+        } else if (isSpawnEdge) {
+          // Spawn edge clicked - allow free movement
+          console.log('Calling onEdgeClick with spawn edge (no question):', edgeData);
+          onEdgeClick(edgeData);
+        } else {
+          console.log('Edge click not processed - not a question edge or spawn edge');
+        }
       } else {
-        console.log('Edge click not processed - hasQuestion:', hasQuestion, 'onEdgeClick:', !!onEdgeClick, 'typeof onEdgeClick:', typeof onEdgeClick);
+        console.log('Edge click not processed - onEdgeClick not available:', !!onEdgeClick, 'typeof:', typeof onEdgeClick);
         
-        // If no onEdgeClick function, try to call it anyway for debugging
         if (!onEdgeClick || typeof onEdgeClick !== 'function') {
           console.error('onEdgeClick is not a valid function:', onEdgeClick);
         }
