@@ -6,7 +6,10 @@ export default function RadialNetwork({
   nodeData = {},
   gameState = {},
   onNodeClick = () => {},
-  onPlayerMove = () => {} 
+  onPlayerMove = () => {},
+  isMinimized = false,
+  showHUD = true,
+  enableZoom = false
 }) {
   const cyRef = useRef(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -550,11 +553,11 @@ export default function RadialNetwork({
           },
         },
       ],
-      // Disable all user interactions to keep nodes fixed
-      userZoomingEnabled: false,
-      userPanningEnabled: false,
-      zoomingEnabled: false,
-      panningEnabled: false,
+      // Configure user interactions based on props
+      userZoomingEnabled: enableZoom,
+      userPanningEnabled: false, // Always disabled - no panning
+      boxSelectionEnabled: false,
+      autounselectify: false,
       boxSelectionEnabled: false,
       selectionType: 'single',
       autoungrabify: true, // Make nodes ungrabbable
@@ -768,58 +771,64 @@ export default function RadialNetwork({
   }, []);
 
   return (
-    <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
-      {/* Game HUD */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        zIndex: 1000,
-        background: 'rgba(0, 0, 0, 0.8)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '8px',
-        fontFamily: 'monospace'
-      }}>
-        <div>⏱️ Game Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
-        <div>🔵 Blue Zone Level: {blueZoneLevel}/3</div>
-        <div>⚠️ Next Zone: {blueZoneLevel < 3 ? `${30 - (gameTimer % 30)}s` : 'Final Zone'}</div>
-        {selectedPlayer && (
-          <div style={{ marginTop: '10px', borderTop: '1px solid #666', paddingTop: '10px' }}>
-            <div>🎯 Selected: {selectedPlayer}</div>
-            <div>💡 Click zones to answer questions</div>
-            <div>🏃 Move to inner zones to survive</div>
-          </div>
-        )}
-      </div>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {/* Game HUD - only show if not minimized and HUD enabled */}
+      {showHUD && !isMinimized && (
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          padding: '10px',
+          borderRadius: '8px',
+          fontFamily: 'monospace',
+          fontSize: isMinimized ? '10px' : '14px'
+        }}>
+          <div>⏱️ Game Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
+          <div>🔵 Blue Zone Level: {blueZoneLevel}/3</div>
+          <div>⚠️ Next Zone: {blueZoneLevel < 3 ? `${30 - (gameTimer % 30)}s` : 'Final Zone'}</div>
+          {selectedPlayer && (
+            <div style={{ marginTop: '10px', borderTop: '1px solid #666', paddingTop: '10px' }}>
+              <div>🎯 Selected: {selectedPlayer}</div>
+              <div>💡 Click zones to answer questions</div>
+              <div>🏃 Move to inner zones to survive</div>
+            </div>
+          )}
+        </div>
+      )}
       
-      {/* Zone Legend */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        zIndex: 1000,
-        background: 'rgba(0, 0, 0, 0.8)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px'
-      }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Zone Status</div>
-        <div style={{ color: '#28a745' }}>🟢 Safe Zone (Center)</div>
-        <div style={{ color: '#17a2b8' }}>🔵 Zone 1 (Safe)</div>
-        <div style={{ color: '#ffc107' }}>🟡 Zone 2 (Safe)</div>
-        <div style={{ color: '#fd7e14' }}>🟠 Zone 3 (Safe)</div>
-        <div style={{ color: '#007bff' }}>💀 Blue Zone (Danger -10HP)</div>
-      </div>
+      {/* Zone Legend - only show if not minimized and HUD enabled */}
+      {showHUD && !isMinimized && (
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          padding: '10px',
+          borderRadius: '8px',
+          fontSize: isMinimized ? '10px' : '12px'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Zone Status</div>
+          <div style={{ color: '#28a745' }}>🟢 Safe Zone (Center)</div>
+          <div style={{ color: '#17a2b8' }}>🔵 Zone 1 (Safe)</div>
+          <div style={{ color: '#ffc107' }}>🟡 Zone 2 (Safe)</div>
+          <div style={{ color: '#fd7e14' }}>🟠 Zone 3 (Safe)</div>
+          <div style={{ color: '#007bff' }}>💀 Blue Zone (Danger -10HP)</div>
+        </div>
+      )}
       
       <div 
         id="cy" 
         style={{ 
           width: '100%', 
           height: '100%',
-          border: '2px solid #333',
-          borderRadius: '8px'
+          border: isMinimized ? '1px solid #666' : '2px solid #333',
+          borderRadius: '8px',
+          background: '#1a1a2e'
         }}
       />
       

@@ -9,6 +9,11 @@ export default function BattleRoyaleGame() {
     winner: null
   });
   
+  const [mapState, setMapState] = useState({
+    isMinimized: true,
+    isFullscreen: false
+  });
+  
   const [players, setPlayers] = useState({
     PLAYER_A: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true },
     PLAYER_B: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true },
@@ -121,15 +126,161 @@ export default function BattleRoyaleGame() {
     }, {})
   };
   
+  // Toggle minimap/fullscreen
+  const toggleMap = () => {
+    setMapState(prev => ({
+      ...prev,
+      isMinimized: !prev.isMinimized,
+      isFullscreen: !prev.isMinimized ? false : prev.isFullscreen
+    }));
+  };
+  
+  const toggleFullscreen = () => {
+    setMapState(prev => ({
+      ...prev,
+      isFullscreen: !prev.isFullscreen,
+      isMinimized: false
+    }));
+  };
+  
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      <RadialNetwork 
-        playerCount={4}
-        nodeData={nodeData}
-        gameState={gameState}
-        onNodeClick={handleNodeClick}
-        onPlayerMove={handlePlayerMove}
-      />
+    <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }}>
+      
+      {/* Main Game Area */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: mapState.isMinimized ? '320px' : 0,
+        bottom: 0,
+        background: 'linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontSize: '24px',
+        fontWeight: 'bold'
+      }}>
+        🎮 BGMI Battle Royale Quiz Game
+        <br />
+        <div style={{ fontSize: '16px', marginTop: '20px', textAlign: 'center' }}>
+          📍 Use the minimap to navigate zones<br />
+          🎯 Answer questions to progress<br />
+          🏃 Survive the blue zone<br />
+          🏆 Reach the safe zone to win!
+        </div>
+      </div>
+      
+      {/* Minimap Container */}
+      <div style={{
+        position: 'absolute',
+        top: mapState.isFullscreen ? 0 : '10px',
+        right: mapState.isFullscreen ? 0 : '10px',
+        width: mapState.isFullscreen ? '100%' : (mapState.isMinimized ? '300px' : '100%'),
+        height: mapState.isFullscreen ? '100%' : (mapState.isMinimized ? '300px' : '100%'),
+        zIndex: mapState.isFullscreen ? 2000 : 1000,
+        border: mapState.isMinimized ? '2px solid #fff' : 'none',
+        borderRadius: mapState.isMinimized ? '12px' : '0px',
+        overflow: 'hidden',
+        boxShadow: mapState.isMinimized ? '0 8px 32px rgba(0,0,0,0.5)' : 'none',
+        transition: 'all 0.3s ease'
+      }}>
+        <RadialNetwork 
+          playerCount={4}
+          nodeData={nodeData}
+          gameState={gameState}
+          onNodeClick={handleNodeClick}
+          onPlayerMove={handlePlayerMove}
+          isMinimized={mapState.isMinimized}
+          showHUD={!mapState.isMinimized}
+          enableZoom={!mapState.isMinimized}
+        />
+        
+        {/* Map Controls */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 1001,
+          display: 'flex',
+          gap: '5px'
+        }}>
+          {mapState.isMinimized && (
+            <button
+              onClick={toggleMap}
+              style={{
+                background: 'rgba(0,0,0,0.8)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+              title="Expand Map"
+            >
+              🗺️ EXPAND
+            </button>
+          )}
+          
+          {!mapState.isMinimized && (
+            <>
+              <button
+                onClick={toggleFullscreen}
+                style={{
+                  background: 'rgba(0,0,0,0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}
+                title={mapState.isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              >
+                {mapState.isFullscreen ? '🔲 EXIT' : '⛶ FULL'}
+              </button>
+              <button
+                onClick={toggleMap}
+                style={{
+                  background: 'rgba(0,0,0,0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}
+                title="Minimize Map"
+              >
+                ➖ MIN
+              </button>
+            </>
+          )}
+        </div>
+        
+        {/* Minimap Label */}
+        {mapState.isMinimized && (
+          <div style={{
+            position: 'absolute',
+            bottom: '5px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            pointerEvents: 'none'
+          }}>
+            🗺️ BATTLE MAP
+          </div>
+        )}
+      </div>
       
       {/* Question Modal */}
       {currentQuestion && (
@@ -259,7 +410,7 @@ export default function BattleRoyaleGame() {
           right: 0,
           bottom: 0,
           background: 'rgba(0,0,0,0.7)',
-          zIndex: 1500
+          zIndex: 2500
         }} />
       )}
     </div>
