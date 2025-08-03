@@ -94,6 +94,12 @@ export default function LandingHome() {
           >
             Radial
           </button>
+          <button
+            className="btn btn-shadow btn-rect" style={{minWidth:120, background: 'linear-gradient(45deg, #00ff88, #00cc6a)', color: '#000', fontWeight: 'bold'}}
+            onClick={() => navigate("/battle-royale")}
+          >
+            🎮 Battle Royale
+          </button>
           {user && (
             <button
               className={needsProfile ? 'btn btn-attn btn-rect' : 'btn btn-shadow btn-rect'}

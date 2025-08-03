@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import RadialNetwork from './RadialNetwork';
+import Editor from '@monaco-editor/react';
 
 export default function BattleRoyaleGame() {
   const [gameState, setGameState] = useState({
@@ -146,231 +147,452 @@ export default function BattleRoyaleGame() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }}>
       
-      {/* Main Game Area */}
+      {/* Split Screen Layout */}
       <div style={{
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        fontSize: '24px',
-        fontWeight: 'bold'
+        display: 'flex'
       }}>
-        🎮 BGMI Battle Royale Quiz Game
-        <br />
-        <div style={{ fontSize: '16px', marginTop: '20px', textAlign: 'center' }}>
-          📍 Use the minimap to navigate zones<br />
-          🎯 Answer questions to progress<br />
-          🏃 Survive the blue zone<br />
-          🏆 Reach the safe zone to win!
-        </div>
-      </div>
-      
-      {/* Minimap Container */}
-      <div style={{
-        position: 'fixed',
-        top: mapState.isFullscreen ? 0 : '20px',
-        right: mapState.isFullscreen ? 0 : '20px',
-        width: mapState.isFullscreen ? '100vw' : (mapState.isMinimized ? '280px' : '80vw'),
-        height: mapState.isFullscreen ? '100vh' : (mapState.isMinimized ? '280px' : '80vh'),
-        zIndex: mapState.isFullscreen ? 3000 : 1500,
-        border: mapState.isMinimized ? '3px solid #00ff88' : (mapState.isFullscreen ? 'none' : '2px solid #fff'),
-        borderRadius: mapState.isMinimized ? '15px' : '0px',
-        overflow: 'hidden',
-        boxShadow: mapState.isMinimized ? '0 10px 40px rgba(0,255,136,0.3)' : (mapState.isFullscreen ? 'none' : '0 8px 32px rgba(0,0,0,0.5)'),
-        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-        background: '#1a1a2e'
-      }}>
-        <RadialNetwork 
-          playerCount={4}
-          nodeData={nodeData}
-          gameState={gameState}
-          onNodeClick={handleNodeClick}
-          onPlayerMove={handlePlayerMove}
-          isMinimized={mapState.isMinimized}
-          showHUD={!mapState.isMinimized}
-          enableZoom={!mapState.isMinimized}
-        />
         
-        {/* Map Controls */}
+        {/* Left Side - Questions Panel */}
         <div style={{
-          position: 'absolute',
-          top: '8px',
-          left: '8px',
-          zIndex: 3001,
+          width: '50%',
+          height: '100%',
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          borderRight: '3px solid #00ff88',
           display: 'flex',
-          gap: '6px'
+          flexDirection: 'column',
+          padding: '20px',
+          color: 'white',
+          overflow: 'auto'
         }}>
-          {mapState.isMinimized && (
-            <button
-              onClick={toggleMap}
-              style={{
-                background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
-                color: '#000',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '6px 10px',
-                cursor: 'pointer',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                boxShadow: '0 2px 8px rgba(0,255,136,0.3)',
-                transition: 'all 0.2s ease'
-              }}
-              title="Expand Map"
-              onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
-            >
-              🗺️ EXPAND
-            </button>
-          )}
-          
-          {!mapState.isMinimized && (
-            <>
-              <button
-                onClick={toggleFullscreen}
-                style={{
-                  background: 'linear-gradient(45deg, #007bff, #0056b3)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(0,123,255,0.3)'
-                }}
-                title={mapState.isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              >
-                {mapState.isFullscreen ? '🔲 EXIT' : '⛶ FULL'}
-              </button>
-              <button
-                onClick={toggleMap}
-                style={{
-                  background: 'linear-gradient(45deg, #dc3545, #c82333)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
-                }}
-                title="Minimize Map"
-              >
-                ➖ MIN
-              </button>
-            </>
-          )}
-        </div>
-        
-        {/* Minimap Label */}
-        {mapState.isMinimized && (
           <div style={{
-            position: 'absolute',
-            bottom: '8px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
-            color: '#000',
-            padding: '4px 10px',
-            borderRadius: '6px',
-            fontSize: '9px',
-            fontWeight: 'bold',
-            pointerEvents: 'none',
-            boxShadow: '0 2px 8px rgba(0,255,136,0.4)'
+            textAlign: 'center',
+            marginBottom: '30px',
+            borderBottom: '2px solid #00ff88',
+            paddingBottom: '15px'
           }}>
-            🗺️ BATTLE MAP
+            <h2 style={{ color: '#00ff88', margin: 0, fontSize: '24px' }}>
+              🎯 Battle Questions
+            </h2>
+            <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
+              Answer correctly to progress through zones
+            </p>
           </div>
-        )}
-      </div>
-      
-      {/* Question Modal */}
-      {currentQuestion && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'white',
-          padding: '30px',
-          borderRadius: '15px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          zIndex: 2000,
-          minWidth: '400px',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ color: '#333', marginBottom: '20px' }}>
-            🎯 Question ({currentQuestion.difficulty.toUpperCase()})
-          </h3>
-          <p style={{ fontSize: '18px', marginBottom: '20px', color: '#555' }}>
-            {currentQuestion.question}
-          </p>
           
-          {!showResult ? (
-            <div>
+          {/* Current Question Display */}
+          {currentQuestion ? (
+            <div style={{
+              background: 'rgba(0, 255, 136, 0.1)',
+              border: '2px solid #00ff88',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '15px'
+              }}>
+                <span style={{
+                  background: currentQuestion.difficulty === 'easy' ? '#28a745' : 
+                           currentQuestion.difficulty === 'medium' ? '#ffc107' : '#dc3545',
+                  color: currentQuestion.difficulty === 'medium' ? '#000' : '#fff',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  {currentQuestion.difficulty.toUpperCase()}
+                </span>
+                <span style={{ color: '#00ff88', fontSize: '14px' }}>
+                  {currentQuestion.questionId}
+                </span>
+              </div>
+              <h3 style={{ color: '#fff', marginBottom: '15px', fontSize: '18px' }}>
+                {currentQuestion.question}
+              </h3>
               <input
                 type="text"
                 value={playerAnswer}
                 onChange={(e) => setPlayerAnswer(e.target.value)}
-                placeholder="Enter your answer..."
+                placeholder="Type your answer here..."
                 style={{
                   width: '100%',
-                  padding: '10px',
+                  padding: '12px',
                   fontSize: '16px',
-                  border: '2px solid #ddd',
+                  border: '2px solid #00ff88',
                   borderRadius: '8px',
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  color: 'white',
                   marginBottom: '15px'
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && submitAnswer()}
                 autoFocus
               />
-              <div>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   onClick={submitAnswer}
                   style={{
-                    background: '#28a745',
-                    color: 'white',
+                    background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+                    color: '#000',
                     border: 'none',
                     padding: '12px 24px',
                     borderRadius: '8px',
                     fontSize: '16px',
+                    fontWeight: 'bold',
                     cursor: 'pointer',
-                    marginRight: '10px'
+                    flex: 1
                   }}
                 >
-                  Submit Answer
+                  ✅ Submit Answer
                 </button>
                 <button
                   onClick={() => setCurrentQuestion(null)}
                   style={{
-                    background: '#6c757d',
+                    background: 'linear-gradient(45deg, #dc3545, #c82333)',
                     color: 'white',
                     border: 'none',
                     padding: '12px 24px',
                     borderRadius: '8px',
                     fontSize: '16px',
+                    fontWeight: 'bold',
                     cursor: 'pointer'
                   }}
                 >
-                  Cancel
+                  ❌ Cancel
                 </button>
               </div>
+              
+              {showResult && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  background: resultMessage.includes('✅') ? 'rgba(40, 167, 69, 0.2)' : 'rgba(220, 53, 69, 0.2)',
+                  border: `2px solid ${resultMessage.includes('✅') ? '#28a745' : '#dc3545'}`
+                }}>
+                  <p style={{ 
+                    color: resultMessage.includes('✅') ? '#28a745' : '#dc3545',
+                    fontWeight: 'bold',
+                    margin: 0,
+                    fontSize: '16px'
+                  }}>
+                    {resultMessage}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
-            <div>
-              <p style={{ fontSize: '18px', fontWeight: 'bold', color: resultMessage.includes('✅') ? '#28a745' : '#dc3545' }}>
-                {resultMessage}
-              </p>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '2px dashed #666',
+              borderRadius: '12px',
+              padding: '40px',
+              textAlign: 'center',
+              color: '#999'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0' }}>📍 Select a Zone</h3>
+              <p style={{ margin: 0 }}>Click on a zone in the minimap to start answering questions</p>
+            </div>
+          )}
+          
+          {/* Game Instructions */}
+          <div style={{
+            marginTop: 'auto',
+            background: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '8px',
+            padding: '15px'
+          }}>
+            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 Game Rules:</h4>
+            <ul style={{ color: '#ccc', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
+              <li>Answer questions correctly to move to inner zones</li>
+              <li>Blue zones deal damage over time</li>
+              <li>Reach the center safe zone to win</li>
+              <li>Use the minimap to navigate and select zones</li>
+            </ul>
+          </div>
+        </div>
+        
+        {/* Right Side - Code Editor */}
+        <div style={{
+          width: '50%',
+          height: '100%',
+          background: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '20px',
+          color: 'white',
+          position: 'relative'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            marginBottom: '20px',
+            borderBottom: '2px solid #007bff',
+            paddingBottom: '15px'
+          }}>
+            <h2 style={{ color: '#007bff', margin: 0, fontSize: '24px' }}>
+              💻 Code Editor
+            </h2>
+            <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
+              Write and test your solutions here
+            </p>
+          </div>
+          
+          {/* Language Selector */}
+          <div style={{ marginBottom: '15px' }}>
+            <select style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              color: 'white',
+              border: '2px solid #007bff',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '14px'
+            }}>
+              <option value="javascript">JavaScript</option>
+              <option value="python">Python</option>
+              <option value="cpp">C++</option>
+              <option value="java">Java</option>
+            </select>
+          </div>
+          
+          {/* Monaco Code Editor Area */}
+          <div style={{
+            flex: 1,
+            border: '2px solid #007bff',
+            borderRadius: '8px',
+            marginBottom: '15px',
+            overflow: 'hidden'
+          }}>
+            <Editor
+              height="100%"
+              defaultLanguage="javascript"
+              defaultValue="// Write your code here...\n// Example:\nfunction solve() {\n    return 'Hello World!';\n}\n\nsolve();"
+              theme="vs-dark"
+              options={{
+                fontSize: 14,
+                fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                renderLineHighlight: 'all',
+                selectOnLineNumbers: true,
+                roundedSelection: false,
+                readOnly: false,
+                cursorStyle: 'line',
+              }}
+            />
+          </div>
+          
+          {/* Code Actions */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <button style={{
+              background: 'linear-gradient(45deg, #28a745, #20c997)',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              flex: 1
+            }}>
+              ▶️ Run Code
+            </button>
+            <button style={{
+              background: 'linear-gradient(45deg, #007bff, #0056b3)',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}>
+              💾 Save
+            </button>
+            <button style={{
+              background: 'linear-gradient(45deg, #6c757d, #5a6268)',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}>
+              🗑️ Clear
+            </button>
+          </div>
+          
+          {/* Output Console */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '2px solid #28a745',
+            borderRadius: '8px',
+            padding: '15px',
+            minHeight: '120px',
+            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+            fontSize: '13px'
+          }}>
+            <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '8px' }}>
+              🖥️ Console Output:
+            </div>
+            <div style={{ color: '#ccc' }}>
+              Ready to run your code...
+            </div>
+          </div>
+       
+           {/* Minimap Container - Only in Code Editor Side */}
+          {mapState.isMinimized && (
+            <div style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              width: '280px',
+              height: '280px',
+              zIndex: 1500,
+              border: '3px solid #00ff88',
+              borderRadius: '15px',
+              overflow: 'hidden',
+              boxShadow: '0 10px 40px rgba(0,255,136,0.3)',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              background: '#1a1a2e'
+            }}>
+              <RadialNetwork 
+                playerCount={4}
+                nodeData={nodeData}
+                gameState={gameState}
+                onNodeClick={handleNodeClick}
+                onPlayerMove={handlePlayerMove}
+                isMinimized={true}
+                showHUD={false}
+                enableZoom={false}
+              />
+              
+              {/* Map Controls */}
+              <div style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                zIndex: 3001,
+                display: 'flex',
+                gap: '6px'
+              }}>
+                <button
+                  onClick={toggleMap}
+                  style={{
+                    background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(0,255,136,0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Expand Map"
+                  onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                >
+                  🗺️ EXPAND
+                </button>
+              </div>
+              
+              {/* Minimap Label */}
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+                color: '#000',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '9px',
+                fontWeight: 'bold',
+                pointerEvents: 'none',
+                boxShadow: '0 2px 8px rgba(0,255,136,0.4)'
+              }}>
+                🗺️ BATTLE MAP
+              </div>
+            </div>
+          )}
+          
+          {/* Expanded Map Overlay - Only in Code Editor Side */}
+          {!mapState.isMinimized && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 2000,
+              background: 'rgba(0, 0, 0, 0.95)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                width: '90%',
+                height: '90%',
+                border: '2px solid #00ff88',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#1a1a2e'
+              }}>
+                <RadialNetwork 
+                  playerCount={4}
+                  nodeData={nodeData}
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onPlayerMove={handlePlayerMove}
+                  isMinimized={false}
+                  showHUD={true}
+                  enableZoom={false}
+                />
+        
+                {/* Map Controls */}
+                <div style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '8px',
+                  zIndex: 3001,
+                  display: 'flex',
+                  gap: '6px'
+                }}>
+                  <button
+                    onClick={toggleMap}
+                    style={{
+                      background: 'linear-gradient(45deg, #dc3545, #c82333)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
+                    }}
+                    title="Minimize Map"
+                  >
+                    ➖ CLOSE
+                  </button>
+                </div>
+        
+              </div>
             </div>
           )}
         </div>
-      )}
+      </div>
       
       {/* Game Over Modal */}
       {gameState.winner && (

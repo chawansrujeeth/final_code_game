@@ -556,12 +556,12 @@ export default function RadialNetwork({
       // Configure user interactions based on props
       userZoomingEnabled: enableZoom,
       userPanningEnabled: false, // Always disabled - no panning
-      boxSelectionEnabled: false,
-      autounselectify: false,
+      zoomingEnabled: enableZoom,
+      panningEnabled: false,
       boxSelectionEnabled: false,
       selectionType: 'single',
       autoungrabify: true, // Make nodes ungrabbable
-      autounselectify: false,
+      autounselectify: false
     });
 
     // Node click handler - attempt to solve question or move
