@@ -187,9 +187,19 @@ export default function BattleRoyaleGame() {
     };
     
     console.log('Setting current question:', questionToSet);
+    console.log('Question object structure:', {
+      question: questionToSet.question,
+      answer: questionToSet.answer,
+      difficulty: questionToSet.difficulty,
+      pathType: questionToSet.pathType,
+      edgeId: questionToSet.edgeId
+    });
+    
     setCurrentQuestion(questionToSet);
     setPlayerAnswer('');
     setShowResult(false);
+    
+    console.log('Current question state should be updated now');
     console.log('=== HANDLE EDGE CLICK END ===');
   };
   
@@ -409,6 +419,58 @@ export default function BattleRoyaleGame() {
           
           {/* Current Question Display */}
           {console.log('Rendering question display, currentQuestion:', currentQuestion)}
+          
+          {/* Debug Information */}
+          <div style={{ 
+            background: 'rgba(255, 0, 0, 0.1)', 
+            border: '1px solid red', 
+            padding: '10px', 
+            marginBottom: '10px',
+            fontSize: '12px',
+            color: '#fff'
+          }}>
+            <div>Debug Info:</div>
+            <div>currentQuestion exists: {currentQuestion ? 'YES' : 'NO'}</div>
+            <div>currentQuestion type: {typeof currentQuestion}</div>
+            {currentQuestion && (
+              <div>
+                <div>Question: {currentQuestion.question || 'NO QUESTION'}</div>
+                <div>Difficulty: {currentQuestion.difficulty || 'NO DIFFICULTY'}</div>
+                <div>Edge ID: {currentQuestion.edgeId || 'NO EDGE ID'}</div>
+              </div>
+            )}
+            <button 
+              onClick={() => {
+                console.log('Test button clicked - setting test question');
+                const testQuestion = {
+                  question: 'Test Question: What is 2+2?',
+                  answer: '4',
+                  difficulty: 'easy',
+                  pathType: 'test',
+                  edgeId: 'test-edge',
+                  sourceNode: 'TEST_SOURCE',
+                  targetNode: 'TEST_TARGET',
+                  pathDescription: 'TEST → TARGET',
+                  playerId: selectedPlayer
+                };
+                setCurrentQuestion(testQuestion);
+                console.log('Test question set:', testQuestion);
+              }}
+              style={{
+                background: '#28a745',
+                color: '#fff',
+                border: 'none',
+                padding: '5px 10px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                marginTop: '5px'
+              }}
+            >
+              Test Question
+            </button>
+          </div>
+          
           {currentQuestion ? (
             <div style={{
               background: 'rgba(0, 255, 136, 0.1)',
