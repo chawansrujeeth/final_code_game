@@ -63,16 +63,52 @@ export default function RadialNetwork({
     });
   }, [blueZoneLevel]);
   
-  // Handle minimap fit when isMinimized changes
+  // Handle minimap fit and styling when isMinimized changes
   useEffect(() => {
-    if (cyRef.current && isMinimized) {
-      setTimeout(() => {
-        cyRef.current.fit();
-        cyRef.current.zoom({
-          level: cyRef.current.zoom() * 0.8, // Zoom out for better overview
-          renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
-        });
-      }, 100);
+    if (cyRef.current) {
+      if (isMinimized) {
+        // Minimap mode - enhance visibility
+        cyRef.current.style()
+          .selector('node')
+          .style({
+            'font-size': '8px',
+            'border-width': '2px',
+            width: '35px',
+            height: '35px'
+          })
+          .selector('edge')
+          .style({
+            'font-size': '10px',
+            width: '3px',
+            opacity: '1'
+          })
+          .update();
+          
+        setTimeout(() => {
+          cyRef.current.fit();
+          cyRef.current.zoom({
+            level: cyRef.current.zoom() * 0.7, // Zoom out more for better overview
+            renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
+          });
+        }, 100);
+      } else {
+        // Full screen mode - restore normal styling
+        cyRef.current.style()
+          .selector('node')
+          .style({
+            'font-size': '11px',
+            'border-width': '3px',
+            width: '45px',
+            height: '45px'
+          })
+          .selector('edge')
+          .style({
+            'font-size': '12px',
+            width: '4px',
+            opacity: '0.9'
+          })
+          .update();
+      }
     }
   }, [isMinimized]);
   
@@ -227,12 +263,25 @@ export default function RadialNetwork({
     const pushEdge = (source, target, group, opts = {}) => {
       if (source === target) return; // avoid self loops
       const edgeId = `${source}-${target}`;
+      
+      // Create edge label based on question info
+      let edgeLabel = '';
+      if (opts.hasQuestion) {
+        const difficultyIcon = opts.questionDifficulty === 'easy' ? '🟢' : 
+                              opts.questionDifficulty === 'medium' ? '🟡' : '🔴';
+        const pathIcon = opts.pathType === 'inward' ? '→' : 
+                        opts.pathType === 'lateral' ? '↔' : 
+                        opts.pathType === 'final' ? '🎯' : '?';
+        edgeLabel = `${difficultyIcon}${pathIcon}`;
+      }
+      
       edges.push({ 
         data: { 
           id: edgeId, 
           source, 
           target, 
           group, 
+          label: edgeLabel,
           hasQuestion: opts.hasQuestion || false,
           questionDifficulty: opts.questionDifficulty || 'unknown',
           pathType: opts.pathType || 'unknown',
@@ -366,15 +415,17 @@ export default function RadialNetwork({
             color: '#fff',
             'text-valign': 'center',
             'text-halign': 'center',
-            width: 40,
-            height: 40,
-            'font-size': 10,
+            width: 45,
+            height: 45,
+            'font-size': 11,
             'font-weight': 'bold',
             'border-width': 3,
             'border-color': '#fff',
             'text-outline-width': 2,
             'text-outline-color': '#000',
             'overlay-opacity': 0,
+            'text-wrap': 'wrap',
+            'text-max-width': '80px'
           },
         },
         // Safe Zone styling - green center
@@ -496,16 +547,27 @@ export default function RadialNetwork({
             'border-width': 5
           } 
         },
-        // Base edge styling - undirected clean lines
+        // Base edge styling - with labels and better visibility
         {
           selector: 'edge',
           style: {
-            width: 3,
+            width: 4,
             'line-color': '#495057',
             'curve-style': 'straight',
-            opacity: 0.8,
-            'target-arrow-shape': 'none', // Remove arrows for undirected graph
-            'source-arrow-shape': 'none'
+            opacity: 0.9,
+            'target-arrow-shape': 'none',
+            'source-arrow-shape': 'none',
+            label: 'data(label)',
+            'font-size': 12,
+            'font-weight': 'bold',
+            'text-background-color': '#000',
+            'text-background-opacity': 0.8,
+            'text-background-padding': '3px',
+            'text-background-shape': 'round-rectangle',
+            color: '#fff',
+            'text-outline-width': 1,
+            'text-outline-color': '#000',
+            'edge-text-rotation': 'autorotate'
           },
         },
         // Ring 1 to Target edges - final approach (hardest questions)
