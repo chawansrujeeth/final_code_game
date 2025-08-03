@@ -6,6 +6,7 @@ export default function RadialNetwork({
   nodeData = {},
   gameState = {},
   onNodeClick = () => {},
+  onEdgeClick = () => {},
   onPlayerMove = () => {},
   isMinimized = false,
   showHUD = true,
@@ -62,6 +63,19 @@ export default function RadialNetwork({
     });
   }, [blueZoneLevel]);
   
+  // Handle minimap fit when isMinimized changes
+  useEffect(() => {
+    if (cyRef.current && isMinimized) {
+      setTimeout(() => {
+        cyRef.current.fit();
+        cyRef.current.zoom({
+          level: cyRef.current.zoom() * 0.8, // Zoom out for better overview
+          renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
+        });
+      }, 100);
+    }
+  }, [isMinimized]);
+  
   useEffect(() => {
     if (cyRef.current) return; // prevent re-init
 
@@ -89,13 +103,13 @@ export default function RadialNetwork({
     nodes.push({ 
       data: { 
         id: 'TARGET', 
-        label: 'SAFE ZONE', 
+        label: 'VICTORY ZONE', 
         level: 0, 
         class: 'core',
         nodeType: 'target',
-        questionId: null, // No question for final safe zone
         isWinCondition: true,
         zoneType: 'safe',
+        safePointInfo: 'Final destination - reach here to win!',
         ...nodeData.TARGET
       }, 
       position: center 
@@ -110,13 +124,13 @@ export default function RadialNetwork({
       nodes.push({ 
         data: { 
           id, 
-          label: `Zone 1-${i + 1}`, 
+          label: `Safe Point 1-${i + 1}`, 
           level: 1, 
           class: 'layer1',
           nodeType: 'ring1',
           ringIndex: i,
-          questionId: `q1_${i + 1}`, // Each node has a question
-          zoneType: 'safe', // Initially safe
+          zoneType: 'safe',
+          safePointInfo: `Inner ring safe point - high security zone`,
           maxHealth: 100,
           ...nodeData[id]
         }, 
@@ -133,13 +147,13 @@ export default function RadialNetwork({
       nodes.push({ 
         data: { 
           id, 
-          label: `Zone 2-${i + 1}`, 
+          label: `Safe Point 2-${i + 1}`, 
           level: 2, 
           class: 'layer2',
           nodeType: 'ring2',
           ringIndex: i,
-          questionId: `q2_${i + 1}`,
           zoneType: 'safe',
+          safePointInfo: `Middle ring safe point - moderate security`,
           maxHealth: 100,
           ...nodeData[id]
         }, 
@@ -156,13 +170,13 @@ export default function RadialNetwork({
       nodes.push({ 
         data: { 
           id, 
-          label: `Zone 3-${i + 1}`, 
+          label: `Safe Point 3-${i + 1}`, 
           level: 3, 
           class: 'layer3',
           nodeType: 'ring3',
           ringIndex: i,
-          questionId: `q3_${i + 1}`,
           zoneType: 'safe',
+          safePointInfo: `Outer ring safe point - basic security`,
           maxHealth: 100,
           ...nodeData[id]
         }, 
@@ -209,56 +223,100 @@ export default function RadialNetwork({
     // Edges array
     const edges = [];
 
-    // Edge helper to push with group and style
+    // Edge helper to push with group and style - now includes question info
     const pushEdge = (source, target, group, opts = {}) => {
       if (source === target) return; // avoid self loops
-      edges.push({ data: { id: `${source}-${target}`, source, target, group, ...opts } });
+      const edgeId = `${source}-${target}`;
+      edges.push({ 
+        data: { 
+          id: edgeId, 
+          source, 
+          target, 
+          group, 
+          hasQuestion: opts.hasQuestion || false,
+          questionDifficulty: opts.questionDifficulty || 'unknown',
+          pathType: opts.pathType || 'unknown',
+          ...opts 
+        } 
+      });
     };
 
-    // TARGET to Ring 1 connections (radial spokes to all inner nodes)
+    // Ring 1 to TARGET connections (final approach - hardest questions)
     for (let i = 1; i <= ring1Count; i++) {
-      pushEdge('TARGET', `R1_${i}`, 'target-to-ring1');
+      pushEdge(`R1_${i}`, 'TARGET', 'ring1-to-target', {
+        hasQuestion: true,
+        questionDifficulty: 'hard',
+        pathType: 'final'
+      });
     }
 
-    // Ring 1 circular connections (form complete circle)
+    // Ring 1 circular connections (lateral movement - hard questions)
     for (let i = 1; i <= ring1Count; i++) {
       const curr = `R1_${i}`;
       const next = `R1_${(i % ring1Count) + 1}`;
-      pushEdge(curr, next, 'ring1-circle');
+      pushEdge(curr, next, 'ring1-circle', {
+        hasQuestion: true,
+        questionDifficulty: 'hard',
+        pathType: 'lateral'
+      });
     }
 
-    // Ring 1 to Ring 2 connections (each R1 connects to nearest R2 nodes)
-    for (let i = 1; i <= ring1Count; i++) {
-      const r1Node = `R1_${i}`;
-      // Connect to 2 nearest R2 nodes for smooth transition
-      const r2Index1 = Math.floor(((i - 1) * ring2Count) / ring1Count) + 1;
-      const r2Index2 = (r2Index1 % ring2Count) + 1;
-      pushEdge(r1Node, `R2_${r2Index1}`, 'ring1-to-ring2');
-      pushEdge(r1Node, `R2_${r2Index2}`, 'ring1-to-ring2');
+    // Ring 2 to Ring 1 connections (inward movement - medium questions)
+    for (let i = 1; i <= ring2Count; i++) {
+      const r2Node = `R2_${i}`;
+      // Connect to nearest R1 nodes for inward progression
+      const r1Index1 = Math.floor(((i - 1) * ring1Count) / ring2Count) + 1;
+      const r1Index2 = (r1Index1 % ring1Count) + 1;
+      pushEdge(r2Node, `R1_${r1Index1}`, 'ring2-to-ring1', {
+        hasQuestion: true,
+        questionDifficulty: 'medium',
+        pathType: 'inward'
+      });
+      pushEdge(r2Node, `R1_${r1Index2}`, 'ring2-to-ring1', {
+        hasQuestion: true,
+        questionDifficulty: 'medium',
+        pathType: 'inward'
+      });
     }
 
-    // Ring 2 circular connections (form complete circle)
+    // Ring 2 circular connections (lateral movement - medium questions)
     for (let i = 1; i <= ring2Count; i++) {
       const curr = `R2_${i}`;
       const next = `R2_${(i % ring2Count) + 1}`;
-      pushEdge(curr, next, 'ring2-circle');
+      pushEdge(curr, next, 'ring2-circle', {
+        hasQuestion: true,
+        questionDifficulty: 'medium',
+        pathType: 'lateral'
+      });
     }
 
-    // Ring 2 to Ring 3 connections (each R2 connects to nearest R3 nodes)
-    for (let i = 1; i <= ring2Count; i++) {
-      const r2Node = `R2_${i}`;
-      // Connect to nearest R3 nodes
-      const r3Index1 = Math.floor(((i - 1) * ring3Count) / ring2Count) + 1;
-      const r3Index2 = (r3Index1 % ring3Count) + 1;
-      pushEdge(r2Node, `R3_${r3Index1}`, 'ring2-to-ring3');
-      pushEdge(r2Node, `R3_${r3Index2}`, 'ring2-to-ring3');
+    // Ring 3 to Ring 2 connections (inward movement - easy questions)
+    for (let i = 1; i <= ring3Count; i++) {
+      const r3Node = `R3_${i}`;
+      // Connect to nearest R2 nodes for inward progression
+      const r2Index1 = Math.floor(((i - 1) * ring2Count) / ring3Count) + 1;
+      const r2Index2 = (r2Index1 % ring2Count) + 1;
+      pushEdge(r3Node, `R2_${r2Index1}`, 'ring3-to-ring2', {
+        hasQuestion: true,
+        questionDifficulty: 'easy',
+        pathType: 'inward'
+      });
+      pushEdge(r3Node, `R2_${r2Index2}`, 'ring3-to-ring2', {
+        hasQuestion: true,
+        questionDifficulty: 'easy',
+        pathType: 'inward'
+      });
     }
 
-    // Ring 3 circular connections (form complete circle)
+    // Ring 3 circular connections (lateral movement - easy questions)
     for (let i = 1; i <= ring3Count; i++) {
       const curr = `R3_${i}`;
       const next = `R3_${(i % ring3Count) + 1}`;
-      pushEdge(curr, next, 'ring3-circle');
+      pushEdge(curr, next, 'ring3-circle', {
+        hasQuestion: true,
+        questionDifficulty: 'easy',
+        pathType: 'lateral'
+      });
     }
 
     // Ring 3 to Player connections (dynamic based on player count)
@@ -283,7 +341,10 @@ export default function RadialNetwork({
     
     Object.entries(playerToR3Mapping).forEach(([player, r3Nodes]) => {
       r3Nodes.forEach(r3Node => {
-        pushEdge(r3Node, player, 'ring3-to-player');
+        pushEdge(player, r3Node, 'player-to-ring3', {
+          hasQuestion: false, // No question needed to move from player spawn to outer ring
+          pathType: 'spawn'
+        });
       });
     });
 
@@ -447,68 +508,113 @@ export default function RadialNetwork({
             'source-arrow-shape': 'none'
           },
         },
-        // Target to Ring 1 edges - radial spokes
+        // Ring 1 to Target edges - final approach (hardest questions)
         { 
-          selector: "edge[group='target-to-ring1']", 
+          selector: "edge[group='ring1-to-target']", 
           style: { 
-            'line-color': '#e53e3e', 
-            width: 4,
-            opacity: 0.9
+            'line-color': '#dc3545', 
+            width: 5,
+            opacity: 1,
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#dc3545',
+            'curve-style': 'straight'
           } 
         },
-        // Ring 1 circular edges
+        // Ring 1 circular edges (lateral hard questions)
         { 
           selector: "edge[group='ring1-circle']", 
           style: { 
             'line-color': '#fd7e14', 
-            width: 3,
-            opacity: 0.8
+            width: 4,
+            opacity: 0.9,
+            'curve-style': 'bezier'
           } 
         },
-        // Ring 1 to Ring 2 edges
+        // Ring 2 to Ring 1 edges (inward medium questions)
         { 
-          selector: "edge[group='ring1-to-ring2']", 
+          selector: "edge[group='ring2-to-ring1']", 
           style: { 
             'line-color': '#ffc107', 
-            width: 3,
-            opacity: 0.7
+            width: 4,
+            opacity: 0.8,
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#ffc107'
           } 
         },
-        // Ring 2 circular edges
+        // Ring 2 circular edges (lateral medium questions)
         { 
           selector: "edge[group='ring2-circle']", 
           style: { 
             'line-color': '#20c997', 
-            width: 3,
-            opacity: 0.8
+            width: 4,
+            opacity: 0.8,
+            'curve-style': 'bezier'
           } 
         },
-        // Ring 2 to Ring 3 edges
+        // Ring 3 to Ring 2 edges (inward easy questions)
         { 
-          selector: "edge[group='ring2-to-ring3']", 
+          selector: "edge[group='ring3-to-ring2']", 
           style: { 
             'line-color': '#17a2b8', 
-            width: 3,
-            opacity: 0.7
+            width: 4,
+            opacity: 0.8,
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#17a2b8'
           } 
         },
-        // Ring 3 circular edges
+        // Ring 3 circular edges (lateral easy questions)
         { 
           selector: "edge[group='ring3-circle']", 
           style: { 
             'line-color': '#0dcaf0', 
-            width: 3,
-            opacity: 0.8
+            width: 4,
+            opacity: 0.8,
+            'curve-style': 'bezier'
           } 
         },
-        // Ring 3 to Player edges - final connections
+        // Player to Ring 3 edges - spawn connections (no questions)
         { 
-          selector: "edge[group='ring3-to-player']", 
+          selector: "edge[group='player-to-ring3']", 
           style: { 
             'line-color': '#6f42c1', 
-            width: 4,
-            opacity: 0.9
+            width: 3,
+            opacity: 0.6,
+            'line-style': 'dashed'
           } 
+        },
+        // Question edges - special styling for edges with questions
+        {
+          selector: "edge[hasQuestion='true']",
+          style: {
+            'line-style': 'solid',
+            'target-arrow-shape': 'triangle',
+            'source-endpoint': 'outside-to-node',
+            'target-endpoint': 'outside-to-node'
+          }
+        },
+        // Easy difficulty edges
+        {
+          selector: "edge[questionDifficulty='easy']",
+          style: {
+            'line-color': '#28a745',
+            width: 3
+          }
+        },
+        // Medium difficulty edges  
+        {
+          selector: "edge[questionDifficulty='medium']",
+          style: {
+            'line-color': '#ffc107',
+            width: 4
+          }
+        },
+        // Hard difficulty edges
+        {
+          selector: "edge[questionDifficulty='hard']",
+          style: {
+            'line-color': '#dc3545',
+            width: 5
+          }
         },
         // Highlighted path elements
         {
@@ -565,7 +671,7 @@ export default function RadialNetwork({
       autounselectify: false
     });
 
-    // Node click handler - attempt to solve question or move
+    // Node click handler - safe points (no questions)
     cyRef.current.on('tap', 'node', (evt) => {
       const node = evt.target;
       const nodeData = node.data();
@@ -575,8 +681,19 @@ export default function RadialNetwork({
         setSelectedPlayer(nodeData.id);
         highlightPlayerOptions(nodeData.id);
       } else {
-        // Zone/question node clicked
+        // Safe point clicked - show information
         onNodeClick(nodeData);
+      }
+    });
+    
+    // Edge click handler - attempt to traverse path (answer question)
+    cyRef.current.on('tap', 'edge', (evt) => {
+      const edge = evt.target;
+      const edgeData = edge.data();
+      
+      if (edgeData.hasQuestion) {
+        // Edge with question clicked - attempt traversal
+        onEdgeClick(edgeData);
       }
     });
     
@@ -723,6 +840,20 @@ export default function RadialNetwork({
       const el = node.data('tooltipEl');
       if (el) el.remove();
     });
+
+    // Ensure proper fit for minimap overview
+    setTimeout(() => {
+      if (cyRef.current) {
+        cyRef.current.fit();
+        if (isMinimized) {
+          // For minimap, ensure we can see the entire network
+          cyRef.current.zoom({
+            level: cyRef.current.zoom() * 0.8, // Zoom out a bit more for better overview
+            renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
+          });
+        }
+      }
+    }, 100);
 
     return () => {
       cyRef.current?.destroy();

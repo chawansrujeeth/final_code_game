@@ -22,38 +22,47 @@ export default function BattleRoyaleGame() {
     PLAYER_D: { health: 100, currentZone: 4, questionsAnswered: 0, isAlive: true }
   });
   
-  const [questions] = useState({
-    // Zone 3 questions (easiest)
-    q3_1: { question: "What is 2 + 2?", answer: "4", difficulty: "easy" },
-    q3_2: { question: "What color is the sky?", answer: "blue", difficulty: "easy" },
-    q3_3: { question: "How many legs does a cat have?", answer: "4", difficulty: "easy" },
-    q3_4: { question: "What is the capital of France?", answer: "paris", difficulty: "easy" },
-    q3_5: { question: "What is 5 x 3?", answer: "15", difficulty: "easy" },
-    q3_6: { question: "Which planet is closest to the sun?", answer: "mercury", difficulty: "easy" },
-    q3_7: { question: "What is 10 - 7?", answer: "3", difficulty: "easy" },
-    q3_8: { question: "How many days in a week?", answer: "7", difficulty: "easy" },
-    q3_9: { question: "What is the largest ocean?", answer: "pacific", difficulty: "easy" },
-    q3_10: { question: "What is 6 + 4?", answer: "10", difficulty: "easy" },
-    q3_11: { question: "What gas do plants produce?", answer: "oxygen", difficulty: "easy" },
-    q3_12: { question: "What is 8 / 2?", answer: "4", difficulty: "easy" },
+  // Edge-based questions - each edge represents a path with a question to traverse
+  const [edgeQuestions] = useState({
+    // Ring 3 to Ring 2 questions (easiest - outer to middle)
+    'R3_1-R2_1': { question: "What is 2 + 2?", answer: "4", difficulty: "easy", pathType: "inward" },
+    'R3_2-R2_1': { question: "What color is the sky?", answer: "blue", difficulty: "easy", pathType: "inward" },
+    'R3_3-R2_2': { question: "How many legs does a cat have?", answer: "4", difficulty: "easy", pathType: "inward" },
+    'R3_4-R2_2': { question: "What is the capital of France?", answer: "paris", difficulty: "easy", pathType: "inward" },
+    'R3_5-R2_3': { question: "What is 5 x 3?", answer: "15", difficulty: "easy", pathType: "inward" },
+    'R3_6-R2_3': { question: "Which planet is closest to the sun?", answer: "mercury", difficulty: "easy", pathType: "inward" },
+    'R3_7-R2_4': { question: "What is 10 - 7?", answer: "3", difficulty: "easy", pathType: "inward" },
+    'R3_8-R2_4': { question: "How many days in a week?", answer: "7", difficulty: "easy", pathType: "inward" },
+    'R3_9-R2_5': { question: "What is the largest ocean?", answer: "pacific", difficulty: "easy", pathType: "inward" },
+    'R3_10-R2_5': { question: "What gas do plants produce?", answer: "oxygen", difficulty: "easy", pathType: "inward" },
+    'R3_11-R2_6': { question: "What is 8 / 2?", answer: "4", difficulty: "easy", pathType: "inward" },
+    'R3_12-R2_6': { question: "What is 6 + 4?", answer: "10", difficulty: "easy", pathType: "inward" },
     
-    // Zone 2 questions (medium)
-    q2_1: { question: "What is the square root of 64?", answer: "8", difficulty: "medium" },
-    q2_2: { question: "Who wrote Romeo and Juliet?", answer: "shakespeare", difficulty: "medium" },
-    q2_3: { question: "What is the chemical symbol for gold?", answer: "au", difficulty: "medium" },
-    q2_4: { question: "In which year did World War II end?", answer: "1945", difficulty: "medium" },
-    q2_5: { question: "What is 15% of 200?", answer: "30", difficulty: "medium" },
-    q2_6: { question: "Which programming language is known for AI?", answer: "python", difficulty: "medium" },
-    q2_7: { question: "What is the powerhouse of the cell?", answer: "mitochondria", difficulty: "medium" },
-    q2_8: { question: "What is 7 x 8?", answer: "56", difficulty: "medium" },
+    // Ring 2 to Ring 1 questions (medium difficulty)
+    'R2_1-R1_1': { question: "What is the square root of 64?", answer: "8", difficulty: "medium", pathType: "inward" },
+    'R2_2-R1_1': { question: "Who wrote Romeo and Juliet?", answer: "shakespeare", difficulty: "medium", pathType: "inward" },
+    'R2_3-R1_2': { question: "What is the chemical symbol for gold?", answer: "au", difficulty: "medium", pathType: "inward" },
+    'R2_4-R1_2': { question: "In which year did World War II end?", answer: "1945", difficulty: "medium", pathType: "inward" },
+    'R2_5-R1_3': { question: "What is 15% of 200?", answer: "30", difficulty: "medium", pathType: "inward" },
+    'R2_6-R1_3': { question: "Which programming language is known for AI?", answer: "python", difficulty: "medium", pathType: "inward" },
+    'R2_7-R1_4': { question: "What is the powerhouse of the cell?", answer: "mitochondria", difficulty: "medium", pathType: "inward" },
+    'R2_8-R1_4': { question: "What is 7 x 8?", answer: "56", difficulty: "medium", pathType: "inward" },
     
-    // Zone 1 questions (hard)
-    q1_1: { question: "What is the derivative of x²?", answer: "2x", difficulty: "hard" },
-    q1_2: { question: "Who developed the theory of relativity?", answer: "einstein", difficulty: "hard" },
-    q1_3: { question: "What is the time complexity of binary search?", answer: "o(log n)", difficulty: "hard" },
-    q1_4: { question: "What is the 10th Fibonacci number?", answer: "55", difficulty: "hard" },
-    q1_5: { question: "What is the atomic number of carbon?", answer: "6", difficulty: "hard" },
-    q1_6: { question: "In which year was JavaScript created?", answer: "1995", difficulty: "hard" }
+    // Ring 1 to Target questions (hardest - final approach)
+    'R1_1-TARGET': { question: "What is the derivative of x²?", answer: "2x", difficulty: "hard", pathType: "final" },
+    'R1_2-TARGET': { question: "Who developed the theory of relativity?", answer: "einstein", difficulty: "hard", pathType: "final" },
+    'R1_3-TARGET': { question: "What is the time complexity of binary search?", answer: "o(log n)", difficulty: "hard", pathType: "final" },
+    'R1_4-TARGET': { question: "What is the 10th Fibonacci number?", answer: "55", difficulty: "hard", pathType: "final" },
+    'R1_5-TARGET': { question: "What is the atomic number of carbon?", answer: "6", difficulty: "hard", pathType: "final" },
+    'R1_6-TARGET': { question: "In which year was JavaScript created?", answer: "1995", difficulty: "hard", pathType: "final" },
+    
+    // Circular movement questions (lateral movement within same ring)
+    'R3_1-R3_2': { question: "What is 3 + 5?", answer: "8", difficulty: "easy", pathType: "lateral" },
+    'R3_2-R3_3': { question: "How many continents are there?", answer: "7", difficulty: "easy", pathType: "lateral" },
+    'R2_1-R2_2': { question: "What is 12 / 4?", answer: "3", difficulty: "medium", pathType: "lateral" },
+    'R2_2-R2_3': { question: "What is the capital of Italy?", answer: "rome", difficulty: "medium", pathType: "lateral" },
+    'R1_1-R1_2': { question: "What is 15²?", answer: "225", difficulty: "hard", pathType: "lateral" },
+    'R1_2-R1_3': { question: "What is the speed of light?", answer: "299792458", difficulty: "hard", pathType: "lateral" }
   });
   
   const [currentQuestion, setCurrentQuestion] = useState(null);
@@ -61,20 +70,34 @@ export default function BattleRoyaleGame() {
   const [showResult, setShowResult] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
   
-  // Handle node clicks (when player tries to answer a question)
-  const handleNodeClick = (nodeData) => {
-    if (!nodeData.questionId || !gameState.isGameActive) return;
+  // Handle edge clicks (when player tries to traverse a path)
+  const handleEdgeClick = (edgeData) => {
+    if (!edgeData.id || !gameState.isGameActive) return;
     
-    const question = questions[nodeData.questionId];
+    const question = edgeQuestions[edgeData.id];
     if (!question) return;
+    
+    // Check if player can traverse this edge
+    const sourceNode = edgeData.source;
+    const targetNode = edgeData.target;
     
     setCurrentQuestion({
       ...question,
-      nodeId: nodeData.id,
-      questionId: nodeData.questionId
+      edgeId: edgeData.id,
+      sourceNode,
+      targetNode,
+      pathDescription: `${sourceNode} → ${targetNode}`
     });
     setPlayerAnswer('');
     setShowResult(false);
+  };
+  
+  // Handle node clicks (safe points - no questions, just information)
+  const handleNodeClick = (nodeData) => {
+    if (!gameState.isGameActive) return;
+    
+    // Show node information (safe point details)
+    console.log(`Clicked safe point: ${nodeData.id}`, nodeData);
   };
   
   // Handle player movement after correct answer
@@ -98,25 +121,37 @@ export default function BattleRoyaleGame() {
     }
   };
   
-  // Submit answer
+  // Submit answer for edge traversal
   const submitAnswer = () => {
     if (!currentQuestion) return;
     
     const isCorrect = playerAnswer.toLowerCase().trim() === currentQuestion.answer.toLowerCase();
     
     if (isCorrect) {
-      setResultMessage(`✅ Correct! You can now move to the next zone.`);
-      // Allow movement logic here
+      setResultMessage(`✅ Correct! Path unlocked: ${currentQuestion.pathDescription}`);
+      
+      // Handle successful traversal
+      if (currentQuestion.pathType === 'inward') {
+        setResultMessage(prev => prev + " You moved closer to the center!");
+      } else if (currentQuestion.pathType === 'final') {
+        setResultMessage(prev => prev + " Final approach to victory!");
+      } else if (currentQuestion.pathType === 'lateral') {
+        setResultMessage(prev => prev + " You repositioned within the zone.");
+      }
+      
+      // TODO: Implement actual player movement logic
     } else {
-      setResultMessage(`❌ Wrong answer! The correct answer was: ${currentQuestion.answer}`);
-      // Damage logic here
+      setResultMessage(`❌ Wrong answer! Path blocked. The correct answer was: ${currentQuestion.answer}`);
+      
+      // Handle failed traversal - player takes damage or loses turn
+      setResultMessage(prev => prev + " You cannot traverse this path.");
     }
     
     setShowResult(true);
     setTimeout(() => {
       setCurrentQuestion(null);
       setShowResult(false);
-    }, 3000);
+    }, 4000);
   };
   
   // Prepare node data for the network
@@ -154,7 +189,8 @@ export default function BattleRoyaleGame() {
         left: 0,
         right: 0,
         bottom: 0,
-        display: 'flex'
+        display: 'flex',
+        overflow: 'hidden'
       }}>
         
         {/* Left Side - Questions Panel */}
@@ -167,7 +203,9 @@ export default function BattleRoyaleGame() {
           flexDirection: 'column',
           padding: '20px',
           color: 'white',
-          overflow: 'auto'
+          overflow: 'auto',
+          overflowX: 'hidden',
+          scrollBehavior: 'smooth'
         }}>
           <div style={{
             textAlign: 'center',
@@ -176,10 +214,10 @@ export default function BattleRoyaleGame() {
             paddingBottom: '15px'
           }}>
             <h2 style={{ color: '#00ff88', margin: 0, fontSize: '24px' }}>
-              🎯 Battle Questions
+              🛤️ Path Traversal
             </h2>
             <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
-              Answer correctly to progress through zones
+              Click edges to traverse paths - answer questions to unlock routes
             </p>
           </div>
           
@@ -210,12 +248,38 @@ export default function BattleRoyaleGame() {
                   {currentQuestion.difficulty.toUpperCase()}
                 </span>
                 <span style={{ color: '#00ff88', fontSize: '14px' }}>
-                  {currentQuestion.questionId}
+                  Path: {currentQuestion.pathDescription}
                 </span>
               </div>
-              <h3 style={{ color: '#fff', marginBottom: '15px', fontSize: '18px' }}>
-                {currentQuestion.question}
-              </h3>
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ 
+                  color: '#00ff88', 
+                  fontSize: '14px', 
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span style={{
+                    background: currentQuestion.pathType === 'inward' ? '#17a2b8' :
+                               currentQuestion.pathType === 'lateral' ? '#ffc107' :
+                               currentQuestion.pathType === 'final' ? '#dc3545' : '#6c757d',
+                    color: currentQuestion.pathType === 'lateral' ? '#000' : '#fff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold'
+                  }}>
+                    {currentQuestion.pathType.toUpperCase()}
+                  </span>
+                  {currentQuestion.pathType === 'inward' && '→ Moving toward center'}
+                  {currentQuestion.pathType === 'lateral' && '↔ Moving within same ring'}
+                  {currentQuestion.pathType === 'final' && '🎯 Final approach to victory'}
+                </div>
+                <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>
+                  {currentQuestion.question}
+                </h3>
+              </div>
               <input
                 type="text"
                 value={playerAnswer}
@@ -296,8 +360,19 @@ export default function BattleRoyaleGame() {
               textAlign: 'center',
               color: '#999'
             }}>
-              <h3 style={{ margin: '0 0 10px 0' }}>📍 Select a Zone</h3>
-              <p style={{ margin: 0 }}>Click on a zone in the minimap to start answering questions</p>
+              <h3 style={{ margin: '0 0 10px 0' }}>🛤️ Select a Path</h3>
+              <p style={{ margin: 0 }}>Click on an edge (path) in the map to traverse it</p>
+              <div style={{ 
+                marginTop: '15px', 
+                fontSize: '12px', 
+                color: '#666',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px'
+              }}>
+                <div>🔵 Nodes = Safe Points (no questions)</div>
+                <div>➡️ Edges = Paths with Questions</div>
+              </div>
             </div>
           )}
           
@@ -308,12 +383,14 @@ export default function BattleRoyaleGame() {
             borderRadius: '8px',
             padding: '15px'
           }}>
-            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 Game Rules:</h4>
+            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 New Game Rules:</h4>
             <ul style={{ color: '#ccc', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
-              <li>Answer questions correctly to move to inner zones</li>
-              <li>Blue zones deal damage over time</li>
-              <li>Reach the center safe zone to win</li>
-              <li>Use the minimap to navigate and select zones</li>
+              <li>🔵 <strong>Nodes</strong> are safe points - no questions, just rest stops</li>
+              <li>➡️ <strong>Edges</strong> are paths with questions - click to traverse</li>
+              <li>🟢 Green edges = Easy questions (outer ring movement)</li>
+              <li>🟡 Yellow edges = Medium questions (middle ring movement)</li>
+              <li>🔴 Red edges = Hard questions (inner ring & final approach)</li>
+              <li>🎯 Reach the center victory zone to win!</li>
             </ul>
           </div>
         </div>
@@ -327,7 +404,10 @@ export default function BattleRoyaleGame() {
           flexDirection: 'column',
           padding: '20px',
           color: 'white',
-          position: 'relative'
+          position: 'relative',
+          overflow: 'auto',
+          overflowX: 'hidden',
+          scrollBehavior: 'smooth'
         }}>
           <div style={{
             textAlign: 'center',
@@ -470,6 +550,7 @@ export default function BattleRoyaleGame() {
                 nodeData={nodeData}
                 gameState={gameState}
                 onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
                 onPlayerMove={handlePlayerMove}
                 isMinimized={true}
                 showHUD={false}
@@ -554,6 +635,7 @@ export default function BattleRoyaleGame() {
                   nodeData={nodeData}
                   gameState={gameState}
                   onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
                   onPlayerMove={handlePlayerMove}
                   isMinimized={false}
                   showHUD={true}
