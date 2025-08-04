@@ -1,4 +1,6 @@
 // frontend/src/battleRoyaleSocket.js
+// Optimized for Render free tier with reconnection support
+
 import { io } from 'socket.io-client';
 
 class BattleRoyaleSocket {
@@ -6,7 +8,12 @@ class BattleRoyaleSocket {
     this.socket = null;
     this.sessionId = null;
     this.playerId = null;
+    this.playerName = null;
     this.isConnected = false;
+    this.isReconnecting = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.eventHandlers = new Map();
   }
 
   connect(serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003') {
@@ -16,24 +23,91 @@ class BattleRoyaleSocket {
 
     console.log('Connecting to Battle Royale server:', serverUrl);
     this.socket = io(serverUrl, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      // Optimize for Render free tier
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: this.maxReconnectAttempts
     });
 
+    this.setupSocketEvents();
+    return this.socket;
+  }
+
+  setupSocketEvents() {
     this.socket.on('connect', () => {
-      console.log('Connected to Battle Royale server:', this.socket.id);
+      console.log('✅ Connected to Battle Royale server:', this.socket.id);
       this.isConnected = true;
+      this.isReconnecting = false;
+      this.reconnectAttempts = 0;
+      
+      // Auto-rejoin session if we were in one
+      if (this.sessionId && this.playerId && this.playerName) {
+        console.log('🔄 Auto-rejoining session after reconnection...');
+        this.joinSession(this.sessionId, this.playerId, this.playerName);
+      }
+      
+      this.emit('connection_status', { connected: true, reconnected: this.isReconnecting });
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from Battle Royale server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Disconnected from Battle Royale server:', reason);
       this.isConnected = false;
+      
+      // Handle different disconnect reasons
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, don't auto-reconnect
+        this.emit('connection_status', { connected: false, serverDisconnect: true });
+      } else {
+        // Client-side or network issue, will auto-reconnect
+        this.emit('connection_status', { connected: false, willReconnect: true });
+      }
+    });
+
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log(`🔄 Reconnected after ${attemptNumber} attempts`);
+      this.isReconnecting = true;
+    });
+
+    this.socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Reconnection attempt ${attemptNumber}/${this.maxReconnectAttempts}`);
+      this.reconnectAttempts = attemptNumber;
+      this.emit('connection_status', { 
+        connected: false, 
+        reconnecting: true, 
+        attempt: attemptNumber,
+        maxAttempts: this.maxReconnectAttempts
+      });
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.log('❌ Failed to reconnect after maximum attempts');
+      this.emit('connection_status', { connected: false, reconnectFailed: true });
     });
 
     this.socket.on('error', (error) => {
       console.error('Battle Royale socket error:', error);
+      this.emit('socket_error', error);
     });
 
-    return this.socket;
+    // Handle new backend events
+    this.socket.on('connection_success', (data) => {
+      console.log('✅ Connection success:', data.message);
+      this.emit('connection_success', data);
+    });
+
+    this.socket.on('player_disconnected', (data) => {
+      console.log('👋 Player disconnected:', data.message);
+      this.emit('player_disconnected', data);
+    });
+
+    this.socket.on('player_left', (data) => {
+      console.log('🚪 Player left:', data.message);
+      this.emit('player_left', data);
+    });
   }
 
   disconnect() {
@@ -51,12 +125,31 @@ class BattleRoyaleSocket {
 
     this.sessionId = sessionId;
     this.playerId = playerId;
+    this.playerName = playerName;
 
+    console.log(`🎮 Joining session ${sessionId} as ${playerName} (${playerId})`);
     this.socket.emit('join_battle_royale', {
       sessionId,
       playerId,
       playerName
     });
+  }
+
+  leaveGame() {
+    if (!this.socket || !this.sessionId || !this.playerId) {
+      return;
+    }
+
+    console.log(`🚪 Leaving game session ${this.sessionId}`);
+    this.socket.emit('leave_game', {
+      sessionId: this.sessionId,
+      playerId: this.playerId
+    });
+
+    // Clear session data
+    this.sessionId = null;
+    this.playerId = null;
+    this.playerName = null;
   }
 
   requestQuestion(difficulty, edgeId) {
@@ -128,29 +221,88 @@ class BattleRoyaleSocket {
     });
   }
 
-  // Event listeners
-  onGameStateUpdate(callback) {
-    if (this.socket) {
-      this.socket.on('game_state_update', callback);
+  // Enhanced event handling system
+  on(event, callback) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
     }
+    this.eventHandlers.get(event).add(callback);
+    
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  off(event, callback) {
+    if (this.eventHandlers.has(event)) {
+      this.eventHandlers.get(event).delete(callback);
+    }
+    
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
+
+  emit(event, data) {
+    if (this.eventHandlers.has(event)) {
+      this.eventHandlers.get(event).forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`Error in event handler for ${event}:`, error);
+        }
+      });
+    }
+  }
+
+  // Convenience methods for common events
+  onGameStateUpdate(callback) {
+    this.on('game_state_update', callback);
   }
 
   onGameOver(callback) {
-    if (this.socket) {
-      this.socket.on('game_over', callback);
-    }
+    this.on('game_over', callback);
   }
 
   onPlayerEliminated(callback) {
-    if (this.socket) {
-      this.socket.on('player_eliminated', callback);
-    }
+    this.on('player_eliminated', callback);
   }
 
-  // Remove event listeners
-  off(event, callback) {
+  onConnectionStatus(callback) {
+    this.on('connection_status', callback);
+  }
+
+  onConnectionSuccess(callback) {
+    this.on('connection_success', callback);
+  }
+
+  onPlayerDisconnected(callback) {
+    this.on('player_disconnected', callback);
+  }
+
+  onPlayerLeft(callback) {
+    this.on('player_left', callback);
+  }
+
+  // Connection status helpers
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      isReconnecting: this.isReconnecting,
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      sessionId: this.sessionId,
+      playerId: this.playerId,
+      playerName: this.playerName
+    };
+  }
+
+  // Force reconnection
+  forceReconnect() {
     if (this.socket) {
-      this.socket.off(event, callback);
+      console.log('🔄 Forcing reconnection...');
+      this.socket.disconnect();
+      this.socket.connect();
     }
   }
 

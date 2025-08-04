@@ -1,4 +1,6 @@
 // backend/battle_royale_server.js
+// Optimized for Render free tier with Supabase session persistence
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -11,55 +13,200 @@ const io = socketIo(server, {
   cors: {
     origin: "*", // Allow all origins - replace with your Vercel frontend URL for production
     methods: ["GET", "POST"]
-  }
+  },
+  // Optimize for Render free tier
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 app.use(cors());
 app.use(express.json());
 
-// Store active game sessions and their used questions
-const gameSessions = new Map();
+// In-memory cache for active sessions (cleared on Render sleep)
+const sessionCache = new Map();
 
-// Game session structure
-class GameSession {
+// Persistent Session Management with Supabase
+class PersistentGameSession {
   constructor(sessionId) {
     this.sessionId = sessionId;
-    this.players = new Map(); // playerId -> player data
-    this.usedQuestions = new Set(); // Set of question IDs already used
-    this.createdAt = new Date();
+    this.players = new Map();
+    this.usedQuestions = new Set();
+    this.gameState = {
+      isGameActive: true,
+      playersAlive: 0,
+      currentRound: 1,
+      winner: null,
+      gameOver: false
+    };
+    this.lastSaved = new Date();
+  }
+
+  // Load session from Supabase
+  static async loadSession(sessionId) {
+    try {
+      const { data, error } = await supabase
+        .from('battle_royale_sessions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        console.log(`Creating new session: ${sessionId}`);
+        return new PersistentGameSession(sessionId);
+      }
+
+      console.log(`Loading existing session: ${sessionId}`);
+      const session = new PersistentGameSession(sessionId);
+      
+      // Restore players
+      if (data.players && Array.isArray(data.players)) {
+        data.players.forEach(player => {
+          session.players.set(player.playerId, {
+            ...player,
+            socketId: null, // Will be updated when player reconnects
+            lastSeen: new Date(player.lastSeen || Date.now())
+          });
+        });
+      }
+
+      // Restore used questions
+      if (data.used_questions && Array.isArray(data.used_questions)) {
+        data.used_questions.forEach(qId => session.usedQuestions.add(qId));
+      }
+
+      // Restore game state
+      if (data.game_state) {
+        session.gameState = { ...session.gameState, ...data.game_state };
+      }
+
+      return session;
+    } catch (error) {
+      console.error('Error loading session:', error);
+      return new PersistentGameSession(sessionId);
+    }
+  }
+
+  // Save session to Supabase
+  async saveSession() {
+    try {
+      const playersArray = Array.from(this.players.values()).map(player => ({
+        ...player,
+        lastSeen: new Date().toISOString()
+      }));
+
+      const usedQuestionsArray = Array.from(this.usedQuestions);
+
+      const { error } = await supabase
+        .from('battle_royale_sessions')
+        .upsert({
+          session_id: this.sessionId,
+          players: playersArray,
+          used_questions: usedQuestionsArray,
+          game_state: this.gameState,
+          current_turn: this.gameState.currentTurn,
+          winner: this.gameState.winner,
+          game_over: this.gameState.gameOver,
+          is_active: this.gameState.isGameActive,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving session:', error);
+      } else {
+        this.lastSaved = new Date();
+        console.log(`Session ${this.sessionId} saved to database`);
+      }
+    } catch (error) {
+      console.error('Error saving session:', error);
+    }
   }
 
   addPlayer(playerId, playerData) {
-    this.players.set(playerId, {
+    const player = {
       ...playerData,
-      currentNode: `PLAYER_${playerId}`,
-      currentZone: 'spawn',
-      health: 100,
-      questionsAnswered: 0
-    });
+      currentNode: playerData.currentNode || `PLAYER_${playerId}`,
+      currentZone: playerData.currentZone || 'spawn',
+      health: playerData.health || 100,
+      questionsAnswered: playerData.questionsAnswered || 0,
+      isAlive: true,
+      joinedAt: new Date().toISOString(),
+      lastSeen: new Date().toISOString()
+    };
+    
+    this.players.set(playerId, player);
+    this.gameState.playersAlive = this.players.size;
+    this.saveSession(); // Auto-save on player changes
   }
 
   removePlayer(playerId) {
     this.players.delete(playerId);
+    this.gameState.playersAlive = this.players.size;
+    this.saveSession(); // Auto-save on player changes
+  }
+
+  updatePlayer(playerId, updates) {
+    const player = this.players.get(playerId);
+    if (player) {
+      Object.assign(player, updates, { lastSeen: new Date().toISOString() });
+      this.players.set(playerId, player);
+      
+      // Check if player died
+      if (updates.health !== undefined && updates.health <= 0) {
+        player.isAlive = false;
+        this.gameState.playersAlive = Array.from(this.players.values())
+          .filter(p => p.isAlive).length;
+      }
+      
+      this.saveSession(); // Auto-save on player updates
+    }
   }
 
   markQuestionUsed(questionId) {
     this.usedQuestions.add(questionId);
-  }
-
-  isQuestionUsed(questionId) {
-    return this.usedQuestions.has(questionId);
+    // Save periodically, not on every question
+    if (this.usedQuestions.size % 5 === 0) {
+      this.saveSession();
+    }
   }
 
   getPlayerData(playerId) {
     return this.players.get(playerId);
   }
 
-  updatePlayer(playerId, updates) {
+  getAllPlayers() {
+    return Array.from(this.players.values());
+  }
+
+  // Update socket ID for reconnections
+  updatePlayerSocket(playerId, socketId) {
     const player = this.players.get(playerId);
     if (player) {
-      Object.assign(player, updates);
+      player.socketId = socketId;
+      player.lastSeen = new Date().toISOString();
       this.players.set(playerId, player);
+    }
+  }
+
+  // Clean up inactive players (haven't been seen for 10 minutes)
+  cleanupInactivePlayers() {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    let hasChanges = false;
+    
+    for (const [playerId, player] of this.players.entries()) {
+      const lastSeen = new Date(player.lastSeen);
+      if (lastSeen < tenMinutesAgo) {
+        console.log(`Removing inactive player: ${playerId}`);
+        this.players.delete(playerId);
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      this.gameState.playersAlive = Array.from(this.players.values())
+        .filter(p => p.isAlive).length;
+      this.saveSession();
     }
   }
 }
@@ -98,57 +245,118 @@ async function getRandomQuestion(difficulty, excludeIds = []) {
   }
 }
 
-// Socket.IO connection handling
+// Helper function to get or create session
+async function getOrCreateSession(sessionId) {
+  // Check cache first
+  if (sessionCache.has(sessionId)) {
+    return sessionCache.get(sessionId);
+  }
+  
+  // Load from database
+  const session = await PersistentGameSession.loadSession(sessionId);
+  sessionCache.set(sessionId, session);
+  return session;
+}
+
+// Socket.IO connection handling with Render optimizations
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
+  
+  // Handle connection errors
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
 
-  // Join game session
-  socket.on('join_battle_royale', (data) => {
-    const { sessionId, playerId, playerName } = data;
-    
-    // Create session if it doesn't exist
-    if (!gameSessions.has(sessionId)) {
-      gameSessions.set(sessionId, new GameSession(sessionId));
+  // Join game session with reconnection support
+  socket.on('join_battle_royale', async (data) => {
+    try {
+      const { sessionId, playerId, playerName } = data;
+      
+      if (!sessionId || !playerId || !playerName) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      // Get or create persistent session
+      const session = await getOrCreateSession(sessionId);
+      
+      // Check if player is reconnecting
+      const existingPlayer = session.getPlayerData(playerId);
+      if (existingPlayer) {
+        console.log(`Player ${playerId} reconnecting to session ${sessionId}`);
+        // Update socket ID for reconnection
+        session.updatePlayerSocket(playerId, socket.id);
+      } else {
+        console.log(`Player ${playerId} joining new session ${sessionId}`);
+        // Add new player
+        session.addPlayer(playerId, { 
+          socketId: socket.id, 
+          playerName,
+          playerId 
+        });
+      }
+
+      socket.join(sessionId);
+      socket.sessionId = sessionId;
+      socket.playerId = playerId;
+
+      // Send current game state to all players in session
+      const gameStateUpdate = {
+        players: session.getAllPlayers(),
+        gameState: session.gameState,
+        sessionId,
+        usedQuestionsCount: session.usedQuestions.size
+      };
+      
+      io.to(sessionId).emit('game_state_update', gameStateUpdate);
+      
+      // Send welcome message to the connecting player
+      socket.emit('connection_success', {
+        message: existingPlayer ? 'Reconnected successfully!' : 'Joined game successfully!',
+        playerData: session.getPlayerData(playerId),
+        gameState: session.gameState
+      });
+
+      console.log(`Player ${playerId} ${existingPlayer ? 'reconnected to' : 'joined'} session ${sessionId}`);
+    } catch (error) {
+      console.error('Error handling join_battle_royale:', error);
+      socket.emit('error', { message: 'Failed to join game session' });
     }
-
-    const session = gameSessions.get(sessionId);
-    session.addPlayer(playerId, { 
-      socketId: socket.id, 
-      playerName,
-      playerId 
-    });
-
-    socket.join(sessionId);
-    socket.sessionId = sessionId;
-    socket.playerId = playerId;
-
-    // Send current game state to all players in session
-    io.to(sessionId).emit('game_state_update', {
-      players: Array.from(session.players.values()),
-      sessionId
-    });
-
-    console.log(`Player ${playerId} joined session ${sessionId}`);
   });
 
   // Request question for edge traversal
   socket.on('request_question', async (data) => {
-    const { sessionId, playerId, difficulty, edgeId } = data;
-    
-    if (!gameSessions.has(sessionId)) {
-      socket.emit('error', { message: 'Game session not found' });
-      return;
-    }
-
-    const session = gameSessions.get(sessionId);
-    const usedQuestionIds = Array.from(session.usedQuestions);
-
     try {
+      const { sessionId, playerId, difficulty, edgeId } = data;
+      
+      if (!sessionId || !playerId || !difficulty || !edgeId) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      // Get session from cache or database
+      const session = await getOrCreateSession(sessionId);
+      
+      // Verify player exists in session
+      const player = session.getPlayerData(playerId);
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in session' });
+        return;
+      }
+
+      // Check if game is still active
+      if (!session.gameState.isGameActive || session.gameState.gameOver) {
+        socket.emit('error', { message: 'Game is not active' });
+        return;
+      }
+
+      const usedQuestionIds = Array.from(session.usedQuestions);
+
       const question = await getRandomQuestion(difficulty, usedQuestionIds);
       
       if (!question) {
         socket.emit('error', { 
-          message: `No available ${difficulty} questions found` 
+          message: `No available ${difficulty} questions found. Try a different path.` 
         });
         return;
       }
@@ -161,34 +369,47 @@ io.on('connection', (socket) => {
         questionId: question.que_id,
         content: question.que_content,
         difficulty: question.difficulty,
-        edgeId
+        edgeId,
+        playerPosition: player.currentNode
       });
 
-      console.log(`Sent ${difficulty} question ${question.que_id} to player ${playerId}`);
+      console.log(`Sent ${difficulty} question ${question.que_id} to player ${playerId} at ${player.currentNode}`);
     } catch (error) {
       console.error('Error handling question request:', error);
-      socket.emit('error', { message: 'Failed to fetch question' });
+      socket.emit('error', { message: 'Failed to fetch question. Please try again.' });
     }
   });
 
   // Submit answer
   socket.on('submit_answer', async (data) => {
-    const { sessionId, playerId, questionId, answer, targetNode } = data;
-    
-    if (!gameSessions.has(sessionId)) {
-      socket.emit('error', { message: 'Game session not found' });
-      return;
-    }
-
-    const session = gameSessions.get(sessionId);
-    const player = session.getPlayerData(playerId);
-
-    if (!player) {
-      socket.emit('error', { message: 'Player not found in session' });
-      return;
-    }
-
     try {
+      const { sessionId, playerId, questionId, answer, targetNode } = data;
+      
+      if (!sessionId || !playerId || !questionId || answer === undefined || !targetNode) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      // Get session from cache or database
+      const session = await getOrCreateSession(sessionId);
+      const player = session.getPlayerData(playerId);
+
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in session' });
+        return;
+      }
+
+      // Check if player is alive and game is active
+      if (!player.isAlive) {
+        socket.emit('error', { message: 'Player is eliminated' });
+        return;
+      }
+
+      if (!session.gameState.isGameActive || session.gameState.gameOver) {
+        socket.emit('error', { message: 'Game is not active' });
+        return;
+      }
+
       // Fetch question with testcase for validation
       const { data: questionData, error } = await supabase
         .from('battle_royale_questions')
@@ -219,55 +440,99 @@ io.on('connection', (socket) => {
       // Update player based on answer
       if (isCorrect) {
         // Correct answer - move player
-        session.updatePlayer(playerId, {
+        const updatedPlayer = {
           currentNode: targetNode,
           currentZone: getZoneFromNode(targetNode),
           questionsAnswered: player.questionsAnswered + 1
-        });
+        };
+        
+        session.updatePlayer(playerId, updatedPlayer);
 
         socket.emit('answer_result', {
           correct: true,
           message: 'Correct! Moving to next position.',
-          newPosition: targetNode
+          newPosition: targetNode,
+          newZone: getZoneFromNode(targetNode),
+          questionsAnswered: updatedPlayer.questionsAnswered
         });
 
         // Check win condition
         if (targetNode === 'TARGET') {
+          session.gameState.gameOver = true;
+          session.gameState.winner = playerId;
+          session.gameState.isGameActive = false;
+          
+          await session.saveSession(); // Save final state
+          
           io.to(sessionId).emit('game_over', {
             winner: playerId,
             winnerName: player.playerName,
-            message: `${player.playerName} reached the center and won!`
+            message: `🎉 ${player.playerName} reached the center and won the Battle Royale!`,
+            finalStats: {
+              questionsAnswered: updatedPlayer.questionsAnswered,
+              finalHealth: player.health
+            }
           });
         }
       } else {
         // Wrong answer - lose health
         const newHealth = Math.max(0, player.health - 10);
+        const isEliminated = newHealth <= 0;
+        
         session.updatePlayer(playerId, {
-          health: newHealth
+          health: newHealth,
+          isAlive: !isEliminated
         });
 
         socket.emit('answer_result', {
           correct: false,
-          message: 'Wrong answer! Lost 10 health.',
+          message: `Wrong answer! Lost 10 health. ${isEliminated ? 'You are eliminated!' : ''}`,
           healthLost: 10,
-          newHealth
+          newHealth,
+          isEliminated,
+          correctAnswer: questionData.testcase.expected_output || 'N/A'
         });
 
         // Check if player is eliminated
-        if (newHealth <= 0) {
+        if (isEliminated) {
           io.to(sessionId).emit('player_eliminated', {
             playerId,
             playerName: player.playerName,
-            message: `${player.playerName} has been eliminated!`
+            message: `💀 ${player.playerName} has been eliminated!`,
+            playersRemaining: session.gameState.playersAlive
           });
+          
+          // Check if only one player remains
+          if (session.gameState.playersAlive === 1) {
+            const remainingPlayers = session.getAllPlayers().filter(p => p.isAlive);
+            if (remainingPlayers.length === 1) {
+              const winner = remainingPlayers[0];
+              session.gameState.gameOver = true;
+              session.gameState.winner = winner.playerId;
+              session.gameState.isGameActive = false;
+              
+              await session.saveSession();
+              
+              io.to(sessionId).emit('game_over', {
+                winner: winner.playerId,
+                winnerName: winner.playerName,
+                message: `🏆 ${winner.playerName} is the last player standing!`,
+                winType: 'last_standing'
+              });
+            }
+          }
         }
       }
 
       // Broadcast updated game state
-      io.to(sessionId).emit('game_state_update', {
-        players: Array.from(session.players.values()),
-        sessionId
-      });
+      const gameStateUpdate = {
+        players: session.getAllPlayers(),
+        gameState: session.gameState,
+        sessionId,
+        usedQuestionsCount: session.usedQuestions.size
+      };
+      
+      io.to(sessionId).emit('game_state_update', gameStateUpdate);
 
       console.log(`Player ${playerId} answered question ${questionId}: ${isCorrect ? 'CORRECT' : 'WRONG'}`);
     } catch (error) {
@@ -276,27 +541,78 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
+  // Handle disconnection with reconnection support
+  socket.on('disconnect', async () => {
     console.log('Player disconnected:', socket.id);
     
     if (socket.sessionId && socket.playerId) {
-      const session = gameSessions.get(socket.sessionId);
-      if (session) {
-        session.removePlayer(socket.playerId);
+      try {
+        const session = await getOrCreateSession(socket.sessionId);
+        const player = session.getPlayerData(socket.playerId);
         
-        // If session is empty, clean it up
-        if (session.players.size === 0) {
-          gameSessions.delete(socket.sessionId);
-          console.log(`Cleaned up empty session: ${socket.sessionId}`);
-        } else {
-          // Notify remaining players
-          io.to(socket.sessionId).emit('game_state_update', {
-            players: Array.from(session.players.values()),
-            sessionId: socket.sessionId
+        if (player) {
+          // Mark player as disconnected but don't remove immediately
+          // They might reconnect (especially important for Render free tier)
+          session.updatePlayerSocket(socket.playerId, null);
+          
+          // Notify remaining players about disconnection
+          socket.to(socket.sessionId).emit('player_disconnected', {
+            playerId: socket.playerId,
+            playerName: player.playerName,
+            message: `${player.playerName} disconnected (can reconnect)`
           });
+          
+          // Update game state
+          const gameStateUpdate = {
+            players: session.getAllPlayers(),
+            gameState: session.gameState,
+            sessionId: socket.sessionId,
+            usedQuestionsCount: session.usedQuestions.size
+          };
+          
+          socket.to(socket.sessionId).emit('game_state_update', gameStateUpdate);
+          
+          console.log(`Player ${socket.playerId} disconnected from session ${socket.sessionId}`);
+        }
+      } catch (error) {
+        console.error('Error handling disconnect:', error);
+      }
+    }
+  });
+  
+  // Handle manual leave game
+  socket.on('leave_game', async (data) => {
+    try {
+      const { sessionId, playerId } = data;
+      
+      if (sessionId && playerId) {
+        const session = await getOrCreateSession(sessionId);
+        const player = session.getPlayerData(playerId);
+        
+        if (player) {
+          session.removePlayer(playerId);
+          
+          socket.to(sessionId).emit('player_left', {
+            playerId,
+            playerName: player.playerName,
+            message: `${player.playerName} left the game`
+          });
+          
+          // Update game state
+          const gameStateUpdate = {
+            players: session.getAllPlayers(),
+            gameState: session.gameState,
+            sessionId,
+            usedQuestionsCount: session.usedQuestions.size
+          };
+          
+          socket.to(sessionId).emit('game_state_update', gameStateUpdate);
+          
+          console.log(`Player ${playerId} left session ${sessionId}`);
         }
       }
+    } catch (error) {
+      console.error('Error handling leave_game:', error);
     }
   });
 });
@@ -312,54 +628,151 @@ function getZoneFromNode(nodeName) {
 }
 
 // API endpoint to get session info
-app.get('/api/session/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
-  const session = gameSessions.get(sessionId);
-  
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+app.get('/api/session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await getOrCreateSession(sessionId);
+    
+    res.json({
+      sessionId,
+      playerCount: session.players.size,
+      players: session.getAllPlayers(),
+      questionsUsed: session.usedQuestions.size,
+      gameState: session.gameState,
+      lastSaved: session.lastSaved
+    });
+  } catch (error) {
+    console.error('Error getting session info:', error);
+    res.status(500).json({ error: 'Failed to get session info' });
   }
-
-  res.json({
-    sessionId,
-    playerCount: session.players.size,
-    players: Array.from(session.players.values()),
-    questionsUsed: session.usedQuestions.size,
-    createdAt: session.createdAt
-  });
 });
 
 // API endpoint to create new session
-app.post('/api/create-session', (req, res) => {
-  const sessionId = generateSessionId();
-  const session = new GameSession(sessionId);
-  gameSessions.set(sessionId, session);
-  
-  res.json({ sessionId });
+app.post('/api/create-session', async (req, res) => {
+  try {
+    const sessionId = generateSessionId();
+    const session = new PersistentGameSession(sessionId);
+    await session.saveSession();
+    sessionCache.set(sessionId, session);
+    
+    res.json({
+      sessionId,
+      message: 'Session created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating session:', error);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
+});
+
+// API endpoint to list active sessions
+app.get('/api/sessions', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('battle_royale_sessions')
+      .select('session_id, created_at, updated_at, players, game_state')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      throw error;
+    }
+
+    const sessions = data.map(session => ({
+      sessionId: session.session_id,
+      playerCount: session.players ? session.players.length : 0,
+      createdAt: session.created_at,
+      updatedAt: session.updated_at,
+      gameState: session.game_state
+    }));
+
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Error listing sessions:', error);
+    res.status(500).json({ error: 'Failed to list sessions' });
+  }
+});
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    activeSessions: sessionCache.size,
+    connectedClients: io.engine.clientsCount
+  });
 });
 
 // Generate unique session ID
 function generateSessionId() {
-  return 'BR_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+  return 'BR_' + Math.random().toString(36).substr(2, 9).toUpperCase() + '_' + Date.now();
 }
 
-// Clean up old sessions periodically (every 30 minutes)
-setInterval(() => {
-  const now = new Date();
-  const maxAge = 30 * 60 * 1000; // 30 minutes
+// Clean up inactive sessions and players periodically
+setInterval(async () => {
+  console.log('Running cleanup task...');
+  
+  try {
+    // Clean up inactive players in cached sessions
+    for (const [sessionId, session] of sessionCache.entries()) {
+      session.cleanupInactivePlayers();
+    }
+    
+    // Clean up old sessions from database (older than 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    const { error } = await supabase
+      .from('battle_royale_sessions')
+      .update({ is_active: false })
+      .lt('updated_at', oneDayAgo);
+    
+    if (error) {
+      console.error('Error cleaning up old sessions:', error);
+    } else {
+      console.log('Cleaned up old sessions from database');
+    }
+    
+    // Clear cache of sessions not accessed recently
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    for (const [sessionId, session] of sessionCache.entries()) {
+      if (session.lastSaved < thirtyMinutesAgo) {
+        sessionCache.delete(sessionId);
+        console.log(`Removed cached session: ${sessionId}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error in cleanup task:', error);
+  }
+}, 15 * 60 * 1000); // Run every 15 minutes
 
-  for (const [sessionId, session] of gameSessions.entries()) {
-    if (now - session.createdAt > maxAge && session.players.size === 0) {
-      gameSessions.delete(sessionId);
-      console.log(`Cleaned up old session: ${sessionId}`);
+// Graceful shutdown for Render
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  
+  // Save all cached sessions to database
+  for (const [sessionId, session] of sessionCache.entries()) {
+    try {
+      await session.saveSession();
+      console.log(`Saved session ${sessionId} before shutdown`);
+    } catch (error) {
+      console.error(`Error saving session ${sessionId}:`, error);
     }
   }
-}, 30 * 60 * 1000);
+  
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
 
-const PORT = process.env.BATTLE_ROYALE_PORT || 5003;
+// Start server
+const PORT = process.env.PORT || process.env.BATTLE_ROYALE_PORT || 5003;
 server.listen(PORT, () => {
-  console.log(`Battle Royale server running on port ${PORT}`);
-  console.log(`WebSocket endpoint: ws://localhost:${PORT}`);
+  console.log(`🚀 Battle Royale server running on port ${PORT}`);
+  console.log(`🎮 Optimized for Render free tier with Supabase persistence`);
+  console.log(`📊 Health check available at /health`);
 });
 
 module.exports = { app, server, io };
