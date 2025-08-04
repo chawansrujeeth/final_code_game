@@ -9,11 +9,12 @@ class BattleRoyaleSocket {
     this.isConnected = false;
   }
 
-  connect(serverUrl = 'http://localhost:5003') {
+  connect(serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003') {
     if (this.socket) {
       this.disconnect();
     }
 
+    console.log('Connecting to Battle Royale server:', serverUrl);
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling']
     });

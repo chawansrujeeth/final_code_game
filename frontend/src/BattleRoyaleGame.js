@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import RadialNetwork from './RadialNetwork';
 import Editor from '@monaco-editor/react';
-import { battleRoyaleAPI } from './battleRoyaleAPI';
+import { battleRoyaleSocket } from './battleRoyaleSocket';
 
 export default function BattleRoyaleGame() {
   const [gameState, setGameState] = useState({
@@ -105,29 +105,94 @@ export default function BattleRoyaleGame() {
     );
   };
   
-  // API initialization and session management
+  // Socket connection and session management
   useEffect(() => {
-    const initializeSession = () => {
+    const initializeConnection = async () => {
       try {
-        // Generate session ID
-        const newSessionId = sessionId || battleRoyaleAPI.generateSessionId();
+        // Connect to battle royale server (Render backend)
+        const serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
+        console.log('Connecting to battle royale server:', serverUrl);
+        battleRoyaleSocket.connect(serverUrl);
+        
+        // Generate or use existing session
+        const newSessionId = sessionId || `BR_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         setSessionId(newSessionId);
-        battleRoyaleAPI.setSessionId(newSessionId);
         
-        // Set connected status
-        setIsConnected(true);
-        setConnectionError(null);
+        // Wait for connection
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+          
+          battleRoyaleSocket.socket.on('connect', () => {
+            clearTimeout(timeout);
+            setIsConnected(true);
+            setConnectionError(null);
+            console.log('Connected to battle royale server');
+            resolve();
+          });
+          
+          battleRoyaleSocket.socket.on('connect_error', (error) => {
+            clearTimeout(timeout);
+            setConnectionError(`Connection failed: ${error.message}`);
+            console.error('Connection failed:', error);
+            reject(error);
+          });
+        });
         
-        console.log('Battle Royale session initialized:', newSessionId);
+        // Join session
+        battleRoyaleSocket.joinSession(newSessionId, playerId, `Player ${playerId}`);
+        
+        // Set up event listeners
+        battleRoyaleSocket.onGameStateUpdate((data) => {
+          console.log('Game state update:', data);
+          // Update players from server data
+          if (data.players) {
+            const updatedPlayers = {};
+            data.players.forEach(player => {
+              updatedPlayers[player.playerId] = {
+                health: player.health,
+                currentZone: player.currentZone,
+                currentNode: player.currentNode,
+                questionsAnswered: player.questionsAnswered,
+                isAlive: player.health > 0
+              };
+            });
+            setPlayers(prev => ({ ...prev, ...updatedPlayers }));
+          }
+        });
+        
+        battleRoyaleSocket.onGameOver((data) => {
+          console.log('Game over:', data);
+          setGameState(prev => ({
+            ...prev,
+            isGameActive: false,
+            winner: data.winner
+          }));
+        });
+        
+        battleRoyaleSocket.onPlayerEliminated((data) => {
+          console.log('Player eliminated:', data);
+          setPlayers(prev => ({
+            ...prev,
+            [data.playerId]: {
+              ...prev[data.playerId],
+              isAlive: false
+            }
+          }));
+        });
         
       } catch (error) {
-        console.error('Failed to initialize session:', error);
+        console.error('Failed to initialize connection:', error);
         setConnectionError(error.message);
         setIsConnected(false);
       }
     };
     
-    initializeSession();
+    initializeConnection();
+    
+    // Cleanup on unmount
+    return () => {
+      battleRoyaleSocket.disconnect();
+    };
   }, []); // Empty dependency array - run once on mount
   
   // Pool of questions for different difficulties (DEPRECATED - now using backend)
@@ -296,9 +361,9 @@ export default function BattleRoyaleGame() {
     console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
     
     try {
-      // Request question from backend API
-      console.log('Requesting question from backend API...');
-      const questionData = await battleRoyaleAPI.requestQuestion(difficulty, edgeData.id);
+      // Request question from backend via socket
+      console.log('Requesting question from backend via socket...');
+      const questionData = await battleRoyaleSocket.requestQuestion(difficulty, edgeData.id);
       console.log('Received question from backend:', questionData);
       
       const questionToSet = {
@@ -374,7 +439,7 @@ export default function BattleRoyaleGame() {
         targetNode: currentQuestion.targetNode
       });
       
-      const result = await battleRoyaleAPI.submitAnswer(
+      const result = await battleRoyaleSocket.submitAnswer(
         currentQuestion.questionId,
         playerAnswer.trim(),
         currentQuestion.targetNode
@@ -540,7 +605,7 @@ export default function BattleRoyaleGame() {
               fontSize: '14px',
               fontWeight: 'bold'
             }}>
-              {isConnected ? '🟢 Connected to API' : '🔴 Disconnected from API'}
+              {isConnected ? '🟢 Connected to Server' : '🔴 Disconnected from Server'}
             </div>
             {sessionId && (
               <div style={{ color: '#ccc', fontSize: '12px', marginTop: '5px' }}>
