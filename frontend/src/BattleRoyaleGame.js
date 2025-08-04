@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import RadialNetwork from './RadialNetwork';
 import Editor from '@monaco-editor/react';
+import { battleRoyaleAPI } from './battleRoyaleAPI';
 
 export default function BattleRoyaleGame() {
   const [gameState, setGameState] = useState({
@@ -24,6 +25,12 @@ export default function BattleRoyaleGame() {
   
   const [selectedPlayer, setSelectedPlayer] = useState('PLAYER_A'); // Current player
   const [accessibleEdges, setAccessibleEdges] = useState([]);
+  
+  // Socket and session management
+  const [sessionId, setSessionId] = useState(null);
+  const [playerId, setPlayerId] = useState('PLAYER_A');
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
   
   // Get all accessible edges for current player
   const getAccessibleEdges = (currentNode) => {
@@ -98,7 +105,32 @@ export default function BattleRoyaleGame() {
     );
   };
   
-  // Pool of questions for different difficulties
+  // API initialization and session management
+  useEffect(() => {
+    const initializeSession = () => {
+      try {
+        // Generate session ID
+        const newSessionId = sessionId || battleRoyaleAPI.generateSessionId();
+        setSessionId(newSessionId);
+        battleRoyaleAPI.setSessionId(newSessionId);
+        
+        // Set connected status
+        setIsConnected(true);
+        setConnectionError(null);
+        
+        console.log('Battle Royale session initialized:', newSessionId);
+        
+      } catch (error) {
+        console.error('Failed to initialize session:', error);
+        setConnectionError(error.message);
+        setIsConnected(false);
+      }
+    };
+    
+    initializeSession();
+  }, []); // Empty dependency array - run once on mount
+  
+  // Pool of questions for different difficulties (DEPRECATED - now using backend)
   const questionPools = {
     easy: [
       { question: "What is 2 + 2?", answer: "4" },
@@ -205,14 +237,21 @@ export default function BattleRoyaleGame() {
     return { difficulty, pathType };
   };
   
-  const handleEdgeClick = (edgeData) => {
+  const handleEdgeClick = async (edgeData) => {
     console.log('=== HANDLE EDGE CLICK START ===');
     console.log('Edge data received:', edgeData);
     console.log('Game state active:', gameState.isGameActive);
     console.log('Selected player:', selectedPlayer);
+    console.log('Socket connected:', isConnected);
     
     if (!edgeData.id || !gameState.isGameActive) {
       console.log('Early return - no edge ID or game not active');
+      return;
+    }
+    
+    if (!isConnected) {
+      console.log('Socket not connected, cannot request question');
+      setConnectionError('Not connected to server');
       return;
     }
     
@@ -250,40 +289,41 @@ export default function BattleRoyaleGame() {
       return;
     }
     
-    // All edges now require questions (including spawn edges)
-    
-    // Get edge properties and generate question for non-spawn edges
+    // Get edge properties to determine difficulty
     const { difficulty, pathType } = getEdgeProperties(actualSource, actualTarget);
     console.log('Edge properties:', { difficulty, pathType });
     
-    const question = getQuestionForEdge(edgeData.id, difficulty, pathType);
-    console.log('Generated question:', question);
-    
     console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
     
-    const questionToSet = {
-      ...question,
-      edgeId: edgeData.id,
-      sourceNode: actualSource,
-      targetNode: actualTarget,
-      pathDescription: `${actualSource} → ${actualTarget}`,
-      playerId: selectedPlayer
-    };
+    try {
+      // Request question from backend API
+      console.log('Requesting question from backend API...');
+      const questionData = await battleRoyaleAPI.requestQuestion(difficulty, edgeData.id);
+      console.log('Received question from backend:', questionData);
+      
+      const questionToSet = {
+        questionId: questionData.questionId,
+        question: questionData.content,
+        difficulty: questionData.difficulty,
+        pathType,
+        edgeId: edgeData.id,
+        sourceNode: actualSource,
+        targetNode: actualTarget,
+        pathDescription: `${actualSource} → ${actualTarget}`,
+        playerId: selectedPlayer
+      };
+      
+      console.log('Setting current question:', questionToSet);
+      setCurrentQuestion(questionToSet);
+      setPlayerAnswer('');
+      setShowResult(false);
+      setConnectionError(null);
+      
+    } catch (error) {
+      console.error('Failed to get question:', error);
+      setConnectionError(`Failed to get question: ${error.message}`);
+    }
     
-    console.log('Setting current question:', questionToSet);
-    console.log('Question object structure:', {
-      question: questionToSet.question,
-      answer: questionToSet.answer,
-      difficulty: questionToSet.difficulty,
-      pathType: questionToSet.pathType,
-      edgeId: questionToSet.edgeId
-    });
-    
-    setCurrentQuestion(questionToSet);
-    setPlayerAnswer('');
-    setShowResult(false);
-    
-    console.log('Current question state should be updated now');
     console.log('=== HANDLE EDGE CLICK END ===');
   };
   
@@ -324,60 +364,82 @@ export default function BattleRoyaleGame() {
   };
   
   // Submit answer for edge traversal
-  const submitAnswer = () => {
-    if (!currentQuestion) return;
+  const submitAnswer = async () => {
+    if (!currentQuestion || !isConnected) return;
     
-    const isCorrect = playerAnswer.toLowerCase().trim() === currentQuestion.answer.toLowerCase();
-    
-    if (isCorrect) {
-      setResultMessage(`✅ Correct! Path unlocked: ${currentQuestion.pathDescription}`);
+    try {
+      console.log('Submitting answer to backend:', {
+        questionId: currentQuestion.questionId,
+        answer: playerAnswer.trim(),
+        targetNode: currentQuestion.targetNode
+      });
       
-      // Move player to target node
-      const targetNode = currentQuestion.targetNode;
-      const playerId = currentQuestion.playerId;
+      const result = await battleRoyaleAPI.submitAnswer(
+        currentQuestion.questionId,
+        playerAnswer.trim(),
+        currentQuestion.targetNode
+      );
       
-      setPlayers(prev => ({
-        ...prev,
-        [playerId]: {
-          ...prev[playerId],
-          currentNode: targetNode,
-          currentZone: getZoneFromNode(targetNode),
-          questionsAnswered: prev[playerId].questionsAnswered + 1
-        }
-      }));
+      console.log('Answer result from backend:', result);
       
-      // Handle successful traversal
-      if (currentQuestion.pathType === 'inward') {
-        setResultMessage(prev => prev + " You moved closer to the center!");
-      } else if (currentQuestion.pathType === 'final') {
-        setResultMessage(prev => prev + " Final approach to victory!");
+      if (result.correct) {
+        setResultMessage(`✅ Correct! Path unlocked: ${currentQuestion.pathDescription}`);
         
-        // Check win condition
-        if (targetNode === 'TARGET') {
-          setGameState(prev => ({
-            ...prev,
-            isGameActive: false,
-            winner: playerId
-          }));
-          setResultMessage(prev => prev + " 🎉 VICTORY! You reached the center!");
+        // Move player to target node locally
+        const targetNode = currentQuestion.targetNode;
+        const playerId = currentQuestion.playerId;
+        
+        setPlayers(prev => ({
+          ...prev,
+          [playerId]: {
+            ...prev[playerId],
+            currentNode: targetNode,
+            currentZone: getZoneFromNode(targetNode),
+            questionsAnswered: prev[playerId].questionsAnswered + 1
+          }
+        }));
+        
+        // Handle successful traversal based on path type
+        if (currentQuestion.pathType === 'inward') {
+          setResultMessage(prev => prev + " You moved closer to the center!");
+        } else if (currentQuestion.pathType === 'final') {
+          setResultMessage(prev => prev + " Final approach to victory!");
+          
+          // Check win condition
+          if (targetNode === 'TARGET') {
+            setGameState(prev => ({
+              ...prev,
+              isGameActive: false,
+              winner: playerId
+            }));
+            setResultMessage(prev => prev + " 🎉 VICTORY! You reached the center!");
+          }
+        } else if (currentQuestion.pathType === 'lateral') {
+          setResultMessage(prev => prev + " You repositioned within the zone.");
         }
-      } else if (currentQuestion.pathType === 'lateral') {
-        setResultMessage(prev => prev + " You repositioned within the zone.");
+        
+      } else {
+        setResultMessage(`❌ Wrong answer! Path blocked.`);
+        
+        // Handle failed traversal - player takes damage locally
+        const playerId = currentQuestion.playerId;
+        setPlayers(prev => ({
+          ...prev,
+          [playerId]: {
+            ...prev[playerId],
+            health: Math.max(0, prev[playerId].health - 10)
+          }
+        }));
+        
+        setResultMessage(prev => prev + ` You lost 10 health!`);
       }
       
-    } else {
-      setResultMessage(`❌ Wrong answer! Path blocked. The correct answer was: ${currentQuestion.answer}`);
+      setConnectionError(null);
       
-      // Handle failed traversal - player takes damage
-      setPlayers(prev => ({
-        ...prev,
-        [currentQuestion.playerId]: {
-          ...prev[currentQuestion.playerId],
-          health: Math.max(0, prev[currentQuestion.playerId].health - 10)
-        }
-      }));
-      
-      setResultMessage(prev => prev + " You lost 10 health!");
+    } catch (error) {
+      console.error('Failed to submit answer:', error);
+      setResultMessage(`❌ Failed to submit answer: ${error.message}`);
+      setConnectionError(`Answer submission failed: ${error.message}`);
     }
     
     setShowResult(true);
@@ -462,6 +524,34 @@ export default function BattleRoyaleGame() {
             <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
               Click edges to traverse paths - answer questions to unlock routes
             </p>
+          </div>
+          
+          {/* Connection Status */}
+          <div style={{
+            background: isConnected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)',
+            border: `2px solid ${isConnected ? '#28a745' : '#dc3545'}`,
+            borderRadius: '8px',
+            padding: '10px',
+            marginBottom: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              color: isConnected ? '#28a745' : '#dc3545',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              {isConnected ? '🟢 Connected to API' : '🔴 Disconnected from API'}
+            </div>
+            {sessionId && (
+              <div style={{ color: '#ccc', fontSize: '12px', marginTop: '5px' }}>
+                Session: {sessionId}
+              </div>
+            )}
+            {connectionError && (
+              <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px' }}>
+                Error: {connectionError}
+              </div>
+            )}
           </div>
           
           {/* Player Selection */}

@@ -7,7 +7,9 @@
     "start": "node cf_team_duel_server.js",
     "start:api": "node api_server.js",
     "dev:api": "nodemon api_server.js",
-    "start:yjs": "node yjs_server.js"
+    "start:yjs": "node yjs_server.js",
+    "start:battle-royale": "node battle_royale_server.js",
+    "dev:battle-royale": "nodemon battle_royale_server.js"
   },
   "keywords": [],
   "author": "",
