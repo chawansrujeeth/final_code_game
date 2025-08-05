@@ -191,6 +191,9 @@ export default function BattleRoyaleMap({
             opacity: '0.8'
           })
           .update();
+          cyRef.current.resize();
+          cyRef.current.fit(cyRef.current.elements(), 30);
+          cyRef.current.center();
           
         setTimeout(() => {
           cyRef.current.fit(undefined, 20);
@@ -224,6 +227,9 @@ export default function BattleRoyaleMap({
             opacity: '0.8'
           })
           .update();
+          cyRef.current.resize();
+          cyRef.current.fit(cyRef.current.elements(), 30);
+          cyRef.current.center();
       }
     }
     if (cyRef.current) {
