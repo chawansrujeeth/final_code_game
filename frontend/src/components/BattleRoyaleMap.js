@@ -5,7 +5,7 @@ import cytoscape from 'cytoscape';
 const MAP_R1 = 60;   // inner ring radius
 const MAP_R2 = 120;  // middle ring radius
 const MAP_R3 = 160;  // outer ring radius
-const MAP_BOUNDARY = 200; // square boundary containing the entire map
+const MAP_BOUNDARY = 600; // very large square boundary (±300) ensuring it encloses entire graph
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -18,6 +18,8 @@ export default function BattleRoyaleMap({
   players = {}
 }) {
   const cyRef = useRef(null);
+  // Stores Cartesian coordinates of every node for future zone tracking
+  const nodeCoordsRef = useRef({});
   // High-level game timer
   const [gameTimer, setGameTimer] = useState(0);
   // Legacy ring-based blue zone level (0-3) for node styling
@@ -34,19 +36,20 @@ export default function BattleRoyaleMap({
   // Initialize first safe circles on first render
   useEffect(() => {
     if (!safeCircle) {
-      // helper to pick random point within radius (so entire circle fits inside map)
-      const randomSafe = (maxR) => {
-        const radius = Math.random() * (maxR * 0.5) + maxR * 0.25; // between 25% and 75% of maxR
+      // First safe circle is centered, radius = MAP_R3 (covers graph)
+      const firstSafe = { x: 0, y: 0, r: MAP_R3 };
+      // Helper to generate a random inner safe zone
+      const randomSafeInner = (parent) => {
+        const radius = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
         const angle = Math.random() * 2 * Math.PI;
-        const dist = Math.random() * (maxR - radius);
+        const dist = Math.random() * (parent.r - radius);
         return {
-          x: Math.cos(angle) * dist,
-          y: Math.sin(angle) * dist,
+          x: parent.x + Math.cos(angle) * dist,
+          y: parent.y + Math.sin(angle) * dist,
           r: radius
         };
       };
-      const firstSafe = randomSafe(MAP_R3 - 20); // ensure safe circle fits inside boundary
-      const secondSafe = randomSafe(firstSafe.r);
+      const secondSafe = randomSafeInner(firstSafe);
       setSafeCircle(firstSafe);
       setNextSafeCircle(secondSafe);
     }
@@ -129,6 +132,8 @@ export default function BattleRoyaleMap({
         node.data('zoneType', 'danger');
       }
     });
+    // Expose node coordinates via Cytoscape instance for external queries
+    cyRef.current.nodeCoords = nodeCoordsRef.current;
   }, [blueZoneLevel]);
   
   // ===== Overlay Canvas for circles =====
@@ -469,6 +474,8 @@ export default function BattleRoyaleMap({
       });
     }
 
+    // Store coordinates for future zone tracking
+    nodes.forEach(n => { nodeCoordsRef.current[n.data.id] = n.position; });
     // Initialize Cytoscape
     cyRef.current = cytoscape({
       container: document.getElementById('battle-royale-map'),
@@ -585,8 +592,8 @@ export default function BattleRoyaleMap({
       
       // Calculate minimum zoom to ensure square boundary fills the viewport
       const MIN_ZOOM = Math.max(
-        width / (MAP_BOUNDARY * 1.2),   // 1.2 for small margin
-        height / (MAP_BOUNDARY * 1.2)
+        width / (MAP_BOUNDARY * 1.1),   // 1.2 for small margin
+        height / (MAP_BOUNDARY * 1.1)
       );
       const MAX_ZOOM = 4.0;
       
@@ -666,16 +673,16 @@ export default function BattleRoyaleMap({
           // For minimap, zoom to fit boundary with margin
           const { width, height } = cyRef.current.container().getBoundingClientRect();
           const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.3),
-            height / (MAP_BOUNDARY * 1.3)
+            width / (MAP_BOUNDARY * 1.2),
+            height / (MAP_BOUNDARY * 1.2)
           );
           cyRef.current.zoom(fitZoom);
         } else {
           // For full screen, set zoom to show boundary comfortably
           const { width, height } = cyRef.current.container().getBoundingClientRect();
           const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.1),
-            height / (MAP_BOUNDARY * 1.1)
+            width / (MAP_BOUNDARY * 1.05),
+            height / (MAP_BOUNDARY * 1.05)
           );
           cyRef.current.zoom(Math.max(fitZoom, cyRef.current.minZoom()));
         }
