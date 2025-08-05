@@ -156,16 +156,11 @@ export default function BattleRoyaleMap({
       const pan = cy.pan();
       
       ctx.save();
-      ctx.translate(width / 2, height / 2);
+      // Correct transform order: translate by pan first (including width/height offset), then scale
+      ctx.translate(width / 2 + pan.x, height / 2 + pan.y);
       ctx.scale(zoom, zoom);
-      ctx.translate(pan.x / zoom, pan.y / zoom);
 
-      // draw map boundary square
-      ctx.beginPath();
-      ctx.strokeStyle = '#444444';
-      ctx.lineWidth = 2 / zoom;
-      ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
-      ctx.stroke();
+
 
       // draw safe circle (white line)
       if (safeCircle) {
@@ -271,7 +266,14 @@ export default function BattleRoyaleMap({
           .update();
       }
     }
-  }, [isMinimized]);
+    if (cyRef.current) {
+        // Allow the DOM to finish transition first
+        setTimeout(() => {
+          cyRef.current.resize();
+          cyRef.current.fit();
+        }, 300);
+      }
+    }, [isMinimized]);
 
   // Initialize Cytoscape when component mounts
   useEffect(() => {
@@ -716,6 +718,8 @@ export default function BattleRoyaleMap({
         background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
         position: relative;
         overflow: hidden;
+        border: 2px solid #333;
+        border-radius: 8px;
       }
       
       .battle-royale-map-container::before {
@@ -772,7 +776,7 @@ export default function BattleRoyaleMap({
         style={{ 
           width: '100%', 
           height: '100%',
-          border: isMinimized ? '1px solid #666' : '2px solid #333',
+          // border handled by outer container
           borderRadius: '8px',
           background: '#1a1a2e'
         }}
