@@ -677,6 +677,7 @@ export default function BattleRoyaleMap({
             height / (MAP_BOUNDARY * 1.2)
           );
           cyRef.current.zoom(fitZoom);
+          cyRef.current.center();
         } else {
           // For full screen, set zoom to show boundary comfortably
           const { width, height } = cyRef.current.container().getBoundingClientRect();
@@ -685,6 +686,7 @@ export default function BattleRoyaleMap({
             height / (MAP_BOUNDARY * 1.05)
           );
           cyRef.current.zoom(Math.max(fitZoom, cyRef.current.minZoom()));
+          cyRef.current.center();
         }
       }
     }, 100);
