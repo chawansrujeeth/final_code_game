@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
+// Map radius constants (match node placement)
+const MAP_R1 = 80;   // inner ring radius
+const MAP_R2 = 160;  // middle ring radius
+const MAP_R3 = 240;  // outer ring radius
+
 export default function BattleRoyaleMap({ 
   gameState = {},
   onNodeClick = () => {},
@@ -12,10 +17,89 @@ export default function BattleRoyaleMap({
   players = {}
 }) {
   const cyRef = useRef(null);
-  const [blueZoneLevel, setBlueZoneLevel] = useState(0); // 0 = no blue zone, 1 = outer ring danger, etc.
+  // High-level game timer
   const [gameTimer, setGameTimer] = useState(0);
+  
+  // Dynamic shrinking-zone state
+  const [safeCircle, setSafeCircle] = useState(null);        // {x,y,r}
+  const [nextSafeCircle, setNextSafeCircle] = useState(null); // upcoming safe zone
+  const [blueRadius, setBlueRadius] = useState(MAP_R3 + 30);  // starts slightly outside outer ring
+  const [phase, setPhase] = useState('moving');               // 'moving' | 'waiting'
+  const [phaseTimer, setPhaseTimer] = useState(0);            // seconds within current phase
 
-  // Blue zone timer effect
+  // ===== Shrinking Zone Logic =====
+  // Initialize first safe circles on first render
+  useEffect(() => {
+    if (!safeCircle) {
+      // helper to pick random point within radius (so entire circle fits inside map)
+      const randomSafe = (maxR) => {
+        const radius = Math.random() * (maxR * 0.5) + maxR * 0.25; // between 25% and 75% of maxR
+        const angle = Math.random() * 2 * Math.PI;
+        const dist = Math.random() * (maxR - radius);
+        return {
+          x: Math.cos(angle) * dist,
+          y: Math.sin(angle) * dist,
+          r: radius
+        };
+      };
+      const firstSafe = randomSafe(MAP_R3 - 20);
+      const secondSafe = randomSafe(firstSafe.r);
+      setSafeCircle(firstSafe);
+      setNextSafeCircle(secondSafe);
+    }
+  }, [safeCircle]);
+
+  // Central loop every second handling timers & shrink
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGameTimer(prev => prev + 1);
+      setPhaseTimer(t => t + 1);
+
+      if (!safeCircle) return; // not ready yet
+
+      if (phase === 'moving') {
+        // Shrink blue zone towards current safe circle at constant rate so it meets in 60s
+        const distanceToShrink = blueRadius - safeCircle.r;
+        if (distanceToShrink <= 0.5) {
+          // Reached safe circle
+          setBlueRadius(safeCircle.r);
+          setPhase('waiting');
+          setPhaseTimer(0);
+        } else {
+          const shrinkPerSec = distanceToShrink / 60; // reach in 60s
+          setBlueRadius(r => Math.max(safeCircle.r, r - shrinkPerSec));
+        }
+      } else if (phase === 'waiting') {
+        if (phaseTimer >= 60) {
+          // Prepare next shrink
+          if (!nextSafeCircle) {
+            // final zone – collapse to current safeCircle center node size
+            setNextSafeCircle({ x: safeCircle.x, y: safeCircle.y, r: 10 });
+          }
+          setSafeCircle(nextSafeCircle);
+          // Pick subsequent safe circle inside it (unless already final)
+          if (nextSafeCircle.r > 20) {
+            const randomInner = () => {
+              const radius = Math.random() * (nextSafeCircle.r * 0.5) + nextSafeCircle.r * 0.25;
+              const angle = Math.random() * 2 * Math.PI;
+              const dist = Math.random() * (nextSafeCircle.r - radius);
+              return {
+                x: nextSafeCircle.x + Math.cos(angle) * dist,
+                y: nextSafeCircle.y + Math.sin(angle) * dist,
+                r: radius
+              };
+            };
+            setNextSafeCircle(randomInner());
+          } else {
+            setNextSafeCircle({ x: nextSafeCircle.x, y: nextSafeCircle.y, r: 0 });
+          }
+          setPhase('moving');
+          setPhaseTimer(0);
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
   useEffect(() => {
     const timer = setInterval(() => {
       setGameTimer(prev => {
@@ -60,6 +144,55 @@ export default function BattleRoyaleMap({
     });
   }, [blueZoneLevel]);
   
+  // ===== Overlay Canvas for circles =====
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const draw = () => {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      // translate to center (0,0 at middle like cytoscape preset)
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+
+      // draw safe circle (white line)
+      if (safeCircle) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // draw blue zone (semi-transparent blue fill)
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(52, 152, 219, 0.15)';
+      ctx.arc(0, 0, blueRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+      requestAnimationFrame(draw);
+    };
+
+    // ensure canvas matches container size
+    const resize = () => {
+      const parent = canvas.parentNode;
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    draw();
+    return () => {
+      window.removeEventListener('resize', resize);
+    };
+  }, [safeCircle, blueRadius]);
+
   // Handle minimap fit and styling when isMinimized changes
   useEffect(() => {
     if (cyRef.current) {
@@ -570,6 +703,7 @@ export default function BattleRoyaleMap({
         </div>
       )}
       
+      <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }} />
       <div 
         id="battle-royale-map" 
         style={{ 
