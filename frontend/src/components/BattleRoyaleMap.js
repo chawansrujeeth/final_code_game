@@ -167,7 +167,7 @@ export default function BattleRoyaleMap({
     nodes.push({ 
       data: { 
         id: 'TARGET', 
-        label: 'Safe Zone', 
+        label: '', 
         level: 0, 
         class: 'core',
         nodeType: 'target',
@@ -178,7 +178,7 @@ export default function BattleRoyaleMap({
     });
 
     // RING 1: Inner ring (6 nodes)
-    const ring1Count = 6;
+    const ring1Count = 8;
     for (let i = 0; i < ring1Count; i++) {
       const id = `R1_${i + 1}`;
       const angle = (i * 360) / ring1Count;
@@ -198,7 +198,7 @@ export default function BattleRoyaleMap({
     }
 
     // RING 2: Middle ring (8 nodes)
-    const ring2Count = 8;
+    const ring2Count = 10;
     for (let i = 0; i < ring2Count; i++) {
       const id = `R2_${i + 1}`;
       const angle = (i * 360) / ring2Count;
@@ -218,7 +218,7 @@ export default function BattleRoyaleMap({
     }
 
     // RING 3: Outer ring (8 nodes) - Starting positions
-    const ring3Count = 8;
+    const ring3Count = 12;
     for (let i = 0; i < ring3Count; i++) {
       const id = `R3_${i + 1}`;
       const angle = (i * 360) / ring3Count;
@@ -253,34 +253,32 @@ export default function BattleRoyaleMap({
     }
 
     // Ring 2 to Ring 1 (Medium questions - Inward movement) - BIDIRECTIONAL
-    const r2ToR1Mapping = [
-      [1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [7, 6], [8, 6]
-    ];
-    r2ToR1Mapping.forEach(([r2Index, r1Index]) => {
-      pushEdge(`R2_${r2Index}`, `R1_${r1Index}`, 'inward', { 
-        difficulty: 'medium', 
+    for (let i = 0; i < ring2Count; i++) {
+      const r2Index = i + 1;
+      const r1Index = Math.ceil((r2Index * ring1Count) / ring2Count);
+      pushEdge(`R2_${r2Index}`, `R1_${r1Index}`, 'inward', {
+        difficulty: 'medium',
         pathType: 'inward'
       });
-      pushEdge(`R1_${r1Index}`, `R2_${r2Index}`, 'inward', { 
-        difficulty: 'medium', 
+      pushEdge(`R1_${r1Index}`, `R2_${r2Index}`, 'inward', {
+        difficulty: 'medium',
         pathType: 'inward'
       });
-    });
+    }
 
     // Ring 3 to Ring 2 (Easy questions - Inward movement) - BIDIRECTIONAL
-    const r3ToR2Mapping = [
-      [1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [7, 6], [8, 7]
-    ];
-    r3ToR2Mapping.forEach(([r3Index, r2Index]) => {
-      pushEdge(`R3_${r3Index}`, `R2_${r2Index}`, 'inward', { 
-        difficulty: 'easy', 
+    for (let i = 0; i < ring3Count; i++) {
+      const r3Index = i + 1;
+      const r2Index = Math.ceil((r3Index * ring2Count) / ring3Count);
+      pushEdge(`R3_${r3Index}`, `R2_${r2Index}`, 'inward', {
+        difficulty: 'easy',
         pathType: 'inward'
       });
-      pushEdge(`R2_${r2Index}`, `R3_${r3Index}`, 'inward', { 
-        difficulty: 'easy', 
+      pushEdge(`R2_${r2Index}`, `R3_${r3Index}`, 'inward', {
+        difficulty: 'easy',
         pathType: 'inward'
       });
-    });
+    }
 
     // Circular edges within each ring (Lateral movement) - BIDIRECTIONAL
     // Ring 3 circular
@@ -338,7 +336,8 @@ export default function BattleRoyaleMap({
             'border-color': '#34495e',
             'border-width': '2px',
             'color': '#ecf0f1',
-            'label': 'data(label)',
+            'label': '',
+            'text-opacity': 0,
             'text-valign': 'center',
             'text-halign': 'center',
             'font-size': '8px',
