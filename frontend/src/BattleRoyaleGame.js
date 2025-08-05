@@ -1189,11 +1189,11 @@ export default function BattleRoyaleGame() {
                     boxShadow: '0 2px 8px rgba(0,255,136,0.3)',
                     transition: 'all 0.2s ease'
                   }}
-                  title="Expand Map"
+                  title="Full Screen Map"
                   onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
                   onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
                 >
-                  🗺️ EXPAND
+                  🗺️ FULL SCREEN
                 </button>
               </div>
               
@@ -1217,16 +1217,19 @@ export default function BattleRoyaleGame() {
             </div>
           )}
           
-          {/* Expanded Map - Integrated within Code Editor Side */}
+          {/* Expanded Map - Covers Entire Right Side */}
           {!mapState.isMinimized && (
             <div style={{
-              marginTop: '20px',
-              height: '450px',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 2000,
               border: '3px solid #00ff88',
               borderRadius: '15px',
               overflow: 'hidden',
               background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-              position: 'relative',
               boxShadow: '0 20px 60px rgba(0,255,136,0.3)',
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               animation: 'expandIn 0.5s ease-out'
@@ -1264,9 +1267,9 @@ export default function BattleRoyaleGame() {
                     fontWeight: 'bold',
                     boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
                   }}
-                  title="Minimize Map"
+                  title="Back to Minimap"
                 >
-                  ➖ MINIMIZE
+                  ➖ BACK
                 </button>
               </div>
               

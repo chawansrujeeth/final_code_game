@@ -237,18 +237,22 @@ export default function BattleRoyaleMap({
       });
     }
 
-    // EDGES: Connect rings with questions
+    // EDGES: Connect rings with questions (UNDIRECTED GRAPH)
     
-    // Ring 1 to Target (Hard questions - Final approach)
+    // Ring 1 to Target (Hard questions - Final approach) - BIDIRECTIONAL
     for (let i = 0; i < ring1Count; i++) {
       const sourceId = `R1_${i + 1}`;
       pushEdge(sourceId, 'TARGET', 'final', { 
         difficulty: 'hard', 
         pathType: 'final'
       });
+      pushEdge('TARGET', sourceId, 'final', { 
+        difficulty: 'hard', 
+        pathType: 'final'
+      });
     }
 
-    // Ring 2 to Ring 1 (Medium questions - Inward movement)
+    // Ring 2 to Ring 1 (Medium questions - Inward movement) - BIDIRECTIONAL
     const r2ToR1Mapping = [
       [1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [7, 6], [8, 6]
     ];
@@ -257,9 +261,13 @@ export default function BattleRoyaleMap({
         difficulty: 'medium', 
         pathType: 'inward'
       });
+      pushEdge(`R1_${r1Index}`, `R2_${r2Index}`, 'inward', { 
+        difficulty: 'medium', 
+        pathType: 'inward'
+      });
     });
 
-    // Ring 3 to Ring 2 (Easy questions - Inward movement)
+    // Ring 3 to Ring 2 (Easy questions - Inward movement) - BIDIRECTIONAL
     const r3ToR2Mapping = [
       [1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [7, 6], [8, 7]
     ];
@@ -268,14 +276,22 @@ export default function BattleRoyaleMap({
         difficulty: 'easy', 
         pathType: 'inward'
       });
+      pushEdge(`R2_${r2Index}`, `R3_${r3Index}`, 'inward', { 
+        difficulty: 'easy', 
+        pathType: 'inward'
+      });
     });
 
-    // Circular edges within each ring (Lateral movement)
+    // Circular edges within each ring (Lateral movement) - BIDIRECTIONAL
     // Ring 3 circular
     for (let i = 0; i < ring3Count; i++) {
       const current = `R3_${i + 1}`;
       const next = `R3_${((i + 1) % ring3Count) + 1}`;
       pushEdge(current, next, 'lateral', { 
+        difficulty: 'easy', 
+        pathType: 'lateral'
+      });
+      pushEdge(next, current, 'lateral', { 
         difficulty: 'easy', 
         pathType: 'lateral'
       });
@@ -289,6 +305,10 @@ export default function BattleRoyaleMap({
         difficulty: 'medium', 
         pathType: 'lateral'
       });
+      pushEdge(next, current, 'lateral', { 
+        difficulty: 'medium', 
+        pathType: 'lateral'
+      });
     }
 
     // Ring 1 circular
@@ -296,6 +316,10 @@ export default function BattleRoyaleMap({
       const current = `R1_${i + 1}`;
       const next = `R1_${((i + 1) % ring1Count) + 1}`;
       pushEdge(current, next, 'lateral', { 
+        difficulty: 'hard', 
+        pathType: 'lateral'
+      });
+      pushEdge(next, current, 'lateral', { 
         difficulty: 'hard', 
         pathType: 'lateral'
       });
@@ -374,14 +398,12 @@ export default function BattleRoyaleMap({
           }
         },
         
-        // Base edge styles
+        // Base edge styles (UNDIRECTED - NO ARROWS)
         {
           selector: 'edge',
           style: {
-            'width': '2px',
+            'width': '3px',
             'line-color': 'data(edgeColor)',
-            'target-arrow-color': 'data(edgeColor)',
-            'target-arrow-shape': 'triangle',
             'curve-style': 'straight',
             'font-size': '10px',
             'color': '#ecf0f1',
@@ -392,15 +414,14 @@ export default function BattleRoyaleMap({
           }
         },
         
-        // Highlighted edges (accessible paths)
+        // Highlighted edges (accessible paths) - UNDIRECTED
         {
           selector: '.accessible-edge',
           style: {
-            'width': '4px',
+            'width': '5px',
             'opacity': 1,
             'line-color': '#00ff88',
-            'target-arrow-color': '#00ff88',
-            'box-shadow': '0 0 10px #00ff88'
+            'box-shadow': '0 0 15px #00ff88'
           }
         }
       ],
@@ -412,6 +433,17 @@ export default function BattleRoyaleMap({
       boxSelectionEnabled: false,
       selectionType: 'single'
     });
+
+    // Enforce minimum zoom level (prevent zooming out too far)
+    if (enableZoom) {
+      const MIN_ZOOM = 0.3; // Dead-end zoom level – cannot zoom out beyond this
+      cyRef.current.minZoom(MIN_ZOOM);
+      cyRef.current.on('zoom', () => {
+        if (cyRef.current.zoom() < MIN_ZOOM) {
+          cyRef.current.zoom({ level: MIN_ZOOM });
+        }
+      });
+    }
 
     // Event handlers
     cyRef.current.on('tap', 'node', (evt) => {
