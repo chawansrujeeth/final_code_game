@@ -740,7 +740,7 @@ export default function BattleRoyaleMap({
   }, []);
 
   return (
-    <div className="battle-royale-map-container" style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div className="battle-royale-map-container" style={{ width: '100%', height: '100%', position: 'relative', border: '2px solid #333', borderRadius: '8px', overflow: 'hidden' }}>
       {/* Game HUD - only show if not minimized and HUD enabled */}
       {showHUD && !isMinimized && (
         <div style={{
@@ -776,7 +776,6 @@ export default function BattleRoyaleMap({
         style={{ 
           width: '100%', 
           height: '100%',
-          // border handled by outer container
           borderRadius: '8px',
           background: '#1a1a2e'
         }}
