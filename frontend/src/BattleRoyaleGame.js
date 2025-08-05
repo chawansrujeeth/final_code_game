@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import RadialNetwork from './RadialNetwork';
+import BattleRoyaleMap from './components/BattleRoyaleMap';
 import Editor from '@monaco-editor/react';
 import { battleRoyaleSocket } from './battleRoyaleSocket';
 
@@ -524,14 +524,6 @@ export default function BattleRoyaleGame() {
     return 4;
   };
   
-  // Prepare node data for the network
-  const nodeData = {
-    ...Object.keys(players).reduce((acc, playerId) => {
-      acc[playerId] = players[playerId];
-      return acc;
-    }, {})
-  };
-  
   // Toggle minimap/fullscreen
   const toggleMap = () => {
     setMapState(prev => ({
@@ -550,7 +542,31 @@ export default function BattleRoyaleGame() {
   };
   
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }}>
+    <>
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes expandIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        
+        @keyframes minimapPulse {
+          0%, 100% {
+            box-shadow: 0 15px 50px rgba(0,255,136,0.4);
+          }
+          50% {
+            box-shadow: 0 15px 50px rgba(0,255,136,0.6);
+          }
+        }
+      `}</style>
+      
+      <div style={{ position: 'relative', width: '100%', height: '100vh', background: 'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }}>
       
       {/* Split Screen Layout */}
       <div style={{
@@ -1128,28 +1144,26 @@ export default function BattleRoyaleGame() {
               position: 'absolute',
               top: '20px',
               right: '20px',
-              width: '280px',
-              height: '280px',
+              width: '320px',
+              height: '320px',
               zIndex: 1500,
               border: '3px solid #00ff88',
               borderRadius: '15px',
               overflow: 'hidden',
-              boxShadow: '0 10px 40px rgba(0,255,136,0.3)',
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              background: '#1a1a2e'
+              boxShadow: '0 15px 50px rgba(0,255,136,0.4)',
+              transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              backdropFilter: 'blur(10px)',
+              animation: 'minimapPulse 3s ease-in-out infinite'
             }}>
-              <RadialNetwork 
-                playerCount={4}
-                nodeData={nodeData}
+              <BattleRoyaleMap 
                 gameState={gameState}
                 onNodeClick={handleNodeClick}
                 onEdgeClick={handleEdgeClick}
-                onPlayerMove={handlePlayerMove}
-                selectedPlayer={selectedPlayer}
-                currentPlayerNode={players[selectedPlayer]?.currentNode}
                 isMinimized={true}
                 showHUD={false}
                 enableZoom={false}
+                players={players}
               />
               
               {/* Map Controls */}
@@ -1203,89 +1217,76 @@ export default function BattleRoyaleGame() {
             </div>
           )}
           
-          {/* Expanded Map Overlay - Only in Code Editor Side */}
+          {/* Expanded Map - Integrated within Code Editor Side */}
           {!mapState.isMinimized && (
             <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 2000,
-              background: 'rgba(0, 0, 0, 0.95)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              marginTop: '20px',
+              height: '450px',
+              border: '3px solid #00ff88',
+              borderRadius: '15px',
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              position: 'relative',
+              boxShadow: '0 20px 60px rgba(0,255,136,0.3)',
+              transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: 'expandIn 0.5s ease-out'
             }}>
+              <BattleRoyaleMap 
+                gameState={gameState}
+                onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
+                isMinimized={false}
+                showHUD={true}
+                enableZoom={true}
+                enablePan={true}
+                players={players}
+              />
+      
+              {/* Map Controls */}
               <div style={{
-                width: '90%',
-                height: '90%',
-                border: '2px solid #00ff88',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                background: '#1a1a2e'
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                zIndex: 3001,
+                display: 'flex',
+                gap: '6px'
               }}>
-                <RadialNetwork 
-                  playerCount={4}
-                  nodeData={nodeData}
-                  gameState={gameState}
-                  onNodeClick={handleNodeClick}
-                  onEdgeClick={handleEdgeClick}
-                  onPlayerMove={handlePlayerMove}
-                  selectedPlayer={selectedPlayer}
-                  currentPlayerNode={players[selectedPlayer]?.currentNode}
-                  isMinimized={false}
-                  showHUD={true}
-                  enableZoom={true}
-                  enablePan={true}
-                />
-        
-                {/* Map Controls */}
-                <div style={{
-                  position: 'absolute',
-                  top: '8px',
-                  left: '8px',
-                  zIndex: 3001,
-                  display: 'flex',
-                  gap: '6px'
-                }}>
-                  <button
-                    onClick={toggleMap}
-                    style={{
-                      background: 'linear-gradient(45deg, #dc3545, #c82333)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
-                    }}
-                    title="Minimize Map"
-                  >
-                    ➖ CLOSE
-                  </button>
-                </div>
-                
-                {/* Instructions for zoom/pan */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '8px',
-                  left: '8px',
-                  background: 'rgba(0, 0, 0, 0.8)',
-                  color: '#00ff88',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  zIndex: 3001,
-                  border: '1px solid #00ff88'
-                }}>
-                  🖱️ Scroll to zoom • Drag to pan
-                </div>
-        
+                <button
+                  onClick={toggleMap}
+                  style={{
+                    background: 'linear-gradient(45deg, #dc3545, #c82333)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
+                  }}
+                  title="Minimize Map"
+                >
+                  ➖ MINIMIZE
+                </button>
               </div>
+              
+              {/* Instructions for zoom/pan */}
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: '#00ff88',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                zIndex: 3001,
+                border: '1px solid #00ff88'
+              }}>
+                🖱️ Scroll to zoom • Drag to pan
+              </div>
+      
             </div>
           )}
         </div>
@@ -1340,6 +1341,7 @@ export default function BattleRoyaleGame() {
           zIndex: 2500
         }} />
       )}
-    </div>
+      </div>
+    </>
   );
 }
