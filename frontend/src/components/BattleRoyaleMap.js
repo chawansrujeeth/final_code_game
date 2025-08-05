@@ -194,6 +194,7 @@ export default function BattleRoyaleMap({
           
         setTimeout(() => {
           cyRef.current.fit(undefined, 20);
+          cyRef.current.center();
           cyRef.current.zoom({
             level: cyRef.current.zoom() * 0.6, // Zoom out more for better overview
             renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
@@ -230,6 +231,7 @@ export default function BattleRoyaleMap({
         setTimeout(() => {
           cyRef.current.resize();
           cyRef.current.fit(undefined, 20);
+          cyRef.current.center();
         }, 300);
       }
     }, [isMinimized]);
