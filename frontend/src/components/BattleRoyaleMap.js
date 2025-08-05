@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
-// Map radius constants (match node placement)
-const MAP_R1 = 60;   // inner ring radius
-const MAP_R2 = 120;  // middle ring radius
-const MAP_R3 = 160;  // outer ring radius
-const MAP_BOUNDARY = 360; // square boundary (±180) that neatly encloses graph with margin
+// Map radius constants (match node placement) - standardized for square layout
+const MAP_R1 = 80;   // inner ring radius
+const MAP_R2 = 140;  // middle ring radius
+const MAP_R3 = 200;  // outer ring radius
+const MAP_BOUNDARY = 480; // square boundary (±240) that neatly encloses graph with margin
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -328,7 +328,7 @@ export default function BattleRoyaleMap({
       position: { x: 0, y: 0 }
     });
 
-    // RING 1: Inner ring (6 nodes)
+    // RING 1: Inner ring (8 nodes)
     const ring1Count = 8;
     for (let i = 0; i < ring1Count; i++) {
       const id = `R1_${i + 1}`;
@@ -349,7 +349,7 @@ export default function BattleRoyaleMap({
     }
 
     // RING 2: Middle ring (8 nodes)
-    const ring2Count = 10;
+    const ring2Count = 8;
     for (let i = 0; i < ring2Count; i++) {
       const id = `R2_${i + 1}`;
       const angle = (i * 360) / ring2Count;
@@ -369,7 +369,7 @@ export default function BattleRoyaleMap({
     }
 
     // RING 3: Outer ring (8 nodes) - Starting positions
-    const ring3Count = 12;
+    const ring3Count = 8;
     for (let i = 0; i < ring3Count; i++) {
       const id = `R3_${i + 1}`;
       const angle = (i * 360) / ring3Count;
@@ -590,12 +590,12 @@ export default function BattleRoyaleMap({
     if (enableZoom) {
       const { width, height } = cyRef.current.container().getBoundingClientRect();
       
-      // Calculate minimum zoom to ensure square boundary fills the viewport
-      const MIN_ZOOM = Math.max(
-        width / (MAP_BOUNDARY * 1.1),   // 1.2 for small margin
-        height / (MAP_BOUNDARY * 1.1)
-      );
-      const MAX_ZOOM = 4.0;
+      // Calculate minimum zoom to ensure square boundary fills the viewport properly
+      const MIN_ZOOM = Math.min(
+        width / (MAP_BOUNDARY * 1.2),   // 1.2 for margin
+        height / (MAP_BOUNDARY * 1.2)
+      ) * 0.9; // Slight reduction to ensure full visibility
+      const MAX_ZOOM = 3.0;
       
       cyRef.current.minZoom(MIN_ZOOM);
       cyRef.current.maxZoom(MAX_ZOOM);
@@ -667,22 +667,23 @@ export default function BattleRoyaleMap({
     setTimeout(() => {
       if (cyRef.current) {
         // Always center the graph at (0,0)
-        cyRef.current.pan({ x: 0, y: 0 });
-        
-        if (isMinimized) {
-          // For minimap, zoom to fit boundary with margin
+        if (cyRef.current && cyRef.current.nodes().length > 0) {
           const { width, height } = cyRef.current.container().getBoundingClientRect();
+          
+          // Calculate optimal zoom to fit the square boundary with proper margins
           const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.2),
-            height / (MAP_BOUNDARY * 1.2)
+            width / (MAP_BOUNDARY * 1.1),
+            height / (MAP_BOUNDARY * 1.1)
           );
+          
+          // Apply zoom and center the graph
           cyRef.current.zoom(fitZoom);
           cyRef.current.center();
-        } else {
-          // For full screen, set zoom to show boundary comfortably
-          // For full screen, fit graph nodes with small padding
-          cyRef.current.fit(cyRef.current.nodes(), 20);
-          cyRef.current.center();
+          
+          // For minimized view, apply additional scaling
+          if (isMinimized) {
+            cyRef.current.zoom(fitZoom * 0.8);
+          }
         }
       }
     }, 100);
