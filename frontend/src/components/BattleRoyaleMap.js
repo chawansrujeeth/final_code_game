@@ -193,11 +193,11 @@ export default function BattleRoyaleMap({
           .update();
           cyRef.current.resize();
           cyRef.current.fit(cyRef.current.elements(), 30);
-          cyRef.current.center();
+          cyRef.current.center(cyRef.current.$('#TARGET'));
           
         setTimeout(() => {
           cyRef.current.fit(undefined, 20);
-          cyRef.current.center();
+          cyRef.current.center(cyRef.current.$('#TARGET'));
           cyRef.current.zoom({
             level: cyRef.current.zoom() * 0.6, // Zoom out more for better overview
             renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
@@ -229,7 +229,7 @@ export default function BattleRoyaleMap({
           .update();
           cyRef.current.resize();
           cyRef.current.fit(cyRef.current.elements(), 30);
-          cyRef.current.center();
+          cyRef.current.center(cyRef.current.$('#TARGET'));
       }
     }
     if (cyRef.current) {
@@ -237,7 +237,7 @@ export default function BattleRoyaleMap({
         setTimeout(() => {
           cyRef.current.resize();
           cyRef.current.fit(undefined, 20);
-          cyRef.current.center();
+          cyRef.current.center(cyRef.current.$('#TARGET'));
         }, 300);
       }
     }, [isMinimized]);
@@ -647,7 +647,7 @@ export default function BattleRoyaleMap({
           
           // Apply zoom and center the graph
           cyRef.current.zoom(fitZoom);
-          cyRef.current.center();
+          cyRef.current.center(cyRef.current.$('#TARGET'));
           
           // For minimized view, apply additional scaling
           if (isMinimized) {
