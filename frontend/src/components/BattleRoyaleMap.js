@@ -19,6 +19,8 @@ export default function BattleRoyaleMap({
   const cyRef = useRef(null);
   // High-level game timer
   const [gameTimer, setGameTimer] = useState(0);
+  // Legacy ring-based blue zone level (0-3) for node styling
+  const [blueZoneLevel, setBlueZoneLevel] = useState(0);
   
   // Dynamic shrinking-zone state
   const [safeCircle, setSafeCircle] = useState(null);        // {x,y,r}
