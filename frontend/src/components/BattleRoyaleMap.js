@@ -680,12 +680,8 @@ export default function BattleRoyaleMap({
           cyRef.current.center();
         } else {
           // For full screen, set zoom to show boundary comfortably
-          const { width, height } = cyRef.current.container().getBoundingClientRect();
-          const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.05),
-            height / (MAP_BOUNDARY * 1.05)
-          );
-          cyRef.current.zoom(Math.max(fitZoom, cyRef.current.minZoom()));
+          // For full screen, fit graph nodes with small padding
+          cyRef.current.fit(cyRef.current.nodes(), 20);
           cyRef.current.center();
         }
       }
