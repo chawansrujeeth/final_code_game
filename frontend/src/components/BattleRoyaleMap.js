@@ -5,6 +5,7 @@ import cytoscape from 'cytoscape';
 const MAP_R1 = 80;   // inner ring radius
 const MAP_R2 = 160;  // middle ring radius
 const MAP_R3 = 240;  // outer ring radius
+const MAP_BOUNDARY = 350; // square boundary containing the entire map
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -25,7 +26,7 @@ export default function BattleRoyaleMap({
   // Dynamic shrinking-zone state
   const [safeCircle, setSafeCircle] = useState(null);        // {x,y,r}
   const [nextSafeCircle, setNextSafeCircle] = useState(null); // upcoming safe zone
-  const [blueRadius, setBlueRadius] = useState(MAP_R3 + 30);  // starts slightly outside outer ring
+  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);  // starts from map boundary
   const [phase, setPhase] = useState('moving');               // 'moving' | 'waiting'
   const [phaseTimer, setPhaseTimer] = useState(0);            // seconds within current phase
 
@@ -44,7 +45,7 @@ export default function BattleRoyaleMap({
           r: radius
         };
       };
-      const firstSafe = randomSafe(MAP_R3 - 20);
+      const firstSafe = randomSafe(MAP_R3);
       const secondSafe = randomSafe(firstSafe.r);
       setSafeCircle(firstSafe);
       setNextSafeCircle(secondSafe);
@@ -102,22 +103,6 @@ export default function BattleRoyaleMap({
     }, 1000);
     return () => clearInterval(interval);
   }, [phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setGameTimer(prev => {
-        const newTimer = prev + 1;
-        
-        // Blue zone progression every 30 seconds
-        if (newTimer % 30 === 0 && blueZoneLevel < 3) {
-          setBlueZoneLevel(prev => prev + 1);
-        }
-        
-        return newTimer;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [blueZoneLevel]);
   
   // Update blue zone styling when zone level changes
   useEffect(() => {
@@ -158,24 +143,50 @@ export default function BattleRoyaleMap({
       const { width, height } = canvas;
       ctx.clearRect(0, 0, width, height);
 
-      // translate to center (0,0 at middle like cytoscape preset)
+      // Get current cytoscape zoom and pan to match canvas overlay
+      const cy = cyRef.current;
+      if (!cy) return;
+      
+      const zoom = cy.zoom();
+      const pan = cy.pan();
+      
       ctx.save();
       ctx.translate(width / 2, height / 2);
+      ctx.scale(zoom, zoom);
+      ctx.translate(pan.x / zoom, pan.y / zoom);
+
+      // draw map boundary square
+      ctx.beginPath();
+      ctx.strokeStyle = '#444444';
+      ctx.lineWidth = 2 / zoom;
+      ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
+      ctx.stroke();
 
       // draw safe circle (white line)
       if (safeCircle) {
         ctx.beginPath();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3 / zoom;
         ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // draw blue zone (semi-transparent blue fill)
-      ctx.beginPath();
-      ctx.fillStyle = 'rgba(52, 152, 219, 0.15)';
-      ctx.arc(0, 0, blueRadius, 0, Math.PI * 2);
-      ctx.fill();
+      // draw blue zone (semi-transparent blue fill outside safe area)
+      if (safeCircle) {
+        // Create a path that fills the entire boundary but excludes the safe circle
+        ctx.beginPath();
+        ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
+        ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, Math.PI * 2, true); // counter-clockwise for hole
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+        ctx.fill();
+      } else {
+        // No safe circle yet, fill from boundary to current blue radius
+        ctx.beginPath();
+        ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
+        ctx.arc(0, 0, blueRadius, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+        ctx.fill();
+      }
 
       ctx.restore();
       requestAnimationFrame(draw);
@@ -568,13 +579,31 @@ export default function BattleRoyaleMap({
       selectionType: 'single'
     });
 
-    // Enforce minimum zoom level (prevent zooming out too far)
+    // Enforce zoom and pan boundaries
     if (enableZoom) {
-      const MIN_ZOOM = 0.3; // Dead-end zoom level – cannot zoom out beyond this
+      const MIN_ZOOM = 0.5;
+      const MAX_ZOOM = 3.0;
       cyRef.current.minZoom(MIN_ZOOM);
-      cyRef.current.on('zoom', () => {
-        if (cyRef.current.zoom() < MIN_ZOOM) {
-          cyRef.current.zoom({ level: MIN_ZOOM });
+      cyRef.current.maxZoom(MAX_ZOOM);
+      
+      cyRef.current.on('zoom pan', () => {
+        const zoom = cyRef.current.zoom();
+        const pan = cyRef.current.pan();
+        const { width, height } = cyRef.current.container().getBoundingClientRect();
+        
+        // Constrain pan to keep map boundary visible
+        const maxPanX = (MAP_BOUNDARY * zoom) / 2 - width / 4;
+        const maxPanY = (MAP_BOUNDARY * zoom) / 2 - height / 4;
+        const minPanX = -maxPanX;
+        const minPanY = -maxPanY;
+        
+        const constrainedPan = {
+          x: Math.max(minPanX, Math.min(maxPanX, pan.x)),
+          y: Math.max(minPanY, Math.min(maxPanY, pan.y))
+        };
+        
+        if (pan.x !== constrainedPan.x || pan.y !== constrainedPan.y) {
+          cyRef.current.pan(constrainedPan);
         }
       });
     }
@@ -620,13 +649,17 @@ export default function BattleRoyaleMap({
     // Ensure proper fit for minimap overview
     setTimeout(() => {
       if (cyRef.current) {
-        cyRef.current.fit();
         if (isMinimized) {
-          // For minimap, ensure we can see the entire network
+          // For minimap, fit to show entire map boundary
+          cyRef.current.fit();
           cyRef.current.zoom({
-            level: cyRef.current.zoom() * 0.8, // Zoom out a bit more for better overview
+            level: cyRef.current.zoom() * 0.7, // Zoom out to show boundary
             renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
           });
+        } else {
+          // For full screen, center and set reasonable zoom
+          cyRef.current.center();
+          cyRef.current.zoom(1.0);
         }
       }
     }, 100);
@@ -695,12 +728,16 @@ export default function BattleRoyaleMap({
           fontSize: isMinimized ? '10px' : '14px'
         }}>
           <div>⏱️ Game Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
-          <div>🔵 Blue Zone Level: {blueZoneLevel}/3</div>
-          <div>⚠️ Next Zone: {blueZoneLevel < 3 ? `${30 - (gameTimer % 30)}s` : 'Final Zone'}</div>
+          <div>🔵 Zone Phase: {phase === 'moving' ? 'SHRINKING' : 'WAITING'}</div>
+          <div>⚠️ Phase Timer: {phase === 'moving' ? `${Math.max(0, 60 - phaseTimer)}s` : `${Math.max(0, 60 - phaseTimer)}s`}</div>
+          {safeCircle && (
+            <div>🎯 Safe Zone: R{Math.round(safeCircle.r)} at ({Math.round(safeCircle.x)}, {Math.round(safeCircle.y)})</div>
+          )}
+          <div>💀 Blue Zone: R{Math.round(blueRadius)}</div>
           <div style={{ marginTop: '10px', borderTop: '1px solid #666', paddingTop: '10px' }}>
-            <div>🎯 Click zones to move</div>
-            <div>🏃 Move to inner zones to survive</div>
-            <div>🔴 Avoid blue zones!</div>
+            <div>🎯 Stay inside white circle</div>
+            <div>🏃 Blue zone = death</div>
+            <div>🔴 Move before shrink!</div>
           </div>
         </div>
       )}
