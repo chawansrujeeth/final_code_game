@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
 // Map radius constants (match node placement)
-const MAP_R1 = 80;   // inner ring radius
-const MAP_R2 = 160;  // middle ring radius
-const MAP_R3 = 240;  // outer ring radius
-const MAP_BOUNDARY = 350; // square boundary containing the entire map
+const MAP_R1 = 60;   // inner ring radius
+const MAP_R2 = 120;  // middle ring radius
+const MAP_R3 = 160;  // outer ring radius
+const MAP_BOUNDARY = 200; // square boundary containing the entire map
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -45,7 +45,7 @@ export default function BattleRoyaleMap({
           r: radius
         };
       };
-      const firstSafe = randomSafe(MAP_R3);
+      const firstSafe = randomSafe(MAP_R3 - 20); // ensure safe circle fits inside boundary
       const secondSafe = randomSafe(firstSafe.r);
       setSafeCircle(firstSafe);
       setNextSafeCircle(secondSafe);
@@ -304,10 +304,10 @@ export default function BattleRoyaleMap({
     const nodes = [];
     const edges = [];
     
-    // Define radii for concentric circles (no player ring)
-    const R1 = 80;  // Ring 1 (innermost)
-    const R2 = 160; // Ring 2 (middle)
-    const R3 = 240; // Ring 3 (outermost)
+    // Define radii for concentric circles (no player ring) - fit inside boundary
+    const R1 = MAP_R1;  // Ring 1 (innermost)
+    const R2 = MAP_R2;  // Ring 2 (middle)
+    const R3 = MAP_R3;  // Ring 3 (outermost)
     
     // TARGET: Center node (safe zone)
     nodes.push({ 
@@ -579,30 +579,40 @@ export default function BattleRoyaleMap({
       selectionType: 'single'
     });
 
-    // Enforce zoom and pan boundaries
+    // Enforce zoom and pan boundaries - prevent zooming out of square
     if (enableZoom) {
-      const MIN_ZOOM = 0.5;
-      const MAX_ZOOM = 3.0;
+      const { width, height } = cyRef.current.container().getBoundingClientRect();
+      
+      // Calculate minimum zoom to ensure square boundary fills the viewport
+      const MIN_ZOOM = Math.max(
+        width / (MAP_BOUNDARY * 1.2),   // 1.2 for small margin
+        height / (MAP_BOUNDARY * 1.2)
+      );
+      const MAX_ZOOM = 4.0;
+      
       cyRef.current.minZoom(MIN_ZOOM);
       cyRef.current.maxZoom(MAX_ZOOM);
       
       cyRef.current.on('zoom pan', () => {
         const zoom = cyRef.current.zoom();
         const pan = cyRef.current.pan();
-        const { width, height } = cyRef.current.container().getBoundingClientRect();
+        const containerRect = cyRef.current.container().getBoundingClientRect();
         
-        // Constrain pan to keep map boundary visible
-        const maxPanX = (MAP_BOUNDARY * zoom) / 2 - width / 4;
-        const maxPanY = (MAP_BOUNDARY * zoom) / 2 - height / 4;
-        const minPanX = -maxPanX;
-        const minPanY = -maxPanY;
+        // Calculate how much of the boundary is visible at current zoom
+        const boundaryPixelSize = MAP_BOUNDARY * zoom;
+        const halfBoundary = boundaryPixelSize / 2;
+        
+        // Constrain pan so boundary square never goes outside viewport
+        const maxPanX = Math.max(0, halfBoundary - containerRect.width / 2);
+        const maxPanY = Math.max(0, halfBoundary - containerRect.height / 2);
         
         const constrainedPan = {
-          x: Math.max(minPanX, Math.min(maxPanX, pan.x)),
-          y: Math.max(minPanY, Math.min(maxPanY, pan.y))
+          x: Math.max(-maxPanX, Math.min(maxPanX, pan.x)),
+          y: Math.max(-maxPanY, Math.min(maxPanY, pan.y))
         };
         
-        if (pan.x !== constrainedPan.x || pan.y !== constrainedPan.y) {
+        // Apply constraints if needed
+        if (Math.abs(pan.x - constrainedPan.x) > 0.1 || Math.abs(pan.y - constrainedPan.y) > 0.1) {
           cyRef.current.pan(constrainedPan);
         }
       });
@@ -646,20 +656,28 @@ export default function BattleRoyaleMap({
       if (el) el.remove();
     });
 
-    // Ensure proper fit for minimap overview
+    // Ensure proper fit and centering
     setTimeout(() => {
       if (cyRef.current) {
+        // Always center the graph at (0,0)
+        cyRef.current.pan({ x: 0, y: 0 });
+        
         if (isMinimized) {
-          // For minimap, fit to show entire map boundary
-          cyRef.current.fit();
-          cyRef.current.zoom({
-            level: cyRef.current.zoom() * 0.7, // Zoom out to show boundary
-            renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
-          });
+          // For minimap, zoom to fit boundary with margin
+          const { width, height } = cyRef.current.container().getBoundingClientRect();
+          const fitZoom = Math.min(
+            width / (MAP_BOUNDARY * 1.3),
+            height / (MAP_BOUNDARY * 1.3)
+          );
+          cyRef.current.zoom(fitZoom);
         } else {
-          // For full screen, center and set reasonable zoom
-          cyRef.current.center();
-          cyRef.current.zoom(1.0);
+          // For full screen, set zoom to show boundary comfortably
+          const { width, height } = cyRef.current.container().getBoundingClientRect();
+          const fitZoom = Math.min(
+            width / (MAP_BOUNDARY * 1.1),
+            height / (MAP_BOUNDARY * 1.1)
+          );
+          cyRef.current.zoom(Math.max(fitZoom, cyRef.current.minZoom()));
         }
       }
     }, 100);
