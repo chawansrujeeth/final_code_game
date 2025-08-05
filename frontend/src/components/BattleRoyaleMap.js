@@ -147,48 +147,7 @@ export default function BattleRoyaleMap({
     const draw = () => {
       const { width, height } = canvas;
       ctx.clearRect(0, 0, width, height);
-
-      // Get current cytoscape zoom and pan to match canvas overlay
-      const cy = cyRef.current;
-      if (!cy) return;
-      
-      const zoom = cy.zoom();
-      const pan = cy.pan();
-      
-      ctx.save();
-      // Correct transform order: translate by pan first (including width/height offset), then scale
-      ctx.translate(width / 2 + pan.x, height / 2 + pan.y);
-      ctx.scale(zoom, zoom);
-
-
-
-      // draw safe circle (white line)
-      if (safeCircle) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3 / zoom;
-        ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // draw blue zone (semi-transparent blue fill outside safe area)
-      if (safeCircle) {
-        // Create a path that fills the entire boundary but excludes the safe circle
-        ctx.beginPath();
-        ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
-        ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, Math.PI * 2, true); // counter-clockwise for hole
-        ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
-        ctx.fill();
-      } else {
-        // No safe circle yet, fill from boundary to current blue radius
-        ctx.beginPath();
-        ctx.rect(-MAP_BOUNDARY/2, -MAP_BOUNDARY/2, MAP_BOUNDARY, MAP_BOUNDARY);
-        ctx.arc(0, 0, blueRadius, 0, Math.PI * 2, true);
-        ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
-        ctx.fill();
-      }
-
-      ctx.restore();
+      // We no longer render safe/blue zones – simple clear for overlays
       requestAnimationFrame(draw);
     };
 
