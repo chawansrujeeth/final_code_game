@@ -5,7 +5,7 @@ import cytoscape from 'cytoscape';
 const MAP_R1 = 60;   // inner ring radius
 const MAP_R2 = 120;  // middle ring radius
 const MAP_R3 = 160;  // outer ring radius
-const MAP_BOUNDARY = 600; // very large square boundary (±300) ensuring it encloses entire graph
+const MAP_BOUNDARY = 2000; // extreme square boundary (±1000) far outside entire graph
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -28,7 +28,7 @@ export default function BattleRoyaleMap({
   // Dynamic shrinking-zone state
   const [safeCircle, setSafeCircle] = useState(null);        // {x,y,r}
   const [nextSafeCircle, setNextSafeCircle] = useState(null); // upcoming safe zone
-  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);  // starts from map boundary
+  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY / 2);  // starts from half of extreme boundary
   const [phase, setPhase] = useState('moving');               // 'moving' | 'waiting'
   const [phaseTimer, setPhaseTimer] = useState(0);            // seconds within current phase
 
@@ -36,8 +36,8 @@ export default function BattleRoyaleMap({
   // Initialize first safe circles on first render
   useEffect(() => {
     if (!safeCircle) {
-      // First safe circle is centered, radius = MAP_R3 (covers graph)
-      const firstSafe = { x: 0, y: 0, r: MAP_R3 };
+      // First safe circle is centered, radius big enough to cover extreme boundary first (then shrink)
+      const firstSafe = { x: 0, y: 0, r: MAP_BOUNDARY / 2 - 20 };
       // Helper to generate a random inner safe zone
       const randomSafeInner = (parent) => {
         const radius = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
