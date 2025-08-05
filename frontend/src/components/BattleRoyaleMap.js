@@ -634,25 +634,22 @@ export default function BattleRoyaleMap({
 
     // Ensure proper fit and centering
     setTimeout(() => {
-      if (cyRef.current) {
-        // Always center the graph at (0,0)
-        if (cyRef.current && cyRef.current.nodes().length > 0) {
-          const { width, height } = cyRef.current.container().getBoundingClientRect();
-          
-          // Calculate optimal zoom to fit the square boundary with proper margins
+      if (cyRef.current && cyRef.current.nodes().length > 0) {
+        const { width, height } = cyRef.current.container().getBoundingClientRect();
+        
+        if (isMinimized) {
+          // For minimap: fit the entire graph with padding
+          cyRef.current.fit(cyRef.current.elements(), 20);
+        } else {
+          // For expanded view: calculate optimal zoom to show entire graph
           const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.1),
-            height / (MAP_BOUNDARY * 1.1)
+            width / (MAP_BOUNDARY * 1.2),   // Add more margin for expanded view
+            height / (MAP_BOUNDARY * 1.2)
           );
           
           // Apply zoom and center the graph
           cyRef.current.zoom(fitZoom);
           cyRef.current.center(cyRef.current.$('#TARGET'));
-          
-          // For minimized view, apply additional scaling
-          if (isMinimized) {
-            cyRef.current.zoom(fitZoom * 0.8);
-          }
         }
       }
     }, 100);
@@ -661,6 +658,30 @@ export default function BattleRoyaleMap({
       cyRef.current?.destroy();
     };
   }, []);
+
+  // Re-fit graph when minimized state changes
+  useEffect(() => {
+    if (cyRef.current && cyRef.current.nodes().length > 0) {
+      setTimeout(() => {
+        const { width, height } = cyRef.current.container().getBoundingClientRect();
+        
+        if (isMinimized) {
+          // For minimap: fit the entire graph with padding
+          cyRef.current.fit(cyRef.current.elements(), 20);
+        } else {
+          // For expanded view: calculate optimal zoom to show entire graph
+          const fitZoom = Math.min(
+            width / (MAP_BOUNDARY * 1.2),   // Add more margin for expanded view
+            height / (MAP_BOUNDARY * 1.2)
+          );
+          
+          // Apply zoom and center the graph
+          cyRef.current.zoom(fitZoom);
+          cyRef.current.center(cyRef.current.$('#TARGET'));
+        }
+      }, 100);
+    }
+  }, [isMinimized]);
 
   // Add CSS for tooltips and 3D effects
   useEffect(() => {
