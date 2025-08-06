@@ -166,7 +166,7 @@ export default function BattleRoyaleMap({
     return () => {
       window.removeEventListener('resize', resize);
       if (cyRef.current) {
-        cyRef.current.off('zoom pan', syncCanvasTransform);
+        cyRef.current.off('zoom pan');
       }
     };
   }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
