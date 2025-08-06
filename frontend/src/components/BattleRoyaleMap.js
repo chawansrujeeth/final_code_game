@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 
-// Map radius constants (match node placement) - standardized for square layout
+// Map radius constants - optimized for PUBG-style battle royale
 const MAP_R1 = 80;   // inner ring radius
 const MAP_R2 = 140;  // middle ring radius
 const MAP_R3 = 200;  // outer ring radius
-const MAP_BOUNDARY = 480; // square boundary (±240) that neatly encloses graph with margin
+const MAP_BOUNDARY = 480; // total map boundary
 
 export default function BattleRoyaleMap({ 
   gameState = {},
@@ -18,773 +18,374 @@ export default function BattleRoyaleMap({
   players = {}
 }) {
   const cyRef = useRef(null);
-  // Stores Cartesian coordinates of every node for future zone tracking
   const nodeCoordsRef = useRef({});
-  // High-level game timer
-  const [gameTimer, setGameTimer] = useState(0);
-  // Legacy ring-based blue zone level (0-3) for node styling
-  const [blueZoneLevel, setBlueZoneLevel] = useState(0);
+  const canvasRef = useRef(null);
   
-  // Dynamic shrinking-zone state
-  const [safeCircle, setSafeCircle] = useState(null);        // {x,y,r}
-  const [nextSafeCircle, setNextSafeCircle] = useState(null); // upcoming safe zone
-  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);  // starts from map boundary
-  const [phase, setPhase] = useState('moving');               // 'moving' | 'waiting'
-  const [phaseTimer, setPhaseTimer] = useState(0);            // seconds within current phase
+  // Game state
+  const [gameTimer, setGameTimer] = useState(0);
+  const [safeCircle, setSafeCircle] = useState(null);
+  const [nextSafeCircle, setNextSafeCircle] = useState(null);
+  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);
+  const [phase, setPhase] = useState('moving'); // 'moving' | 'waiting'
+  const [phaseTimer, setPhaseTimer] = useState(0);
 
-  // ===== Shrinking Zone Logic =====
-  // Initialize first safe circles on first render
+  // Initialize safe zones
   useEffect(() => {
     if (!safeCircle) {
-      // First safe circle is centered, radius big enough to cover extreme boundary first (then shrink)
       const firstSafe = { x: 0, y: 0, r: MAP_R3 };
-      // Helper to generate a random inner safe zone
-      const randomSafeInner = (parent) => {
-        const radius = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
-        const angle = Math.random() * 2 * Math.PI;
-        const dist = Math.random() * (parent.r - radius);
-        return {
-          x: parent.x + Math.cos(angle) * dist,
-          y: parent.y + Math.sin(angle) * dist,
-          r: radius
+      const randomInner = (parent) => {
+        const r = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
+        const a = Math.random() * 2 * Math.PI;
+        const d = Math.random() * (parent.r - r);
+        return { 
+          x: parent.x + Math.cos(a) * d, 
+          y: parent.y + Math.sin(a) * d, 
+          r 
         };
       };
-      const secondSafe = randomSafeInner(firstSafe);
       setSafeCircle(firstSafe);
-      setNextSafeCircle(secondSafe);
+      setNextSafeCircle(randomInner(firstSafe));
     }
   }, [safeCircle]);
 
-  // Central loop every second handling timers & shrink
+  // Game loop - zone shrinking mechanics
   useEffect(() => {
     const interval = setInterval(() => {
-      setGameTimer(prev => prev + 1);
+      setGameTimer(t => t + 1);
       setPhaseTimer(t => t + 1);
-
-      if (!safeCircle) return; // not ready yet
+      
+      if (!safeCircle) return;
 
       if (phase === 'moving') {
-        // Shrink blue zone towards current safe circle at constant rate so it meets in 60s
-        const distanceToShrink = blueRadius - safeCircle.r;
-        if (distanceToShrink <= 0.5) {
-          // Reached safe circle
+        const diff = blueRadius - safeCircle.r;
+        if (diff <= 1) {
           setBlueRadius(safeCircle.r);
           setPhase('waiting');
           setPhaseTimer(0);
         } else {
-          const shrinkPerSec = distanceToShrink / 60; // reach in 60s
-          setBlueRadius(r => Math.max(safeCircle.r, r - shrinkPerSec));
+          const perSec = diff / 60; // 60 second shrink time
+          setBlueRadius(r => Math.max(safeCircle.r, r - perSec));
         }
-      } else if (phase === 'waiting') {
-        if (phaseTimer >= 60) {
-          // Prepare next shrink
-          if (!nextSafeCircle) {
-            // final zone – collapse to current safeCircle center node size
-            setNextSafeCircle({ x: safeCircle.x, y: safeCircle.y, r: 10 });
-          }
-          setSafeCircle(nextSafeCircle);
-          // Pick subsequent safe circle inside it (unless already final)
-          if (nextSafeCircle.r > 20) {
-            const randomInner = () => {
-              const radius = Math.random() * (nextSafeCircle.r * 0.5) + nextSafeCircle.r * 0.25;
-              const angle = Math.random() * 2 * Math.PI;
-              const dist = Math.random() * (nextSafeCircle.r - radius);
-              return {
-                x: nextSafeCircle.x + Math.cos(angle) * dist,
-                y: nextSafeCircle.y + Math.sin(angle) * dist,
-                r: radius
-              };
-            };
-            setNextSafeCircle(randomInner());
-          } else {
-            setNextSafeCircle({ x: nextSafeCircle.x, y: nextSafeCircle.y, r: 0 });
-          }
-          setPhase('moving');
-          setPhaseTimer(0);
+      } else if (phase === 'waiting' && phaseTimer >= 60) {
+        setSafeCircle(nextSafeCircle);
+        if (nextSafeCircle.r > 20) {
+          const parent = nextSafeCircle;
+          const r = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
+          const a = Math.random() * 2 * Math.PI;
+          const d = Math.random() * (parent.r - r);
+          setNextSafeCircle({ 
+            x: parent.x + Math.cos(a) * d, 
+            y: parent.y + Math.sin(a) * d, 
+            r 
+          });
+        } else {
+          setNextSafeCircle({ x: nextSafeCircle.x, y: nextSafeCircle.y, r: 0 });
         }
+        setPhase('moving');
+        setPhaseTimer(0);
       }
     }, 1000);
+    
     return () => clearInterval(interval);
   }, [phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
-  
-  // Update blue zone styling when zone level changes
-  useEffect(() => {
-    if (!cyRef.current) return;
-    
-    // Remove all blue zone classes first
-    cyRef.current.nodes().removeClass('blue-zone');
-    
-    // Apply blue zone based on current level
-    if (blueZoneLevel >= 1) {
-      cyRef.current.nodes('.layer3').addClass('blue-zone');
-    }
-    if (blueZoneLevel >= 2) {
-      cyRef.current.nodes('.layer2').addClass('blue-zone');
-    }
-    if (blueZoneLevel >= 3) {
-      cyRef.current.nodes('.layer1').addClass('blue-zone');
-    }
-    
-    // Update zone type in node data
-    cyRef.current.nodes().forEach(node => {
-      const nodeData = node.data();
-      if (nodeData.level >= 4 - blueZoneLevel && nodeData.level > 0) {
-        node.data('zoneType', 'danger');
-      }
-    });
-    // Expose node coordinates via Cytoscape instance for external queries
-    cyRef.current.nodeCoords = nodeCoordsRef.current;
-  }, [blueZoneLevel]);
-  
-  // ===== Overlay Canvas for circles =====
-  const canvasRef = useRef(null);
 
+  // Canvas drawing for zones
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
     const ctx = canvas.getContext('2d');
-
-    const draw = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
-      // We no longer render safe/blue zones – simple clear for overlays
-      requestAnimationFrame(draw);
-    };
-
-    // ensure canvas matches container size
+    
     const resize = () => {
       const parent = canvas.parentNode;
       canvas.width = parent.clientWidth;
       canvas.height = parent.clientHeight;
     };
+    
     resize();
     window.addEventListener('resize', resize);
+    
+    const draw = () => {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      
+      // Center coordinate system
+      ctx.translate(w/2, h/2);
+      
+      // Draw map boundary (water/death zone)
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([]);
+      const boundary = MAP_BOUNDARY * (isMinimized ? 0.6 : 0.8);
+      ctx.strokeRect(-boundary, -boundary, boundary*2, boundary*2);
+      
+      // Draw current safe circle (white dashed)
+      if (safeCircle) {
+        const scale = isMinimized ? 0.6 : 0.8;
+        ctx.beginPath();
+        ctx.arc(safeCircle.x * scale, safeCircle.y * scale, safeCircle.r * scale, 0, 2*Math.PI);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 5]);
+        ctx.stroke();
+      }
+      
+      // Draw next safe circle preview (during waiting phase)
+      if (nextSafeCircle && phase === 'waiting') {
+        const scale = isMinimized ? 0.6 : 0.8;
+        ctx.beginPath();
+        ctx.arc(nextSafeCircle.x * scale, nextSafeCircle.y * scale, nextSafeCircle.r * scale, 0, 2*Math.PI);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+      }
+      
+      // Draw blue zone (deadly area)
+      const scale = isMinimized ? 0.6 : 0.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, blueRadius * scale, 0, 2*Math.PI);
+      ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      
+      // Add subtle blue zone fill
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      
+      ctx.restore();
+      requestAnimationFrame(draw);
+    };
+    
     draw();
-    return () => {
-      window.removeEventListener('resize', resize);
-    };
-  }, [safeCircle, blueRadius]);
+    return () => window.removeEventListener('resize', resize);
+  }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
 
-  // Handle minimap fit and styling when isMinimized changes
+  // Initialize Cytoscape network
   useEffect(() => {
-    if (cyRef.current) {
-      if (isMinimized) {
-        // Minimap mode - smaller elements for overview
-        cyRef.current.style()
-          .selector('node')
-          .style({
-            'font-size': '6px',
-            'border-width': '1px',
-            width: '20px',
-            height: '20px'
-          })
-          .selector('.core')
-          .style({
-            width: '25px',
-            height: '25px',
-            'font-size': '7px'
-          })
-          .selector('edge')
-          .style({
-            'font-size': '8px',
-            width: '1px',
-            opacity: '0.8'
-          })
-          .update();
-          cyRef.current.resize();
-          cyRef.current.fit(cyRef.current.elements(), 30);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-          
-        setTimeout(() => {
-          cyRef.current.fit(undefined, 20);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-          cyRef.current.zoom({
-            level: cyRef.current.zoom() * 0.6, // Zoom out more for better overview
-            renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 }
-          });
-        }, 200);
-      } else {
-        // Full screen mode - restore normal styling
-        cyRef.current.style()
-          .selector('node')
-          .style({
-            'font-size': '8px',
-            'border-width': '2px',
-            width: '30px',
-            height: '30px'
-          })
-          .selector('.core')
-          .style({
-            width: '40px',
-            height: '40px',
-            'font-size': '10px',
-            'border-width': '3px'
-          })
-          .selector('edge')
-          .style({
-            'font-size': '10px',
-            width: '2px',
-            opacity: '0.8'
-          })
-          .update();
-          cyRef.current.resize();
-          cyRef.current.fit(cyRef.current.elements(), 30);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-      }
-    }
-    if (cyRef.current) {
-        // Allow the DOM to finish transition first
-        setTimeout(() => {
-          cyRef.current.resize();
-          cyRef.current.fit(undefined, 20);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-        }, 300);
-      }
-    }, [isMinimized]);
-
-  // Initialize Cytoscape when component mounts
-  useEffect(() => {
-    // helper to convert polar to cartesian
-    const polar = (r, angleDeg) => {
-      const angleRad = (angleDeg * Math.PI) / 180;
-      return { x: r * Math.cos(angleRad), y: r * Math.sin(angleRad) };
-    };
-
-    // Edge helper to push with group and style - now includes question info
-    const pushEdge = (source, target, group, opts = {}) => {
-      const edgeId = `${source}-${target}`;
-      const { difficulty = 'easy', pathType = 'inward', questionId = null } = opts;
-      
-      // Determine edge color based on difficulty
-      let edgeColor = '#00ff88'; // Green for easy
-      if (difficulty === 'medium') edgeColor = '#ffaa00'; // Yellow for medium
-      if (difficulty === 'hard') edgeColor = '#ff4444'; // Red for hard
-      
-      edges.push({
-        data: {
-          id: edgeId,
-          source,
-          target,
-          group,
-          difficulty,
-          pathType,
-          questionId,
-          edgeColor,
-          label: pathType.toUpperCase()
-        }
-      });
-    };
-
+    if (cyRef.current) cyRef.current.destroy();
+    
+    const polar = (r, deg) => ({ 
+      x: r * Math.cos(deg * Math.PI / 180), 
+      y: r * Math.sin(deg * Math.PI / 180) 
+    });
+    
     const nodes = [];
     const edges = [];
     
-    // Define radii for concentric circles (no player ring) - fit inside boundary
-    const R1 = MAP_R1;  // Ring 1 (innermost)
-    const R2 = MAP_R2;  // Ring 2 (middle)
-    const R3 = MAP_R3;  // Ring 3 (outermost)
+    const pushEdge = (s, t, color) => {
+      edges.push({ 
+        data: { id: `${s}-${t}`, source: s, target: t }, 
+        style: { 'line-color': color }
+      });
+    };
     
-    // TARGET: Center node (safe zone)
+    // Create TARGET (victory point)
     nodes.push({ 
-      data: { 
-        id: 'TARGET', 
-        label: '', 
-        level: 0, 
-        class: 'core',
-        nodeType: 'target',
-        zoneType: 'safe',
-        description: 'Victory Point - Reach here to win!'
-      }, 
+      data: { id: 'TARGET', level: 0 }, 
       position: { x: 0, y: 0 }
     });
-
-    // RING 1: Inner ring (8 nodes)
-    const ring1Count = 8;
-    for (let i = 0; i < ring1Count; i++) {
-      const id = `R1_${i + 1}`;
-      const angle = (i * 360) / ring1Count;
-      const pos = polar(R1, angle);
-      nodes.push({ 
-        data: { 
-          id, 
-          label: `Zone 1-${i + 1}`, 
-          level: 1, 
-          class: 'layer1',
-          nodeType: 'zone',
-          zoneType: 'safe',
-          description: `Inner Zone ${i + 1}\nHigh-value strategic position`
-        }, 
-        position: pos 
-      });
-    }
-
-    // RING 2: Middle ring (8 nodes)
-    const ring2Count = 8;
-    for (let i = 0; i < ring2Count; i++) {
-      const id = `R2_${i + 1}`;
-      const angle = (i * 360) / ring2Count;
-      const pos = polar(R2, angle);
-      nodes.push({ 
-        data: { 
-          id, 
-          label: `Zone 2-${i + 1}`, 
-          level: 2, 
-          class: 'layer2',
-          nodeType: 'zone',
-          zoneType: 'safe',
-          description: `Middle Zone ${i + 1}\nModerate risk area`
-        }, 
-        position: pos 
-      });
-    }
-
-    // RING 3: Outer ring (8 nodes) - Starting positions
-    const ring3Count = 8;
-    for (let i = 0; i < ring3Count; i++) {
-      const id = `R3_${i + 1}`;
-      const angle = (i * 360) / ring3Count;
-      const pos = polar(R3, angle);
-      nodes.push({ 
-        data: { 
-          id, 
-          label: `Zone 3-${i + 1}`, 
-          level: 3, 
-          class: 'layer3',
-          nodeType: 'zone',
-          zoneType: 'safe',
-          description: `Outer Zone ${i + 1}\nStarting area - move inward quickly!`
-        }, 
-        position: pos 
-      });
-    }
-
-    // EDGES: Connect rings with questions (UNDIRECTED GRAPH)
     
-    // Ring 1 to Target (Hard questions - Final approach) - BIDIRECTIONAL
-    for (let i = 0; i < ring1Count; i++) {
-      const sourceId = `R1_${i + 1}`;
-      pushEdge(sourceId, 'TARGET', 'final', { 
-        difficulty: 'hard', 
-        pathType: 'final'
-      });
-      pushEdge('TARGET', sourceId, 'final', { 
-        difficulty: 'hard', 
-        pathType: 'final'
-      });
-    }
-
-    // Ring 2 to Ring 1 (Medium questions - Inward movement) - BIDIRECTIONAL
-    for (let i = 0; i < ring2Count; i++) {
-      const r2Index = i + 1;
-      const r1Index = Math.ceil((r2Index * ring1Count) / ring2Count);
-      pushEdge(`R2_${r2Index}`, `R1_${r1Index}`, 'inward', {
-        difficulty: 'medium',
-        pathType: 'inward'
-      });
-      pushEdge(`R1_${r1Index}`, `R2_${r2Index}`, 'inward', {
-        difficulty: 'medium',
-        pathType: 'inward'
-      });
-    }
-
-    // Ring 3 to Ring 2 (Easy questions - Inward movement) - BIDIRECTIONAL
-    for (let i = 0; i < ring3Count; i++) {
-      const r3Index = i + 1;
-      const r2Index = Math.ceil((r3Index * ring2Count) / ring3Count);
-      pushEdge(`R3_${r3Index}`, `R2_${r2Index}`, 'inward', {
-        difficulty: 'easy',
-        pathType: 'inward'
-      });
-      pushEdge(`R2_${r2Index}`, `R3_${r3Index}`, 'inward', {
-        difficulty: 'easy',
-        pathType: 'inward'
-      });
-    }
-
-    // Circular edges within each ring (Lateral movement) - BIDIRECTIONAL
-    // Ring 3 circular
-    for (let i = 0; i < ring3Count; i++) {
-      const current = `R3_${i + 1}`;
-      const next = `R3_${((i + 1) % ring3Count) + 1}`;
-      pushEdge(current, next, 'lateral', { 
-        difficulty: 'easy', 
-        pathType: 'lateral'
-      });
-      pushEdge(next, current, 'lateral', { 
-        difficulty: 'easy', 
-        pathType: 'lateral'
-      });
-    }
-
-    // Ring 2 circular
-    for (let i = 0; i < ring2Count; i++) {
-      const current = `R2_${i + 1}`;
-      const next = `R2_${((i + 1) % ring2Count) + 1}`;
-      pushEdge(current, next, 'lateral', { 
-        difficulty: 'medium', 
-        pathType: 'lateral'
-      });
-      pushEdge(next, current, 'lateral', { 
-        difficulty: 'medium', 
-        pathType: 'lateral'
-      });
-    }
-
-    // Ring 1 circular
-    for (let i = 0; i < ring1Count; i++) {
-      const current = `R1_${i + 1}`;
-      const next = `R1_${((i + 1) % ring1Count) + 1}`;
-      pushEdge(current, next, 'lateral', { 
-        difficulty: 'hard', 
-        pathType: 'lateral'
-      });
-      pushEdge(next, current, 'lateral', { 
-        difficulty: 'hard', 
-        pathType: 'lateral'
-      });
-    }
-
-    // Store coordinates for future zone tracking
-    nodes.forEach(n => { nodeCoordsRef.current[n.data.id] = n.position; });
+    // Create concentric rings
+    [[1, MAP_R1], [2, MAP_R2], [3, MAP_R3]].forEach(([lvl, R]) => {
+      const count = lvl === 1 ? 6 : 8;
+      for (let i = 0; i < count; i++) {
+        const id = `R${lvl}_${i + 1}`;
+        const pos = polar(R, (i * 360) / count);
+        
+        nodes.push({ data: { id, level: lvl }, position: pos });
+        
+        // Connect inward
+        if (lvl === 1) {
+          pushEdge(id, 'TARGET', '#ff4444'); // Hard (red)
+          pushEdge('TARGET', id, '#ff4444');
+        } else {
+          const innerCount = lvl === 2 ? 6 : 8;
+          const targetIdx = Math.floor((i * innerCount) / count);
+          const targetId = `R${lvl-1}_${targetIdx + 1}`;
+          const color = lvl === 2 ? '#ffff44' : '#44ff44'; // Medium/Easy
+          pushEdge(id, targetId, color);
+          pushEdge(targetId, id, color);
+        }
+        
+        // Circular connections
+        if (count > 1) {
+          const nextId = `R${lvl}_${((i + 1) % count) + 1}`;
+          const circColor = lvl === 1 ? '#ff8844' : lvl === 2 ? '#ffff88' : '#88ff88';
+          pushEdge(id, nextId, circColor);
+          pushEdge(nextId, id, circColor);
+        }
+      }
+    });
+    
+    // Store coordinates
+    nodes.forEach(n => nodeCoordsRef.current[n.data.id] = n.position);
+    
     // Initialize Cytoscape
     cyRef.current = cytoscape({
       container: document.getElementById('battle-royale-map'),
       elements: [...nodes, ...edges],
       style: [
-        // Base node styles
         {
-          selector: 'node',
+          selector: 'node[id="TARGET"]',
           style: {
-            'background-color': '#2c3e50',
-            'border-color': '#34495e',
-            'border-width': '2px',
-            'color': '#ecf0f1',
-            'label': '',
-            'text-opacity': 0,
+            'background-color': '#ff6b6b',
+            'width': isMinimized ? 25 : 35,
+            'height': isMinimized ? 25 : 35,
+            'label': 'TARGET',
             'text-valign': 'center',
             'text-halign': 'center',
-            'font-size': '8px',
+            'color': '#ffffff',
+            'font-size': isMinimized ? '8px' : '10px',
             'font-weight': 'bold',
-            'text-outline-color': '#2c3e50',
-            'text-outline-width': '1px',
-            width: '30px',
-            height: '30px'
-          }
-        },
-        
-        // Core/Target node
-        {
-          selector: '.core',
-          style: {
-            'background-color': '#e74c3c',
-            'border-color': '#c0392b',
-            'border-width': '3px',
-            width: '40px',
-            height: '40px',
-            'font-size': '10px',
-            'box-shadow': '0 0 20px #e74c3c'
-          }
-        },
-        
-        // Ring layers
-        {
-          selector: '.layer1',
-          style: {
-            'background-color': '#f39c12',
-            'border-color': '#e67e22'
+            'border-width': 3,
+            'border-color': '#ffffff'
           }
         },
         {
-          selector: '.layer2',
+          selector: 'node[level > 0]',
           style: {
-            'background-color': '#3498db',
-            'border-color': '#2980b9'
+            'background-color': '#4ecdc4',
+            'width': isMinimized ? 20 : 30,
+            'height': isMinimized ? 20 : 30,
+            'label': 'data(id)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'color': '#ffffff',
+            'font-size': isMinimized ? '6px' : '8px',
+            'font-weight': 'bold'
           }
         },
-        {
-          selector: '.layer3',
-          style: {
-            'background-color': '#27ae60',
-            'border-color': '#229954'
-          }
-        },
-        
-        // Blue zone (danger zone) styling
-        {
-          selector: '.blue-zone',
-          style: {
-            'background-color': '#8e44ad',
-            'border-color': '#9b59b6',
-            'border-width': '3px',
-            'box-shadow': '0 0 15px #8e44ad'
-          }
-        },
-        
-        // Base edge styles (UNDIRECTED - NO ARROWS)
         {
           selector: 'edge',
           style: {
-            'width': '3px',
-            'line-color': 'data(edgeColor)',
+            'width': 3,
+            'line-color': 'data(line-color)',
             'curve-style': 'straight',
-            'font-size': '10px',
-            'color': '#ecf0f1',
-            'text-outline-color': '#2c3e50',
-            'text-outline-width': '1px',
-            'label': 'data(label)',
             'opacity': 0.8
           }
         },
-        
-        // Highlighted edges (accessible paths) - UNDIRECTED
         {
-          selector: '.accessible-edge',
+          selector: 'edge:selected',
           style: {
-            'width': '5px',
+            'width': 5,
             'opacity': 1,
-            'line-color': '#00ff88',
-            'box-shadow': '0 0 15px #00ff88'
+            'line-color': '#00ff88'
+          }
+        },
+        {
+          selector: 'node:selected',
+          style: {
+            'border-width': 4,
+            'border-color': '#00ff88'
           }
         }
       ],
-      layout: {
-        name: 'preset'
-      },
+      layout: { name: 'preset' },
       userZoomingEnabled: enableZoom,
       userPanningEnabled: enablePan,
-      boxSelectionEnabled: false,
-      selectionType: 'single'
+      minZoom: 0.5,
+      maxZoom: 2
     });
-
-    // Enforce zoom and pan boundaries - prevent zooming out of square
-    if (enableZoom) {
-      const { width, height } = cyRef.current.container().getBoundingClientRect();
-      
-      // Calculate minimum zoom to ensure square boundary fills the viewport properly
-      const MIN_ZOOM = Math.min(
-        width / (MAP_BOUNDARY * 1.2),   // 1.2 for margin
-        height / (MAP_BOUNDARY * 1.2)
-      ) * 0.9; // Slight reduction to ensure full visibility
-      const MAX_ZOOM = 3.0;
-      
-      cyRef.current.minZoom(MIN_ZOOM);
-      cyRef.current.maxZoom(MAX_ZOOM);
-      
-      cyRef.current.on('zoom pan', () => {
-        const zoom = cyRef.current.zoom();
-        const pan = cyRef.current.pan();
-        const containerRect = cyRef.current.container().getBoundingClientRect();
-        
-        // Calculate how much of the boundary is visible at current zoom
-        const boundaryPixelSize = MAP_BOUNDARY * zoom;
-        const halfBoundary = boundaryPixelSize / 2;
-        
-        // Constrain pan so boundary square never goes outside viewport
-        const maxPanX = Math.max(0, halfBoundary - containerRect.width / 2);
-        const maxPanY = Math.max(0, halfBoundary - containerRect.height / 2);
-        
-        const constrainedPan = {
-          x: Math.max(-maxPanX, Math.min(maxPanX, pan.x)),
-          y: Math.max(-maxPanY, Math.min(maxPanY, pan.y))
-        };
-        
-        // Apply constraints if needed
-        if (Math.abs(pan.x - constrainedPan.x) > 0.1 || Math.abs(pan.y - constrainedPan.y) > 0.1) {
-          cyRef.current.pan(constrainedPan);
-        }
-      });
-    }
-
-    // Event handlers
-    cyRef.current.on('tap', 'node', (evt) => {
-      const node = evt.target;
-      const nodeData = node.data();
-      onNodeClick(nodeData);
+    
+    // Add interaction handlers
+    cyRef.current.on('tap', 'node', (e) => {
+      onNodeClick(e.target.data());
     });
-
-    cyRef.current.on('tap', 'edge', (evt) => {
-      const edge = evt.target;
-      const edgeData = edge.data();
-      onEdgeClick(edgeData);
+    
+    cyRef.current.on('tap', 'edge', (e) => {
+      onEdgeClick(e.target.data());
     });
-
-    // Tooltip functionality
-    cyRef.current.on('mouseover', 'node', (evt) => {
-      const node = evt.target;
-      const data = node.data();
-      const ele = document.createElement('div');
-      ele.className = 'cy-tooltip';
-      ele.innerHTML = `
-        <strong>${data.label}</strong><br/>
-        Type: ${data.nodeType}<br/>
-        Zone: ${data.zoneType}<br/>
-        ${data.description || ''}
-      `;
-      document.body.appendChild(ele);
-      const rect = node.renderedBoundingBox();
-      ele.style.left = rect.x2 + 4 + 'px';
-      ele.style.top = rect.y1 + 'px';
-      node.data('tooltipEl', ele);
-    });
-
-    cyRef.current.on('mouseout', 'node', (evt) => {
-      const node = evt.target;
-      const el = node.data('tooltipEl');
-      if (el) el.remove();
-    });
-
-    // Ensure proper fit and centering
+    
+    // Auto-fit for different view modes
     setTimeout(() => {
-      if (cyRef.current && cyRef.current.nodes().length > 0) {
-        const { width, height } = cyRef.current.container().getBoundingClientRect();
-        
-        if (isMinimized) {
-          // For minimap: fit the entire graph with padding
-          cyRef.current.fit(cyRef.current.elements(), 20);
-        } else {
-          // For expanded view: calculate optimal zoom to show entire graph
-          const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.2),   // Add more margin for expanded view
-            height / (MAP_BOUNDARY * 1.2)
-          );
-          
-          // Apply zoom and center the graph
-          cyRef.current.zoom(fitZoom);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-        }
+      if (isMinimized) {
+        cyRef.current.fit(cyRef.current.elements(), 20);
+      } else {
+        cyRef.current.center();
+        cyRef.current.zoom(1);
       }
     }, 100);
-
+    
     return () => {
-      cyRef.current?.destroy();
+      if (cyRef.current) cyRef.current.destroy();
     };
-  }, []);
-
-  // Re-fit graph when minimized state changes
-  useEffect(() => {
-    if (cyRef.current && cyRef.current.nodes().length > 0) {
-      setTimeout(() => {
-        const { width, height } = cyRef.current.container().getBoundingClientRect();
-        
-        if (isMinimized) {
-          // For minimap: fit the entire graph with padding
-          cyRef.current.fit(cyRef.current.elements(), 20);
-        } else {
-          // For expanded view: calculate optimal zoom to show entire graph
-          const fitZoom = Math.min(
-            width / (MAP_BOUNDARY * 1.2),   // Add more margin for expanded view
-            height / (MAP_BOUNDARY * 1.2)
-          );
-          
-          // Apply zoom and center the graph
-          cyRef.current.zoom(fitZoom);
-          cyRef.current.center(cyRef.current.$('#TARGET'));
-        }
-      }, 100);
-    }
-  }, [isMinimized]);
-
-  // Add CSS for tooltips and 3D effects
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      .cy-tooltip {
-        position: absolute;
-        background: linear-gradient(145deg, #2c3e50, #34495e);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: bold;
-        pointer-events: none;
-        z-index: 1000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        border: 1px solid #fff;
-        backdrop-filter: blur(10px);
-      }
-      
-      .battle-royale-map-container {
-        background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        position: relative;
-        overflow: hidden;
-        border: 2px solid #333;
-        border-radius: 8px;
-      }
-      
-      .battle-royale-map-container::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: 
-          radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
-          radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);
-        pointer-events: none;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+  }, [enableZoom, enablePan, isMinimized, onNodeClick, onEdgeClick]);
 
   return (
-    <div className="battle-royale-map-container" style={{ width: '100%', height: '100%', position: 'relative', border: '2px solid #333', borderRadius: '8px', overflow: 'hidden' }}>
-      {/* Game HUD - only show if not minimized and HUD enabled */}
+    <div style={{ 
+      position: 'relative', 
+      width: '100%', 
+      height: '100%',
+      background: 'radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      border: '2px solid #333',
+      borderRadius: '8px',
+      overflow: 'hidden'
+    }}>
+      {/* Game HUD */}
       {showHUD && !isMinimized && (
         <div style={{
           position: 'absolute',
           top: '10px',
           left: '10px',
           zIndex: 1000,
-          background: 'rgba(0, 0, 0, 0.8)',
+          background: 'rgba(0, 0, 0, 0.9)',
           color: 'white',
-          padding: '10px',
+          padding: '12px',
           borderRadius: '8px',
           fontFamily: 'monospace',
-          fontSize: isMinimized ? '10px' : '14px'
+          fontSize: '12px',
+          border: '1px solid #444'
         }}>
-          <div>⏱️ Game Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
-          <div>🔵 Zone Phase: {phase === 'moving' ? 'SHRINKING' : 'WAITING'}</div>
-          <div>⚠️ Phase Timer: {phase === 'moving' ? `${Math.max(0, 60 - phaseTimer)}s` : `${Math.max(0, 60 - phaseTimer)}s`}</div>
+          <div style={{ marginBottom: '8px', color: '#00ff88', fontWeight: 'bold' }}>🎯 BATTLE ROYALE</div>
+          <div>⏱️ Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
+          <div style={{ color: phase === 'moving' ? '#ff4444' : '#4444ff' }}>
+            🔵 Zone: {phase === 'moving' ? 'SHRINKING' : 'SAFE'}
+          </div>
+          <div>⚠️ Phase: {Math.max(0, 60 - phaseTimer)}s</div>
           {safeCircle && (
-            <div>🎯 Safe Zone: R{Math.round(safeCircle.r)} at ({Math.round(safeCircle.x)}, {Math.round(safeCircle.y)})</div>
+            <div>🎯 Safe: R{Math.round(safeCircle.r)}</div>
           )}
-          <div>💀 Blue Zone: R{Math.round(blueRadius)}</div>
-          <div style={{ marginTop: '10px', borderTop: '1px solid #666', paddingTop: '10px' }}>
-            <div>🎯 Stay inside white circle</div>
-            <div>🏃 Blue zone = death</div>
-            <div>🔴 Move before shrink!</div>
+          <div style={{ color: '#ff4444' }}>💀 Blue: R{Math.round(blueRadius)}</div>
+          
+          <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #444', fontSize: '10px' }}>
+            <div>🟢 Easy Path</div>
+            <div>🟡 Medium Path</div>
+            <div>🔴 Hard Path</div>
+            <div style={{ marginTop: '4px', color: '#ff4444' }}>⚠️ Stay in white circle!</div>
           </div>
         </div>
       )}
       
-      <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }} />
+      {/* Zone overlay canvas */}
+      <canvas 
+        ref={canvasRef} 
+        style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          height: '100%', 
+          pointerEvents: 'none', 
+          zIndex: 10 
+        }} 
+      />
+      
+      {/* Cytoscape map container */}
       <div 
         id="battle-royale-map" 
         style={{ 
           width: '100%', 
           height: '100%',
-          borderRadius: '8px',
-          background: '#1a1a2e'
+          position: 'relative',
+          zIndex: 5
         }}
       />
-      
-      {/* Tooltip styling */}
-      <style jsx>{`
-        .cy-tooltip {
-          position: absolute;
-          background: rgba(0, 0, 0, 0.9);
-          color: white;
-          padding: 8px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          white-space: pre-line;
-          z-index: 1000;
-          pointer-events: none;
-          max-width: 200px;
-          border: 1px solid #666;
-        }
-      `}</style>
     </div>
   );
 }
