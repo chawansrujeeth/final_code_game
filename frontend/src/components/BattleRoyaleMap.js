@@ -113,8 +113,10 @@ export default function BattleRoyaleMap({
       ctx.clearRect(0,0,w,h);
 
       // Get cy viewport
-      const z = cyRef.current.zoom();
-      const p = cyRef.current.pan();
+      const cy = cyRef.current;
+      if (!cy) { requestAnimationFrame(draw); return; }
+      const z = cy.zoom();
+      const p = cy.pan();
 
       // Map graph-space to canvas
       ctx.setTransform(
