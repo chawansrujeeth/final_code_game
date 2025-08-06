@@ -163,7 +163,12 @@ export default function BattleRoyaleMap({
     };
     
     draw();
-    return () => window.removeEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      if (cyRef.current) {
+        cyRef.current.off('zoom pan', syncCanvasTransform);
+      }
+    };
   }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
 
   // Initialize Cytoscape network
@@ -292,6 +297,21 @@ export default function BattleRoyaleMap({
       minZoom: 0.5,
       maxZoom: 2
     });
+
+    // === Keep canvas overlay in sync with Cytoscape viewport ===
+    const canvasEl = canvasRef.current;
+    const syncCanvasTransform = () => {
+      if (!canvasEl) return;
+      const z = cyRef.current.zoom();
+      const p = cyRef.current.pan();
+      // Mirror cy pan/zoom: translate first, then scale
+      canvasEl.style.transform = `translate(${p.x}px, ${p.y}px) scale(${z})`;
+      canvasEl.style.transformOrigin = '0 0';
+    };
+    // Initial sync and listeners
+    syncCanvasTransform();
+    cyRef.current.on('zoom pan', syncCanvasTransform);
+
     
     // Add interaction handlers
     cyRef.current.on('tap', 'node', (e) => {
