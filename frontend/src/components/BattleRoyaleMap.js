@@ -75,8 +75,8 @@ export default function BattleRoyaleMap({
           const d = Math.random() * (parent.r - r);
           setNextSafeCircle({ 
             x: parent.x + Math.cos(a) * d, 
-            y: parent.y + Math.sin(a) * d, 
-            r 
+            y: parent.y + Math.sin(a) * d,
+            r
           });
         } else {
           setNextSafeCircle({ x: nextSafeCircle.x, y: nextSafeCircle.y, r: 0 });
@@ -167,41 +167,6 @@ export default function BattleRoyaleMap({
 
       
       
-        , safeCircle.y * scale, safeCircle.r * scale, 0, 2*Math.PI);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 5]);
-        ctx.stroke();
-      }
-      
-      // Draw next safe circle preview (during waiting phase)
-      if (nextSafeCircle && phase === 'waiting') {
-        
-        ctx.beginPath();
-        , nextSafeCircle.y * scale, nextSafeCircle.r * scale, 0, 2*Math.PI);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.stroke();
-      }
-      
-      // Draw blue zone (deadly area)
-      
-      ctx.beginPath();
-      ctx.arc(0, 0, blueRadius, 0, 2*Math.PI);
-      ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      
-      // Add subtle blue zone fill
-      ctx.globalAlpha = 0.1;
-      ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      
-
-    
     draw();
     return () => {
       window.removeEventListener('resize', resize);
