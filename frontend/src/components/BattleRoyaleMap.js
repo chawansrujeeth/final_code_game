@@ -108,24 +108,66 @@ export default function BattleRoyaleMap({
     const draw = () => {
       const w = canvas.width;
       const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-      ctx.save();
-      
-      // Center coordinate system
-      ctx.translate(w/2, h/2);
-      
-      // Draw map boundary (water/death zone)
+      // Reset transform & clear
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,w,h);
+
+      // Get cy viewport
+      const z = cyRef.current.zoom();
+      const p = cyRef.current.pan();
+
+      // Map graph-space to canvas
+      ctx.setTransform(
+        z, 0,
+        0, z,
+        p.x + w/2,
+        p.y + h/2
+      );
+
+      // Boundary
       ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 4 / z;
       ctx.setLineDash([]);
-      const boundary = MAP_BOUNDARY * (isMinimized ? 0.6 : 0.8);
-      ctx.strokeRect(-boundary, -boundary, boundary*2, boundary*2);
-      
-      // Draw current safe circle (white dashed)
+      ctx.strokeRect(-MAP_BOUNDARY, -MAP_BOUNDARY, MAP_BOUNDARY*2, MAP_BOUNDARY*2);
+
+      // Safe circle
       if (safeCircle) {
-        const scale = isMinimized ? 0.6 : 0.8;
         ctx.beginPath();
-        ctx.arc(safeCircle.x * scale, safeCircle.y * scale, safeCircle.r * scale, 0, 2*Math.PI);
+        ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, 2*Math.PI);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2 / z;
+        ctx.setLineDash([10/z, 5/z]);
+        ctx.stroke();
+
+        // Next safe preview
+        if (nextSafeCircle && phase === 'waiting') {
+          ctx.beginPath();
+          ctx.arc(nextSafeCircle.x, nextSafeCircle.y, nextSafeCircle.r, 0, 2*Math.PI);
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1 / z;
+          ctx.setLineDash([3/z,3/z]);
+          ctx.stroke();
+        }
+      }
+
+      // Blue zone
+      ctx.beginPath();
+      ctx.arc(0,0, blueRadius, 0, 2*Math.PI);
+      ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.lineWidth = 3 / z;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      requestAnimationFrame(draw);
+    };
+
+      
+      
+        , safeCircle.y * scale, safeCircle.r * scale, 0, 2*Math.PI);
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.setLineDash([10, 5]);
@@ -134,9 +176,9 @@ export default function BattleRoyaleMap({
       
       // Draw next safe circle preview (during waiting phase)
       if (nextSafeCircle && phase === 'waiting') {
-        const scale = isMinimized ? 0.6 : 0.8;
+        
         ctx.beginPath();
-        ctx.arc(nextSafeCircle.x * scale, nextSafeCircle.y * scale, nextSafeCircle.r * scale, 0, 2*Math.PI);
+        , nextSafeCircle.y * scale, nextSafeCircle.r * scale, 0, 2*Math.PI);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
@@ -144,9 +186,9 @@ export default function BattleRoyaleMap({
       }
       
       // Draw blue zone (deadly area)
-      const scale = isMinimized ? 0.6 : 0.8;
+      
       ctx.beginPath();
-      ctx.arc(0, 0, blueRadius * scale, 0, 2*Math.PI);
+      ctx.arc(0, 0, blueRadius, 0, 2*Math.PI);
       ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
       ctx.lineWidth = 3;
       ctx.setLineDash([]);
@@ -158,15 +200,13 @@ export default function BattleRoyaleMap({
       ctx.fill();
       ctx.globalAlpha = 1;
       
-      ctx.restore();
-      requestAnimationFrame(draw);
-    };
+
     
     draw();
     return () => {
       window.removeEventListener('resize', resize);
       if (cyRef.current) {
-        cyRef.current.off('zoom pan');
+        
       }
     };
   }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
@@ -298,19 +338,8 @@ export default function BattleRoyaleMap({
       maxZoom: 2
     });
 
-    // === Keep canvas overlay in sync with Cytoscape viewport ===
-    const canvasEl = canvasRef.current;
-    const syncCanvasTransform = () => {
-      if (!canvasEl) return;
-      const z = cyRef.current.zoom();
-      const p = cyRef.current.pan();
-      // Mirror cy pan/zoom: translate first, then scale
-      canvasEl.style.transform = `translate(${p.x}px, ${p.y}px) scale(${z})`;
-      canvasEl.style.transformOrigin = '0 0';
-    };
-    // Initial sync and listeners
-    syncCanvasTransform();
-    cyRef.current.on('zoom pan', syncCanvasTransform);
+    // === Canvas draw uses Cytoscape viewport transform ===
+    
 
     
     // Add interaction handlers
