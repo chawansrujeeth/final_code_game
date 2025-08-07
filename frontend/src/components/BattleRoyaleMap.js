@@ -95,11 +95,15 @@ export default function BattleRoyaleMap({
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
     
     const resize = () => {
       const parent = canvas.parentNode;
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
+      // High-DPI canvas — keep CSS size but increase backing store
+      canvas.style.width = `${parent.clientWidth}px`;
+      canvas.style.height = `${parent.clientHeight}px`;
+      canvas.width = parent.clientWidth * DPR;
+      canvas.height = parent.clientHeight * DPR;
     };
     
     resize();
@@ -118,17 +122,18 @@ export default function BattleRoyaleMap({
       const z = cy.zoom();
       const p = cy.pan();
 
-      // Map graph-space to canvas
+      // Device-pixel-ratio aware transform
+      const scale = z * DPR;
       ctx.setTransform(
-        z, 0,
-        0, z,
-        p.x + w/2,
-        p.y + h/2
+        scale, 0,
+        0, scale,
+        p.x * DPR,
+        p.y * DPR
       );
 
       // Boundary
       ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 4 / z;
+      ctx.lineWidth = 4 / scale;
       ctx.setLineDash([]);
       ctx.strokeRect(-MAP_BOUNDARY, -MAP_BOUNDARY, MAP_BOUNDARY*2, MAP_BOUNDARY*2);
 
@@ -137,8 +142,8 @@ export default function BattleRoyaleMap({
         ctx.beginPath();
         ctx.arc(safeCircle.x, safeCircle.y, safeCircle.r, 0, 2*Math.PI);
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2 / z;
-        ctx.setLineDash([10/z, 5/z]);
+        ctx.lineWidth = 2 / scale;
+        ctx.setLineDash([10/scale, 5/scale]);
         ctx.stroke();
 
         // Next safe preview
@@ -146,8 +151,8 @@ export default function BattleRoyaleMap({
           ctx.beginPath();
           ctx.arc(nextSafeCircle.x, nextSafeCircle.y, nextSafeCircle.r, 0, 2*Math.PI);
           ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-          ctx.lineWidth = 1 / z;
-          ctx.setLineDash([3/z,3/z]);
+          ctx.lineWidth = 1 / scale;
+          ctx.setLineDash([3/scale, 3/scale]);
           ctx.stroke();
         }
       }
@@ -156,24 +161,24 @@ export default function BattleRoyaleMap({
       ctx.beginPath();
       ctx.arc(0,0, blueRadius, 0, 2*Math.PI);
       ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
-      ctx.lineWidth = 3 / z;
+      ctx.lineWidth = 3 / scale;
       ctx.setLineDash([]);
       ctx.stroke();
       ctx.globalAlpha = 0.1;
       ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
       ctx.fill();
       ctx.globalAlpha = 1;
-
-      requestAnimationFrame(draw);
     };
 
-      
-      
-    draw();
+    const cy = cyRef.current;
+    if (cy) {
+      cy.on('render', draw);
+    }
+
     return () => {
       window.removeEventListener('resize', resize);
       if (cyRef.current) {
-        
+        cyRef.current.removeListener('render', draw);
       }
     };
   }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
