@@ -50,9 +50,10 @@ export default function BattleRoyaleMap({
 
   // Game loop - zone shrinking mechanics
   useEffect(() => {
+    const TICK_MS = 100; // 0.1 s for smoother animation (~10 FPS)
     const interval = setInterval(() => {
-      setGameTimer(t => t + 1);
-      setPhaseTimer(t => t + 1);
+      setGameTimer(t => t + TICK_MS/1000);
+      setPhaseTimer(t => t + TICK_MS/1000);
       
       if (!safeCircle) return;
 
@@ -63,8 +64,8 @@ export default function BattleRoyaleMap({
           setPhase('waiting');
           setPhaseTimer(0);
         } else {
-          const perSec = diff / 60; // 60 second shrink time
-          setBlueRadius(r => Math.max(safeCircle.r, r - perSec));
+          const shrinkPerTick = (diff / 60) * (TICK_MS / 1000); // spread over 60 s
+          setBlueRadius(r => Math.max(safeCircle.r, r - shrinkPerTick));
         }
       } else if (phase === 'waiting' && phaseTimer >= 60) {
         setSafeCircle(nextSafeCircle);
@@ -84,7 +85,7 @@ export default function BattleRoyaleMap({
         setPhase('moving');
         setPhaseTimer(0);
       }
-    }, 1000);
+    }, TICK_MS);
     
     return () => clearInterval(interval);
   }, [phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
@@ -226,7 +227,8 @@ export default function BattleRoyaleMap({
           pushEdge('TARGET', id, '#ff4444');
         } else {
           const innerCount = lvl === 2 ? 6 : 8;
-          const targetIdx = Math.floor((i * innerCount) / count);
+          // Use angular mapping for even distribution between rings
+          const targetIdx = Math.round((i / count) * innerCount) % innerCount;
           const targetId = `R${lvl-1}_${targetIdx + 1}`;
           const color = lvl === 2 ? '#ffff44' : '#44ff44'; // Medium/Easy
           pushEdge(id, targetId, color);
