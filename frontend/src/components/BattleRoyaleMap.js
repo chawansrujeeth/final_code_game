@@ -9,6 +9,10 @@ const MAP_R4 = 260;  // ring 4 radius
 const MAP_R5 = 340;  // ring 5 radius
 const MAP_BOUNDARY = 480; // total map boundary
 
+// Timing (can tune later)
+const SHRINK_SECONDS = 30; // duration the blue zone takes to reach safe circle
+const WAIT_SECONDS = 30;   // waiting time before next shrink
+
 export default function BattleRoyaleMap({ 
   gameState = {},
   onNodeClick = () => {},
@@ -67,10 +71,10 @@ export default function BattleRoyaleMap({
           setPhase('waiting');
           setPhaseTimer(0);
         } else {
-          const shrinkPerTick = (diff / 60) * (TICK_MS / 1000); // spread over 60 s
+          const shrinkPerTick = (diff / SHRINK_SECONDS) * (TICK_MS / 1000);
           setBlueRadius(r => Math.max(safeCircle.r, r - shrinkPerTick));
         }
-      } else if (phase === 'waiting' && phaseTimer >= 60) {
+      } else if (phase === 'waiting' && phaseTimer >= WAIT_SECONDS) {
         setSafeCircle(nextSafeCircle);
         if (nextSafeCircle.r > 20) {
           const parent = nextSafeCircle;
@@ -208,7 +212,7 @@ export default function BattleRoyaleMap({
     const pushEdge = (s, t, color) => {
       edges.push({ 
         data: { id: `${s}-${t}`, source: s, target: t }, 
-        style: { 'line-color': color }
+        style: { }
       });
     };
     
@@ -298,7 +302,7 @@ export default function BattleRoyaleMap({
           selector: 'edge',
           style: {
             'width': 3,
-            'line-color': 'data(line-color)',
+            'line-color': '#aaaaaa',
             'curve-style': 'straight',
             'opacity': 0.8
           }
