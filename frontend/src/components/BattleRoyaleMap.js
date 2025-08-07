@@ -168,6 +168,9 @@ export default function BattleRoyaleMap({
       ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
       ctx.fill();
       ctx.globalAlpha = 1;
+
+      // Keep drawing for zone updates
+      requestAnimationFrame(draw);
     };
 
     const cy = cyRef.current;
@@ -309,14 +312,16 @@ export default function BattleRoyaleMap({
         }
       ],
       layout: { name: 'preset' },
-      userZoomingEnabled: enableZoom,
-      userPanningEnabled: false,
+      userZoomingEnabled: true,
+      userPanningEnabled: true,
       minZoom: initialMinZoom,
       maxZoom: 2
     });
 
     // Lock center and enforce initial min zoom
     cyRef.current.center();
+    // Prevent nodes from being dragged
+    cyRef.current.nodes().ungrabify();
     if (cyRef.current.zoom() < initialMinZoom) {
       cyRef.current.zoom(initialMinZoom);
     }
