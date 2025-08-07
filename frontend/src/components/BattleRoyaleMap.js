@@ -5,6 +5,8 @@ import cytoscape from 'cytoscape';
 const MAP_R1 = 80;   // inner ring radius
 const MAP_R2 = 140;  // middle ring radius
 const MAP_R3 = 200;  // outer ring radius
+const MAP_R4 = 260;  // ring 4 radius
+const MAP_R5 = 340;  // ring 5 radius
 const MAP_BOUNDARY = 480; // total map boundary
 
 export default function BattleRoyaleMap({ 
@@ -32,9 +34,10 @@ export default function BattleRoyaleMap({
   // Initialize safe zones
   useEffect(() => {
     if (!safeCircle) {
-      const firstSafe = { x: 0, y: 0, r: MAP_R3 };
+      const firstSafe = { x: 0, y: 0, r: MAP_R5 };
       const randomInner = (parent) => {
-        const r = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
+        const scale = 0.8 + Math.random() * 0.1; // 80% - 90%
+        const r = parent.r * scale;
         const a = Math.random() * 2 * Math.PI;
         const d = Math.random() * (parent.r - r);
         return { 
@@ -71,7 +74,8 @@ export default function BattleRoyaleMap({
         setSafeCircle(nextSafeCircle);
         if (nextSafeCircle.r > 20) {
           const parent = nextSafeCircle;
-          const r = Math.random() * (parent.r * 0.5) + parent.r * 0.25;
+          const scale = 0.8 + Math.random() * 0.1; // 80% - 90%
+          const r = parent.r * scale;
           const a = Math.random() * 2 * Math.PI;
           const d = Math.random() * (parent.r - r);
           setNextSafeCircle({ 
@@ -215,7 +219,7 @@ export default function BattleRoyaleMap({
     });
     
     // Create concentric rings
-    [[1, MAP_R1], [2, MAP_R2], [3, MAP_R3]].forEach(([lvl, R]) => {
+    [[1, MAP_R1], [2, MAP_R2], [3, MAP_R3], [4, MAP_R4], [5, MAP_R5]].forEach(([lvl, R]) => {
       const count = lvl === 1 ? 6 : 8;
       for (let i = 0; i < count; i++) {
         const id = `R${lvl}_${i + 1}`;
@@ -266,7 +270,7 @@ export default function BattleRoyaleMap({
             'background-color': '#ff6b6b',
             'width': isMinimized ? 25 : 35,
             'height': isMinimized ? 25 : 35,
-            'label': 'TARGET',
+            'label': '',
             'text-valign': 'center',
             'text-halign': 'center',
             'color': '#ffffff',
@@ -282,7 +286,7 @@ export default function BattleRoyaleMap({
             'background-color': '#4ecdc4',
             'width': isMinimized ? 20 : 30,
             'height': isMinimized ? 20 : 30,
-            'label': 'data(id)',
+            'label': '',
             'text-valign': 'center',
             'text-halign': 'center',
             'color': '#ffffff',
