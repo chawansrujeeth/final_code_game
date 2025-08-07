@@ -242,10 +242,15 @@ export default function BattleRoyaleMap({
     
     // Store coordinates
     nodes.forEach(n => nodeCoordsRef.current[n.data.id] = n.position);
+
+    // === Viewport constraints ===
+    const containerEl = document.getElementById('battle-royale-map');
+    const calcMinZoom = () => Math.min(containerEl.clientWidth, containerEl.clientHeight) / (MAP_BOUNDARY * 2);
+    let initialMinZoom = calcMinZoom();
     
     // Initialize Cytoscape
     cyRef.current = cytoscape({
-      container: document.getElementById('battle-royale-map'),
+      container: containerEl,
       elements: [...nodes, ...edges],
       style: [
         {
@@ -305,12 +310,28 @@ export default function BattleRoyaleMap({
       ],
       layout: { name: 'preset' },
       userZoomingEnabled: enableZoom,
-      userPanningEnabled: enablePan,
-      minZoom: 0.5,
+      userPanningEnabled: false,
+      minZoom: initialMinZoom,
       maxZoom: 2
     });
 
+    // Lock center and enforce initial min zoom
+    cyRef.current.center();
+    if (cyRef.current.zoom() < initialMinZoom) {
+      cyRef.current.zoom(initialMinZoom);
+    }
+
     // === Canvas draw uses Cytoscape viewport transform ===
+
+    // Recalculate minZoom on window resize
+    const handleResizeCy = () => {
+      initialMinZoom = calcMinZoom();
+      cyRef.current.minZoom(initialMinZoom);
+      if (cyRef.current.zoom() < initialMinZoom) {
+        cyRef.current.zoom(initialMinZoom);
+      }
+    };
+    window.addEventListener('resize', handleResizeCy);
     
 
     
@@ -334,6 +355,7 @@ export default function BattleRoyaleMap({
     }, 100);
     
     return () => {
+      window.removeEventListener('resize', handleResizeCy);
       if (cyRef.current) cyRef.current.destroy();
     };
   }, [enableZoom, enablePan, isMinimized, onNodeClick, onEdgeClick]);
