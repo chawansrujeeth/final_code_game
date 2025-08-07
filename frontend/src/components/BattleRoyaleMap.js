@@ -34,6 +34,11 @@ export default function BattleRoyaleMap({
   const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);
   const [phase, setPhase] = useState('moving'); // 'moving' | 'waiting'
   const [phaseTimer, setPhaseTimer] = useState(0);
+  // Markers
+  const [markers, setMarkers] = useState([]);
+  const [markerMode, setMarkerMode] = useState(false);
+  const markerModeRef = useRef(false);
+  useEffect(() => { markerModeRef.current = markerMode; }, [markerMode]);
 
   // Initialize safe zones
   useEffect(() => {
@@ -57,7 +62,7 @@ export default function BattleRoyaleMap({
 
   // Game loop - zone shrinking mechanics
   useEffect(() => {
-    const TICK_MS = 100; // 0.1 s for smoother animation (~10 FPS)
+    const TICK_MS = 50; // 0.05 s for smoother animation (~20 FPS)
     const interval = setInterval(() => {
       setGameTimer(t => t + TICK_MS/1000);
       setPhaseTimer(t => t + TICK_MS/1000);
@@ -169,12 +174,12 @@ export default function BattleRoyaleMap({
       // Blue zone
       ctx.beginPath();
       ctx.arc(safeCircle ? safeCircle.x : 0, safeCircle ? safeCircle.y : 0, blueRadius, 0, 2*Math.PI);
-      ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.strokeStyle = phase === 'moving' ? '#4444ff' : '#ff4444';
       ctx.lineWidth = 3 / scale;
       ctx.setLineDash([]);
       ctx.stroke();
       ctx.globalAlpha = 0.1;
-      ctx.fillStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
+      ctx.fillStyle = phase === 'moving' ? '#4444ff' : '#ff4444';
       ctx.fill();
       ctx.globalAlpha = 1;
 
@@ -321,6 +326,16 @@ export default function BattleRoyaleMap({
             'border-width': 4,
             'border-color': '#00ff88'
           }
+        },
+        {
+          selector: 'node[marker]',
+          style: {
+            'background-color': '#ffeb3b',
+            'shape': 'star',
+            'width': 16,
+            'height': 16,
+            'border-width': 0
+          }
         }
       ],
       layout: { name: 'preset' },
@@ -360,16 +375,41 @@ export default function BattleRoyaleMap({
     cyRef.current.on('tap', 'edge', (e) => {
       onEdgeClick(e.target.data());
     });
+
+    // Generic tap for placing markers when in marker mode
+    cyRef.current.on('tap', (e) => {
+      if (markerModeRef.current) {
+        const id = `MARK_${Date.now()}`;
+        const pos = e.position;
+        cyRef.current.add({ group: 'nodes', data: { id, marker: true }, position: pos });
+        setMarkers(prev => [...prev, id]);
+        setMarkerMode(false);
+      }
+    });
     
     // Auto-fit for different view modes
     setTimeout(() => {
       if (isMinimized) {
-        cyRef.current.fit(cyRef.current.elements(), 20);
+        // Focus the minimap on a single random playable node and its immediate neighborhood
+        const candidates = cyRef.current.nodes('[level > 0]');
+        const focus = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : cyRef.current.$('#TARGET');
+        const viewSet = focus.closedNeighborhood();
+        cyRef.current.fit(viewSet, 40);
+        // Slight additional zoom for a tighter view
+        cyRef.current.zoom(Math.min(cyRef.current.maxZoom(), cyRef.current.zoom() * 1.2));
+        cyRef.current.center(focus);
       } else {
         cyRef.current.center();
         cyRef.current.zoom(1);
       }
     }, 100);
+
+    // Clear markers when switching to expanded view
+    if (!isMinimized && markers.length) {
+      markers.forEach(id => cyRef.current.$(`#${id}`).remove());
+      setMarkers([]);
+      setMarkerMode(false);
+    }
     
     return () => {
       window.removeEventListener('resize', handleResizeCy);
@@ -382,7 +422,7 @@ export default function BattleRoyaleMap({
       position: 'relative', 
       width: '100%', 
       height: '100%',
-      background: 'radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      background: '#fff8dc',
       border: '2px solid #333',
       borderRadius: '8px',
       overflow: 'hidden'
@@ -404,7 +444,7 @@ export default function BattleRoyaleMap({
         }}>
           <div style={{ marginBottom: '8px', color: '#00ff88', fontWeight: 'bold' }}>🎯 BATTLE ROYALE</div>
           <div>⏱️ Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
-          <div style={{ color: phase === 'moving' ? '#ff4444' : '#4444ff' }}>
+          <div style={{ color: phase === 'moving' ? '#4444ff' : '#ff4444' }}>
             🔵 Zone: {phase === 'moving' ? 'SHRINKING' : 'SAFE'}
           </div>
           <div>⚠️ Phase: {Math.max(0, 60 - phaseTimer)}s</div>
@@ -422,6 +462,23 @@ export default function BattleRoyaleMap({
         </div>
       )}
       
+      {/* Marker controls */}
+      {isMinimized && (
+        <div style={{ position: 'absolute', bottom: '10px', right: '10px', zIndex: 1000, display: 'flex', gap: '6px' }}>
+          {!markerMode ? (
+            <button onClick={() => setMarkerMode(true)} style={{ padding: '4px 8px', fontSize: '10px' }}>MARK</button>
+          ) : (
+            <span style={{ background: '#fff', padding: '2px 4px', fontSize: '10px' }}>Tap map…</span>
+          )}
+          {markers.length > 0 && (
+            <button onClick={() => {
+              markers.forEach(id => cyRef.current.$(`#${id}`).remove());
+              setMarkers([]);
+            }} style={{ padding: '4px 8px', fontSize: '10px' }}>CLEAR</button>
+          )}
+        </div>
+      )}
+
       {/* Zone overlay canvas */}
       <canvas 
         ref={canvasRef} 
