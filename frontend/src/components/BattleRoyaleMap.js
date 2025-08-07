@@ -160,7 +160,7 @@ export default function BattleRoyaleMap({
 
       // Blue zone
       ctx.beginPath();
-      ctx.arc(0,0, blueRadius, 0, 2*Math.PI);
+      ctx.arc(safeCircle ? safeCircle.x : 0, safeCircle ? safeCircle.y : 0, blueRadius, 0, 2*Math.PI);
       ctx.strokeStyle = phase === 'moving' ? '#ff4444' : '#4444ff';
       ctx.lineWidth = 3 / scale;
       ctx.setLineDash([]);
@@ -177,6 +177,8 @@ export default function BattleRoyaleMap({
     const cy = cyRef.current;
     if (cy) {
       cy.on('render', draw);
+      // Kickstart the draw loop at least once so animation runs even without user interaction
+      draw();
     }
 
     return () => {
