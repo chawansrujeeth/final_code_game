@@ -104,16 +104,18 @@ async function startGameFromLobby(sessionId, session) {
     });
 
     let fillIndex = 0;
-    // Randomize order of remaining nodes for fair distribution
-    let shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
+    // Build a pool of *unused* nodes and shuffle once per game start for uniqueness
+    let remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
+    remainingNodes.sort(() => Math.random() - 0.5);
+    let remainIdx = 0;
     const nextAvailable = () => {
-      while (shuffled.length && taken.has(shuffled[0])) {
-        shuffled.shift();
+      if (remainIdx >= remainingNodes.length) {
+        // Fallback – reuse any node not yet taken (should rarely happen)
+        remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
+        remainingNodes.sort(() => Math.random() - 0.5);
+        remainIdx = 0;
       }
-      if (!shuffled.length) {
-        shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
-      }
-      const node = shuffled.shift();
+      const node = remainingNodes[remainIdx++];
       taken.add(node);
       return node;
     };
@@ -449,16 +451,17 @@ async function maybeAutoStartBySelections(sessionId, session) {
 
     // Assign nodes: use selection if present, otherwise fill remaining deterministically
     let fillIndex = 0;
-    // Random shuffle of remaining nodes to avoid everyone getting same spot
-    let shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
+    // Build a pool of unused nodes and shuffle once for fairness
+    let remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
+    remainingNodes.sort(() => Math.random() - 0.5);
+    let remainIdx = 0;
     const nextAvailable = () => {
-      while (shuffled.length && taken.has(shuffled[0])) {
-        shuffled.shift();
+      if (remainIdx >= remainingNodes.length) {
+        remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
+        remainingNodes.sort(() => Math.random() - 0.5);
+        remainIdx = 0;
       }
-      if (!shuffled.length) {
-        shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
-      }
-      const node = shuffled.shift();
+      const node = remainingNodes[remainIdx++];
       taken.add(node);
       return node;
     };
