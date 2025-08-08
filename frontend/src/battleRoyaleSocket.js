@@ -14,6 +14,7 @@ class BattleRoyaleSocket {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.eventHandlers = new Map();
+    this.lastEmit = null; // Debug: track last emitted event
   }
 
   // Matchmaking queue helpers
@@ -21,6 +22,7 @@ class BattleRoyaleSocket {
     if (!this.socket) {
       throw new Error('Socket not connected');
     }
+    this.lastEmit = 'join_battle_royale_queue';
     this.socket.emit('join_battle_royale_queue', {
       playerId,
       playerName
@@ -31,6 +33,7 @@ class BattleRoyaleSocket {
     if (!this.socket) {
       return;
     }
+    this.lastEmit = 'leave_battle_royale_queue';
     this.socket.emit('leave_battle_royale_queue');
   }
 
@@ -107,7 +110,8 @@ class BattleRoyaleSocket {
     });
 
     this.socket.on('error', (error) => {
-      console.error('Battle Royale socket error:', error);
+      const msg = error && error.message ? error.message : error;
+      console.error('Battle Royale socket error:', msg, '| after emit:', this.lastEmit);
       this.emit('socket_error', error);
     });
 
@@ -146,6 +150,7 @@ class BattleRoyaleSocket {
     this.playerName = playerName;
 
     console.log(`🎮 Joining session ${sessionId} as ${playerName} (${playerId})`);
+    this.lastEmit = 'join_battle_royale';
     this.socket.emit('join_battle_royale', {
       sessionId,
       playerId,
@@ -159,6 +164,7 @@ class BattleRoyaleSocket {
     }
 
     console.log(`🚪 Leaving game session ${this.sessionId}`);
+    this.lastEmit = 'leave_game';
     this.socket.emit('leave_game', {
       sessionId: this.sessionId,
       playerId: this.playerId
@@ -196,6 +202,7 @@ class BattleRoyaleSocket {
       });
 
       // Send the request
+      this.lastEmit = 'request_question';
       this.socket.emit('request_question', {
         sessionId: this.sessionId,
         playerId: this.playerId,
@@ -229,6 +236,7 @@ class BattleRoyaleSocket {
         reject(error);
       });
 
+      this.lastEmit = 'submit_answer';
       this.socket.emit('submit_answer', {
         sessionId: this.sessionId,
         playerId: this.playerId,
@@ -244,6 +252,7 @@ class BattleRoyaleSocket {
     if (!this.socket || !this.sessionId || !this.playerId) {
       throw new Error('Socket not properly initialized');
     }
+    this.lastEmit = 'select_spawn_node';
     this.socket.emit('select_spawn_node', {
       sessionId: this.sessionId,
       playerId: this.playerId,
