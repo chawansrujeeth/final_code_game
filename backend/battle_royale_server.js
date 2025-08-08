@@ -278,8 +278,12 @@ class PersistentGameSession {
   }
 
   addPlayer(playerId, playerData) {
+    const palette = ['#ff3b30', '#007aff', '#34c759', '#ffcc00', '#af52de', '#ff9f0a', '#32ade6', '#ff453a'];
+    const assignedColor = playerData.color || palette[this.players.size % palette.length];
+
     const player = {
       ...playerData,
+      color: assignedColor,
       // Default to no position until game starts (avoids legacy PLAYER_* nodes)
       currentNode: playerData.currentNode || null,
       currentZone: playerData.currentZone || 'lobby',
