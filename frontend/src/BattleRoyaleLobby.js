@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BattleRoyaleMap from './components/BattleRoyaleMap';
 import BattleRoyaleSocket, { battleRoyaleSocket } from './battleRoyaleSocket';
@@ -27,6 +27,12 @@ export default function BattleRoyaleLobby() {
   const [status, setStatus] = useState('Connecting to server...');
   const [errorMsg, setErrorMsg] = useState(null);
   const [hasJoined, setHasJoined] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState(null);
+  const hasJoinedRef = useRef(false);
+  const joinRetryTimer = useRef(null);
+
+  // Keep ref in sync
+  useEffect(() => { hasJoinedRef.current = hasJoined; }, [hasJoined]);
 
   // Lobby data
   const [lobbySelections, setLobbySelections] = useState([]); // [{playerId, playerName, nodeId, isConnected}]
@@ -44,11 +50,13 @@ export default function BattleRoyaleLobby() {
       if (!mounted || !data) return;
       setAvailableNodes(data.availableNodes || []);
       setLobbySelections(Array.isArray(data.selections) ? data.selections : []);
-      setStatus(`Waiting for players... ${data.selections?.length || 0} selected`);
-      // Mark joined if server includes me in players list
-      if (Array.isArray(data.players)) {
-        const me = data.players.find(p => p.playerId === playerId);
-        if (me) setHasJoined(true);
+      const playersArr = Array.isArray(data.players) ? data.players : [];
+      const me = playersArr.find(p => p.playerId === playerId);
+      if (hasJoinedRef.current || me) {
+        if (me && !hasJoinedRef.current) setHasJoined(true);
+        setStatus(`Waiting for players... ${data.selections?.length || 0} selected`);
+      } else {
+        setStatus('Joining lobby... waiting for server...');
       }
     };
     const handleGameStarted = (data) => {
@@ -61,6 +69,9 @@ export default function BattleRoyaleLobby() {
       if (data.gameState?.isGameActive) {
         navigate('/battle-royale');
       }
+      const playersArr = Array.isArray(data.players) ? data.players : [];
+      const me = playersArr.find(p => p.playerId === playerId);
+      if (me && !hasJoinedRef.current) setHasJoined(true);
     };
     const handleConnStatus = (s) => {
       if (!mounted) return;
@@ -91,8 +102,14 @@ export default function BattleRoyaleLobby() {
     const handleConnSuccess = () => {
       if (!mounted) return;
       setHasJoined(true);
+      hasJoinedRef.current = true;
       setStatus('Joined lobby. Select your spawn node.');
       setErrorMsg(null);
+      // Clear any pending retry timer once joined
+      if (joinRetryTimer.current) {
+        clearTimeout(joinRetryTimer.current);
+        joinRetryTimer.current = null;
+      }
     };
 
     const init = async () => {
@@ -143,6 +160,16 @@ export default function BattleRoyaleLobby() {
         // Join session (wait for connection_success to confirm)
         battleRoyaleSocket.joinSession(sid, playerId, `Player ${playerId}`);
         setStatus('Joining lobby... waiting for server...');
+
+        // Retry join once after 2s if not confirmed yet (idempotent on server)
+        joinRetryTimer.current = setTimeout(() => {
+          if (!hasJoinedRef.current) {
+            try {
+              battleRoyaleSocket.joinSession(sid, playerId, `Player ${playerId}`);
+              setStatus('Retrying join...');
+            } catch {}
+          }
+        }, 2000);
       } catch (err) {
         console.error('[BR Lobby] init failed:', err);
         setErrorMsg(err?.message || String(err));
@@ -164,6 +191,10 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.off('socket_error', handleSocketError);
         battleRoyaleSocket.off('connection_success', handleConnSuccess);
       } catch {}
+      if (joinRetryTimer.current) {
+        clearTimeout(joinRetryTimer.current);
+        joinRetryTimer.current = null;
+      }
       // Keep socket connection for seamless transition to gameplay
     };
   }, []); // run once
@@ -173,10 +204,6 @@ export default function BattleRoyaleLobby() {
     if (!nodeData?.id) return;
     if (!isConnected && !battleRoyaleSocket.isConnected) {
       setErrorMsg('Not connected to server');
-      return;
-    }
-    if (!hasJoined) {
-      setStatus('Joining lobby... please wait a moment.');
       return;
     }
     const nodeId = nodeData.id;
@@ -195,6 +222,14 @@ export default function BattleRoyaleLobby() {
       return;
     }
 
+    // If not fully joined yet, queue the selection and retry after join
+    if (!hasJoined) {
+      setPendingSelection(nodeId);
+      setStatus(`Joining lobby... will select ${nodeId} once joined.`);
+      setErrorMsg(null);
+      return;
+    }
+
     try {
       battleRoyaleSocket.selectSpawnNode(nodeId);
       setStatus(`Selected ${nodeId}. Waiting for others...`);
@@ -204,6 +239,37 @@ export default function BattleRoyaleLobby() {
       setErrorMsg(err?.message || String(err));
     }
   };
+
+  // Auto-apply any pending selection after we are confirmed joined
+  useEffect(() => {
+    if (!hasJoined || !pendingSelection) return;
+
+    // If someone already took it, clear pending and notify
+    const takenByOther = lobbySelections.some(sel => sel.nodeId === pendingSelection && sel.playerId !== playerId);
+    if (takenByOther) {
+      setStatus(`${pendingSelection} already taken. Choose another.`);
+      setPendingSelection(null);
+      return;
+    }
+
+    // If we already have a selection, clear pending
+    const mine = lobbySelections.find(sel => sel.playerId === playerId);
+    if (mine) {
+      setPendingSelection(null);
+      return;
+    }
+
+    try {
+      battleRoyaleSocket.selectSpawnNode(pendingSelection);
+      setStatus(`Selected ${pendingSelection}. Waiting for others...`);
+      setErrorMsg(null);
+    } catch (err) {
+      console.error('[BR Lobby] pending selectSpawnNode failed:', err);
+      setErrorMsg(err?.message || String(err));
+    } finally {
+      setPendingSelection(null);
+    }
+  }, [hasJoined, pendingSelection, lobbySelections, playerId]);
 
   // No-op edge clicks in lobby
   const handleEdgeClick = () => {};
@@ -241,7 +307,7 @@ export default function BattleRoyaleLobby() {
           players={{}}  // no player markers in lobby
           lobbySelections={lobbySelections}
           selfPlayerId={playerId}
-          allowedNodeIds={hasJoined ? availableNodes : []}
+          allowedNodeIds={availableNodes}
         />
       </div>
     </div>
