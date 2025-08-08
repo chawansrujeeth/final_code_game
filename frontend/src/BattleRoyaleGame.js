@@ -1186,6 +1186,7 @@ export default function BattleRoyaleGame() {
                 isMinimized={true}
                 showHUD={false}
                 enableZoom={false}
+                selfPlayerId={playerId}
                 players={players}
               />
               
@@ -1265,6 +1266,7 @@ export default function BattleRoyaleGame() {
                 showHUD={true}
                 enableZoom={true}
                 enablePan={true}
+                selfPlayerId={playerId}
                 players={players}
               />
       

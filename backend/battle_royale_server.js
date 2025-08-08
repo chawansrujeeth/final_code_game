@@ -444,7 +444,12 @@ async function maybeAutoStartBySelections(sessionId, session) {
   try {
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
     const selectedConnected = connectedPlayers.filter(p => !!p.selectedSpawnNode);
-    const canStart = selectedConnected.length >= 1 && !session.gameState.isGameActive && !session.gameState.gameOver;
+    const canStart = (
+      connectedPlayers.length >= REQUIRED_PLAYERS &&
+      selectedConnected.length >= REQUIRED_PLAYERS &&
+      !session.gameState.isGameActive &&
+      !session.gameState.gameOver
+    );
     if (!canStart) return;
 
     // Allowed selectable spawn nodes in Ring 3
