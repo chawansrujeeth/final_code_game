@@ -106,18 +106,38 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
   try {
     if (lobbySelectionTimers.has(sessionId)) return; // already scheduled
 
-    const timeoutId = setTimeout(async () => {
-      lobbySelectionTimers.delete(sessionId);
-      try {
-        await assignRandomSpawnNodes(sessionId);
-      } catch (e) {
-        console.error('lobby selection timer error:', e);
-      }
-    }, delayMs);
+    const totalSeconds = Math.round(delayMs / 1000);
+    let remainingSeconds = totalSeconds;
     
-    lobbySelectionTimers.set(sessionId, timeoutId);
-    io.to(sessionId).emit('lobby_selection_timer', { seconds: Math.round(delayMs/1000) });
-    console.log(`⏰ Scheduled lobby selection timer for session ${sessionId} in ${delayMs}ms`);
+    // Start synchronized countdown
+    const countdownInterval = setInterval(() => {
+      io.to(sessionId).emit('lobby_countdown_tick', { 
+        remaining: remainingSeconds,
+        total: totalSeconds,
+        message: `Auto-assigning spawn nodes in ${remainingSeconds}s...`
+      });
+      
+      remainingSeconds--;
+      
+      if (remainingSeconds < 0) {
+        clearInterval(countdownInterval);
+        lobbySelectionTimers.delete(sessionId);
+        
+        // Auto-assign and start game
+        assignRandomSpawnNodesAndStart(sessionId);
+      }
+    }, 1000);
+    
+    lobbySelectionTimers.set(sessionId, countdownInterval);
+    
+    // Initial countdown emission
+    io.to(sessionId).emit('lobby_countdown_tick', { 
+      remaining: remainingSeconds,
+      total: totalSeconds,
+      message: `Auto-assigning spawn nodes in ${remainingSeconds}s...`
+    });
+    
+    console.log(`⏰ Started synchronized lobby countdown for session ${sessionId} (${totalSeconds}s)`);
   } catch (e) {
     console.error('scheduleLobbySelectionTimer error:', e);
   }
@@ -126,10 +146,10 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
 function cancelLobbySelectionTimer(sessionId) {
   const existing = lobbySelectionTimers.get(sessionId);
   if (existing) {
-    clearTimeout(existing);
+    clearInterval(existing);
     lobbySelectionTimers.delete(sessionId);
-    io.to(sessionId).emit('lobby_selection_timer_cancelled');
-    console.log(`🛑 Cancelled lobby selection timer for session ${sessionId}`);
+    io.to(sessionId).emit('lobby_countdown_cancelled');
+    console.log(`🛑 Cancelled lobby countdown for session ${sessionId}`);
   }
 }
 
@@ -181,6 +201,59 @@ async function assignRandomSpawnNodes(sessionId) {
     console.log(`✅ Auto-assigned spawn nodes to ${unselectedPlayers.length} players in session ${sessionId}`);
   } catch (error) {
     console.error('Error assigning random spawn nodes:', error);
+  }
+}
+
+async function assignRandomSpawnNodesAndStart(sessionId) {
+  try {
+    const session = await getOrCreateSession(sessionId);
+    if (session.gameState.isGameActive || session.gameState.gameOver) return;
+
+    const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    const unselectedPlayers = connectedPlayers.filter(p => !p.selectedSpawnNode);
+    
+    const allowedSpawnNodes = [...FULL_SPAWN_POOL];
+    const alreadyTaken = new Set();
+    
+    // Track already selected nodes
+    connectedPlayers.forEach(p => {
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode)) {
+        alreadyTaken.add(p.selectedSpawnNode);
+      }
+    });
+
+    // Get available nodes and shuffle for randomness
+    let availableNodes = allowedSpawnNodes.filter(node => !alreadyTaken.has(node));
+    availableNodes.sort(() => Math.random() - 0.5);
+
+    // Assign random nodes to unselected players
+    unselectedPlayers.forEach((player, index) => {
+      if (index < availableNodes.length) {
+        const assignedNode = availableNodes[index];
+        session.updatePlayer(player.playerId, { selectedSpawnNode: assignedNode });
+        console.log(`🎯 Auto-assigned ${assignedNode} to player ${player.playerId}`);
+      }
+    });
+
+    // Broadcast final lobby state
+    const selections = session.getAllPlayers()
+      .filter(p => !!p.selectedSpawnNode)
+      .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
+    
+    io.to(sessionId).emit('lobby_state_update', {
+      sessionId,
+      availableNodes: allowedSpawnNodes,
+      selections,
+      players: session.getAllPlayers()
+    });
+
+    console.log(`✅ Auto-assigned spawn nodes to ${unselectedPlayers.length} players in session ${sessionId}`);
+    
+    // Start the game immediately after assignment
+    await startGameFromLobby(sessionId, session);
+    
+  } catch (error) {
+    console.error('Error in assignRandomSpawnNodesAndStart:', error);
   }
 }
 

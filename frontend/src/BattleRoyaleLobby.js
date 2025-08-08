@@ -27,6 +27,7 @@ export default function BattleRoyaleLobby() {
   const [status, setStatus] = useState('Connecting to server...');
   const [errorMsg, setErrorMsg] = useState(null);
   const [countdownEnd, setCountdownEnd] = useState(null); // timestamp when auto-start fires
+  const [countdownTick, setCountdownTick] = useState(null); // { remaining, total, message }
   const [hasJoined, setHasJoined] = useState(false);
   const [pendingSelection, setPendingSelection] = useState(null);
   const hasJoinedRef = useRef(false);
@@ -96,6 +97,11 @@ export default function BattleRoyaleLobby() {
     const handleCountdownCancelled = () => {
       if (!mounted) return;
       setCountdownEnd(null);
+      setCountdownTick(null);
+    };
+    const handleCountdownTick = (data) => {
+      if (!mounted || !data) return;
+      setCountdownTick(data);
     };
     const handleSocketError = (err) => {
       if (!mounted) return;
@@ -135,6 +141,7 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.on('socket_error', handleSocketError);
         battleRoyaleSocket.on('lobby_countdown', handleLobbyCountdown);
         battleRoyaleSocket.on('lobby_countdown_cancelled', handleCountdownCancelled);
+        battleRoyaleSocket.on('lobby_countdown_tick', handleCountdownTick);
         battleRoyaleSocket.onConnectionSuccess(handleConnSuccess);
 
         // Wait for connect
@@ -203,6 +210,7 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.off('socket_error', handleSocketError);
         battleRoyaleSocket.off('lobby_countdown', handleLobbyCountdown);
         battleRoyaleSocket.off('lobby_countdown_cancelled', handleCountdownCancelled);
+        battleRoyaleSocket.off('lobby_countdown_tick', handleCountdownTick);
         battleRoyaleSocket.off('connection_success', handleConnSuccess);
       } catch {}
       if (joinRetryTimer.current) {
@@ -289,7 +297,17 @@ export default function BattleRoyaleLobby() {
   const handleEdgeClick = () => {};
 
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 120px)', position: 'relative' }}>
+    <>
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
+      <div style={{ width: '100%', height: 'calc(100vh - 120px)', position: 'relative' }}>
       {/* Top status bar */}
       <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '8px 12px', borderRadius: 8 }}>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>Battle Royale Lobby</div>
@@ -297,8 +315,18 @@ export default function BattleRoyaleLobby() {
           <div>Session: <code>{sessionId || '...'}</code></div>
           <div>Player: <code>{playerId}</code></div>
           <div>Status: {status}</div>
-          {countdownEnd && <div style={{ color: '#90ee90' }}>Auto-start in: {Math.max(0, Math.ceil((countdownEnd-Date.now())/1000))}s</div>}
-       {errorMsg && <div style={{ color: '#ff8a80' }}>Error: {errorMsg}</div>}
+          {countdownTick && (
+            <div style={{ 
+              color: countdownTick.remaining <= 3 ? '#ff4444' : '#90ee90',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              animation: countdownTick.remaining <= 3 ? 'pulse 1s infinite' : 'none'
+            }}>
+              ⏰ {countdownTick.message} ({countdownTick.remaining}s)
+            </div>
+          )}
+          {countdownEnd && !countdownTick && <div style={{ color: '#90ee90' }}>Auto-start in: {Math.max(0, Math.ceil((countdownEnd-Date.now())/1000))}s</div>}
+          {errorMsg && <div style={{ color: '#ff8a80' }}>Error: {errorMsg}</div>}
           <div>Selections: {lobbySelections.length} / 8</div>
           {mySelection && <div>Your spawn: <b>{mySelection.nodeId}</b></div>}
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.9 }}>
@@ -326,5 +354,6 @@ export default function BattleRoyaleLobby() {
         />
       </div>
     </div>
+    </>
   );
 }
