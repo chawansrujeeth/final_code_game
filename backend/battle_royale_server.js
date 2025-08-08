@@ -31,6 +31,20 @@ const BR_QUEUE_ROOM = 'BR_QUEUE';
 const REQUIRED_PLAYERS = 4;
 let battleRoyaleQueue = []; // [{ socketId, playerId, playerName }]
 
+// Build a full list of spawnable nodes across all rings once per process
+function buildSpawnPool() {
+  const nodes = [];
+  // Ring 3 – 8 nodes
+  for (let i = 1; i <= 8; i++) nodes.push(`R3_${i}`);
+  // Ring 2 – 8 nodes
+  for (let i = 1; i <= 8; i++) nodes.push(`R2_${i}`);
+  // Ring 1 – 6 nodes
+  for (let i = 1; i <= 6; i++) nodes.push(`R1_${i}`);
+  return nodes;
+}
+
+const FULL_SPAWN_POOL = buildSpawnPool();
+
 function emitQueueUpdate(ioInstance) {
   try {
     ioInstance.to(BR_QUEUE_ROOM).emit('queue_update', {
@@ -91,7 +105,7 @@ async function startGameFromLobby(sessionId, session) {
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
     if (connectedPlayers.length < REQUIRED_PLAYERS) return;
 
-    const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+    const allowedSpawnNodes = [...FULL_SPAWN_POOL];
     const ordered = connectedPlayers
       .slice()
       .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
@@ -434,7 +448,7 @@ async function maybeAutoStartBySelections(sessionId, session) {
     if (!canStart) return;
 
     // Allowed selectable spawn nodes in Ring 3
-    const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+    const allowedSpawnNodes = [...FULL_SPAWN_POOL];
 
     // Deterministic order so all clients see the same assignment
     const ordered = connectedPlayers
@@ -655,7 +669,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+      const allowedSpawnNodes = [...FULL_SPAWN_POOL];
       if (!allowedSpawnNodes.includes(nodeId)) {
         socket.emit('error', { message: 'Invalid spawn node' });
         return;

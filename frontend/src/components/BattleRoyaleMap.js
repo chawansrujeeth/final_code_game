@@ -475,6 +475,14 @@ export default function BattleRoyaleMap({
       window.removeEventListener('resize', handleResizeCy);
       if (cyRef.current) cyRef.current.destroy();
     };
+    // Dynamic panning when zoomed in (expanded map only)
+    if (!isMinimized) {
+      cyRef.current.userPanningEnabled(false);
+      cyRef.current.on('zoom', () => {
+        const z = cyRef.current.zoom();
+        cyRef.current.userPanningEnabled(z > 1.05);
+      });
+    }
   }, [enableZoom, enablePan, isMinimized]);
 
   // Update lobby selection highlights on nodes
@@ -623,7 +631,7 @@ export default function BattleRoyaleMap({
       )}
       
       {/* Marker controls */}
-      {isMinimized && (
+      {!isMinimized && (
         <div style={{ position: 'absolute', bottom: '10px', right: '10px', zIndex: 1000, display: 'flex', gap: '6px' }}>
           {!markerMode ? (
             <button onClick={() => setMarkerMode(true)} style={{ padding: '4px 8px', fontSize: '10px' }}>MARK</button>
