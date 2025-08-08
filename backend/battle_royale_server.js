@@ -104,12 +104,17 @@ async function startGameFromLobby(sessionId, session) {
     });
 
     let fillIndex = 0;
+    // Randomize order of remaining nodes for fair distribution
+    let shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
     const nextAvailable = () => {
-      while (fillIndex < allowedSpawnNodes.length && taken.has(allowedSpawnNodes[fillIndex])) {
-        fillIndex++;
+      while (shuffled.length && taken.has(shuffled[0])) {
+        shuffled.shift();
       }
-      const node = allowedSpawnNodes[fillIndex % allowedSpawnNodes.length];
-      fillIndex++;
+      if (!shuffled.length) {
+        shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
+      }
+      const node = shuffled.shift();
+      taken.add(node);
       return node;
     };
 
@@ -444,13 +449,17 @@ async function maybeAutoStartBySelections(sessionId, session) {
 
     // Assign nodes: use selection if present, otherwise fill remaining deterministically
     let fillIndex = 0;
+    // Random shuffle of remaining nodes to avoid everyone getting same spot
+    let shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
     const nextAvailable = () => {
-      while (fillIndex < allowedSpawnNodes.length && taken.has(allowedSpawnNodes[fillIndex])) {
-        fillIndex++;
+      while (shuffled.length && taken.has(shuffled[0])) {
+        shuffled.shift();
       }
-      // If out of unique nodes, wrap (rare) but keep game going
-      const node = allowedSpawnNodes[fillIndex % allowedSpawnNodes.length];
-      fillIndex++;
+      if (!shuffled.length) {
+        shuffled = allowedSpawnNodes.slice().sort(() => Math.random() - 0.5);
+      }
+      const node = shuffled.shift();
+      taken.add(node);
       return node;
     };
 
