@@ -91,9 +91,21 @@ export default function BattleRoyaleLobby() {
 
         // Wait for connect
         await new Promise((resolve, reject) => {
+          // If already connected (race), resolve immediately
+          if (battleRoyaleSocket.socket && battleRoyaleSocket.socket.connected) {
+            setIsConnected(true);
+            setStatus('Connected. Join/restore session...');
+            setErrorMsg(null);
+            resolve();
+            return;
+          }
           const timeout = setTimeout(() => reject(new Error('Connection timeout')), 15000);
           battleRoyaleSocket.socket.on('connect', () => {
             clearTimeout(timeout);
+            // Mark UI as connected immediately to allow spawn selection
+            setIsConnected(true);
+            setStatus('Connected. Join/restore session...');
+            setErrorMsg(null);
             resolve();
           });
           battleRoyaleSocket.socket.on('connect_error', (e) => {
@@ -139,7 +151,7 @@ export default function BattleRoyaleLobby() {
   // Handle node click to select spawn
   const handleNodeClick = (nodeData) => {
     if (!nodeData?.id) return;
-    if (!isConnected) {
+    if (!isConnected && !battleRoyaleSocket.isConnected) {
       setErrorMsg('Not connected to server');
       return;
     }
