@@ -260,6 +260,10 @@ class BattleRoyaleSocket {
     this.on('game_state_update', callback);
   }
 
+  onGameStarted(callback) {
+    this.on('game_started', callback);
+  }
+
   onGameOver(callback) {
     this.on('game_over', callback);
   }

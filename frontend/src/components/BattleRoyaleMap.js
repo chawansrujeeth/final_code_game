@@ -336,6 +336,23 @@ export default function BattleRoyaleMap({
             'height': 16,
             'border-width': 0
           }
+        },
+        {
+          selector: 'node[playerMarker]',
+          style: {
+            'background-color': 'data(color)',
+            'shape': 'ellipse',
+            'width': isMinimized ? 12 : 18,
+            'height': isMinimized ? 12 : 18,
+            'border-width': 2,
+            'border-color': '#222',
+            'label': 'data(label)',
+            'font-size': isMinimized ? '6px' : '8px',
+            'color': '#111',
+            'text-background-color': '#ffffff',
+            'text-background-opacity': 0.8,
+            'text-background-shape': 'roundrectangle'
+          }
         }
       ],
       layout: { name: 'preset' },
@@ -416,6 +433,50 @@ export default function BattleRoyaleMap({
       if (cyRef.current) cyRef.current.destroy();
     };
   }, [enableZoom, enablePan, isMinimized, onNodeClick, onEdgeClick]);
+
+  // Sync player markers to Cytoscape based on players' currentNode positions
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const palette = ['#ff3b30', '#007aff', '#34c759', '#ffcc00', '#af52de', '#ff9f0a', '#32ade6', '#ff453a'];
+
+    // Build desired marker set and upsert markers
+    const desired = new Set();
+    const entries = Object.entries(players || {});
+
+    entries.forEach(([playerId, pdata], idx) => {
+      if (!pdata || pdata.isAlive === false) return;
+      const nodeId = pdata.currentNode;
+      if (!nodeId) return;
+      const pos = nodeCoordsRef.current[nodeId];
+      if (!pos) return;
+
+      const markerId = `PLAYER_${playerId}`;
+      desired.add(markerId);
+
+      const color = pdata.color || palette[idx % palette.length];
+      const labelSource = pdata.alias || pdata.name || playerId;
+      const label = labelSource && typeof labelSource === 'string'
+        ? (labelSource.length > 6 ? labelSource.slice(-4).toUpperCase() : labelSource)
+        : String(playerId).slice(-4).toUpperCase();
+
+      const existing = cy.$(`#${markerId}`);
+      if (existing && existing.length) {
+        existing.position(pos);
+        existing.data('playerMarker', true);
+        existing.data('label', label);
+        existing.data('color', color);
+      } else {
+        cy.add({ group: 'nodes', data: { id: markerId, playerMarker: true, label, color }, position: pos });
+      }
+    });
+
+    // Remove stale markers
+    cy.$('node[playerMarker]').forEach(n => {
+      if (!desired.has(n.id())) n.remove();
+    });
+  }, [players, isMinimized]);
 
   return (
     <div style={{ 

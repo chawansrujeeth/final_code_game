@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import BattleRoyaleMap from './components/BattleRoyaleMap';
 import Editor from '@monaco-editor/react';
-import { battleRoyaleSocket } from './battleRoyaleSocket';
+import BattleRoyaleSocket, { battleRoyaleSocket } from './battleRoyaleSocket';
 
 export default function BattleRoyaleGame() {
   const [gameState, setGameState] = useState({
-    isGameActive: true,
+    isGameActive: false,
     playersAlive: 4,
     currentRound: 1,
     winner: null
@@ -16,40 +16,32 @@ export default function BattleRoyaleGame() {
     isFullscreen: false
   });
   
-  const [players, setPlayers] = useState({
-    PLAYER_A: { health: 100, currentZone: 4, currentNode: 'PLAYER_A', questionsAnswered: 0, isAlive: true },
-    PLAYER_B: { health: 100, currentZone: 4, currentNode: 'PLAYER_B', questionsAnswered: 0, isAlive: true },
-    PLAYER_C: { health: 100, currentZone: 4, currentNode: 'PLAYER_C', questionsAnswered: 0, isAlive: true },
-    PLAYER_D: { health: 100, currentZone: 4, currentNode: 'PLAYER_D', questionsAnswered: 0, isAlive: true }
-  });
+  const [players, setPlayers] = useState({});
   
-  const [selectedPlayer, setSelectedPlayer] = useState('PLAYER_A'); // Current player
+  const [selectedPlayer, setSelectedPlayer] = useState(null); // Will be set to this client's playerId
   const [accessibleEdges, setAccessibleEdges] = useState([]);
   
   // Socket and session management
-  const [sessionId, setSessionId] = useState(null);
-  const [playerId, setPlayerId] = useState('PLAYER_A');
+  const [sessionId, setSessionId] = useState(() => {
+    const saved = localStorage.getItem('BR_SESSION_ID');
+    return saved || null;
+  });
+  const [playerId, setPlayerId] = useState(() => {
+    const saved = localStorage.getItem('BR_PLAYER_ID');
+    if (saved) return saved;
+    const generated = BattleRoyaleSocket.generatePlayerId();
+    localStorage.setItem('BR_PLAYER_ID', generated);
+    return generated;
+  });
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   
-  // Get all accessible edges for current player
+  // Get all accessible edges for current player (undirected graph)
   const getAccessibleEdges = (currentNode) => {
     if (!currentNode) return [];
     
-    // This would normally come from the network data, but for now we'll simulate it
-    // In a real implementation, this would query the actual network structure
+    // Simulated network edges for rings and TARGET (no legacy PLAYER_* spawn edges)
     const allEdges = [
-      // Spawn edges
-      { id: 'PLAYER_A-R3_1', source: 'PLAYER_A', target: 'R3_1', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_A-R3_2', source: 'PLAYER_A', target: 'R3_2', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_A-R3_3', source: 'PLAYER_A', target: 'R3_3', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_B-R3_4', source: 'PLAYER_B', target: 'R3_4', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_B-R3_5', source: 'PLAYER_B', target: 'R3_5', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_B-R3_6', source: 'PLAYER_B', target: 'R3_6', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_C-R3_7', source: 'PLAYER_C', target: 'R3_7', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_C-R3_8', source: 'PLAYER_C', target: 'R3_8', difficulty: 'easy', pathType: 'spawn' },
-      { id: 'PLAYER_D-R3_1', source: 'PLAYER_D', target: 'R3_1', difficulty: 'easy', pathType: 'spawn' },
-      
       // R3 circular edges
       { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
@@ -114,9 +106,91 @@ export default function BattleRoyaleGame() {
         console.log('Connecting to battle royale server:', serverUrl);
         battleRoyaleSocket.connect(serverUrl);
         
-        // Generate or use existing session
-        const newSessionId = sessionId || `BR_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        // Set up event listeners EARLY (before join) to avoid missing early emissions
+        battleRoyaleSocket.onGameStateUpdate((data) => {
+          console.log('Game state update:', data);
+          // Update game state and players from server data
+          if (data.gameState) {
+            setGameState(prev => ({ ...prev, ...data.gameState }));
+          }
+          if (data.players) {
+            const updatedPlayers = {};
+            data.players.forEach(player => {
+              updatedPlayers[player.playerId] = {
+                health: player.health,
+                currentZone: player.currentZone,
+                currentNode: player.currentNode,
+                questionsAnswered: player.questionsAnswered,
+                isAlive: player.health > 0
+              };
+            });
+            setPlayers(updatedPlayers);
+            if (!selectedPlayer || !updatedPlayers[selectedPlayer]) {
+              setSelectedPlayer(playerId);
+            }
+          }
+        });
+
+        // Handle auto-start event when 4 players join
+        battleRoyaleSocket.onGameStarted((data) => {
+          console.log('Game started:', data);
+          if (data.gameState) {
+            setGameState(prev => ({ ...prev, ...data.gameState, isGameActive: true }));
+          } else {
+            setGameState(prev => ({ ...prev, isGameActive: true }));
+          }
+          if (data.players) {
+            const updatedPlayers = {};
+            data.players.forEach(player => {
+              updatedPlayers[player.playerId] = {
+                health: player.health,
+                currentZone: player.currentZone,
+                currentNode: player.currentNode,
+                questionsAnswered: player.questionsAnswered,
+                isAlive: player.health > 0
+              };
+            });
+            setPlayers(updatedPlayers);
+            if (!selectedPlayer || !updatedPlayers[selectedPlayer]) {
+              setSelectedPlayer(playerId);
+            }
+          }
+        });
+
+        // Helpful connection success handler to prime UI state
+        battleRoyaleSocket.onConnectionSuccess((data) => {
+          console.log('Connection success:', data);
+          if (data && data.gameState) {
+            setGameState(prev => ({ ...prev, ...data.gameState }));
+          }
+        });
+        
+        battleRoyaleSocket.onGameOver((data) => {
+          console.log('Game over:', data);
+          setGameState(prev => ({
+            ...prev,
+            isGameActive: false,
+            winner: data.winner
+          }));
+        });
+
+        battleRoyaleSocket.onPlayerEliminated((data) => {
+          console.log('Player eliminated:', data);
+          setPlayers(prev => ({
+            ...prev,
+            [data.playerId]: {
+              ...prev[data.playerId],
+              isAlive: false
+            }
+          }));
+        });
+        
+        // Generate or use existing session (env override -> URL param -> saved -> new)
+        const envSession = process.env.REACT_APP_SHARED_SESSION_ID;
+        const urlSession = new URLSearchParams(window.location.search).get('session');
+        const newSessionId = envSession || urlSession || sessionId || `BR_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         setSessionId(newSessionId);
+        try { localStorage.setItem('BR_SESSION_ID', newSessionId); } catch {}
         
         // Wait for connection
         await new Promise((resolve, reject) => {
@@ -138,47 +212,8 @@ export default function BattleRoyaleGame() {
           });
         });
         
-        // Join session
+        // Join session (listeners already set up above)
         battleRoyaleSocket.joinSession(newSessionId, playerId, `Player ${playerId}`);
-        
-        // Set up event listeners
-        battleRoyaleSocket.onGameStateUpdate((data) => {
-          console.log('Game state update:', data);
-          // Update players from server data
-          if (data.players) {
-            const updatedPlayers = {};
-            data.players.forEach(player => {
-              updatedPlayers[player.playerId] = {
-                health: player.health,
-                currentZone: player.currentZone,
-                currentNode: player.currentNode,
-                questionsAnswered: player.questionsAnswered,
-                isAlive: player.health > 0
-              };
-            });
-            setPlayers(prev => ({ ...prev, ...updatedPlayers }));
-          }
-        });
-        
-        battleRoyaleSocket.onGameOver((data) => {
-          console.log('Game over:', data);
-          setGameState(prev => ({
-            ...prev,
-            isGameActive: false,
-            winner: data.winner
-          }));
-        });
-        
-        battleRoyaleSocket.onPlayerEliminated((data) => {
-          console.log('Player eliminated:', data);
-          setPlayers(prev => ({
-            ...prev,
-            [data.playerId]: {
-              ...prev[data.playerId],
-              isAlive: false
-            }
-          }));
-        });
         
       } catch (error) {
         console.error('Failed to initialize connection:', error);
@@ -194,6 +229,13 @@ export default function BattleRoyaleGame() {
       battleRoyaleSocket.disconnect();
     };
   }, []); // Empty dependency array - run once on mount
+
+  // Keep selectedPlayer synced with generated playerId initially
+  useEffect(() => {
+    if (!selectedPlayer && playerId) {
+      setSelectedPlayer(playerId);
+    }
+  }, [playerId, selectedPlayer]);
   
   // Pool of questions for different difficulties (DEPRECATED - now using backend)
   const questionPools = {
@@ -520,7 +562,6 @@ export default function BattleRoyaleGame() {
     if (nodeId.startsWith('R1_')) return 1;
     if (nodeId.startsWith('R2_')) return 2;
     if (nodeId.startsWith('R3_')) return 3;
-    if (nodeId.startsWith('PLAYER_')) return 4;
     return 4;
   };
   
@@ -671,25 +712,7 @@ export default function BattleRoyaleGame() {
               <div>✅ Questions: <span style={{ color: '#ffc107' }}>{players[selectedPlayer]?.questionsAnswered}</span></div>
             </div>
             
-            {/* Spawn Guidance */}
-            {players[selectedPlayer]?.currentNode?.startsWith('PLAYER_') && (
-              <div style={{
-                background: 'rgba(0, 191, 255, 0.1)',
-                border: '2px solid #00bfff',
-                borderRadius: '8px',
-                padding: '15px',
-                marginTop: '15px',
-                textAlign: 'center'
-              }}>
-                <div style={{ color: '#00bfff', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
-                  🚀 Ready to Enter the Battle!
-                </div>
-                <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4' }}>
-                  Click the <span style={{ color: '#00bfff', fontWeight: 'bold' }}>blue dashed edges</span> to move from spawn to the outer ring.
-                  <br />Answer <span style={{ color: '#28a745', fontWeight: 'bold' }}>easy questions</span> to enter the game!
-                </div>
-              </div>
-            )}
+            {/* Spawn Guidance removed: players now spawn directly on ring nodes from backend */}
             
             {/* Accessible Edges Display */}
             <div style={{

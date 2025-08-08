@@ -33,7 +33,7 @@ class PersistentGameSession {
     this.players = new Map();
     this.usedQuestions = new Set();
     this.gameState = {
-      isGameActive: true,
+      isGameActive: false,
       playersAlive: 0,
       currentRound: 1,
       winner: null,
@@ -126,8 +126,9 @@ class PersistentGameSession {
   addPlayer(playerId, playerData) {
     const player = {
       ...playerData,
-      currentNode: playerData.currentNode || `PLAYER_${playerId}`,
-      currentZone: playerData.currentZone || 'spawn',
+      // Default to no position until game starts (avoids legacy PLAYER_* nodes)
+      currentNode: playerData.currentNode || null,
+      currentZone: playerData.currentZone || 'lobby',
       health: playerData.health || 100,
       questionsAnswered: playerData.questionsAnswered || 0,
       isAlive: true,
@@ -258,6 +259,55 @@ async function getOrCreateSession(sessionId) {
   return session;
 }
 
+// Attempt to auto-start the game when exactly 4 connected players are present
+async function maybeAutoStart(sessionId, session) {
+  try {
+    const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    const canStart = connectedPlayers.length === 4 && !session.gameState.isGameActive && !session.gameState.gameOver;
+    if (!canStart) return;
+
+    // Assign balanced Ring 3 spawn nodes
+    const spawnNodes = ['R3_1', 'R3_3', 'R3_5', 'R3_7'];
+    // Deterministic order so all clients see the same assignment
+    const ordered = connectedPlayers
+      .slice()
+      .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
+
+    ordered.forEach((p, idx) => {
+      const node = spawnNodes[idx % spawnNodes.length];
+      session.updatePlayer(p.playerId, {
+        currentNode: node,
+        currentZone: getZoneFromNode(node)
+      });
+    });
+
+    session.gameState.isGameActive = true;
+    session.gameState.currentRound = 1;
+    session.gameState.playersAlive = connectedPlayers.length;
+
+    await session.saveSession();
+
+    // Notify clients
+    io.to(sessionId).emit('game_started', {
+      sessionId,
+      players: session.getAllPlayers(),
+      gameState: session.gameState
+    });
+
+    const gameStateUpdate = {
+      players: session.getAllPlayers(),
+      gameState: session.gameState,
+      sessionId,
+      usedQuestionsCount: session.usedQuestions.size
+    };
+    io.to(sessionId).emit('game_state_update', gameStateUpdate);
+
+    console.log(`✅ [AUTO-START] Session ${sessionId} started with 4 connected players.`);
+  } catch (err) {
+    console.error('Error in maybeAutoStart:', err);
+  }
+}
+
 // Socket.IO connection handling with Render optimizations
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -318,6 +368,9 @@ io.on('connection', (socket) => {
       });
 
       console.log(`Player ${playerId} ${existingPlayer ? 'reconnected to' : 'joined'} session ${sessionId}`);
+
+      // Try to auto-start if conditions are met
+      await maybeAutoStart(sessionId, session);
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
