@@ -38,50 +38,51 @@ export default function BattleRoyaleLobby() {
   useEffect(() => {
     let mounted = true;
 
+    // Handlers must be in the same scope as cleanup so off() removes the exact refs
+    const handleLobbyState = (data) => {
+      if (!mounted || !data) return;
+      setAvailableNodes(data.availableNodes || []);
+      setLobbySelections(Array.isArray(data.selections) ? data.selections : []);
+      setStatus(`Waiting for players... ${data.selections?.length || 0} selected`);
+    };
+    const handleGameStarted = (data) => {
+      if (!mounted) return;
+      setStatus('Game started! Redirecting...');
+      navigate('/battle-royale');
+    };
+    const handleGameStateUpdate = (data) => {
+      if (!mounted || !data) return;
+      if (data.gameState?.isGameActive) {
+        navigate('/battle-royale');
+      }
+    };
+    const handleConnStatus = (s) => {
+      if (!mounted) return;
+      if (s.connected) {
+        setIsConnected(true);
+        setStatus('Connected. Join/restore session...');
+        setErrorMsg(null);
+      } else if (s.reconnecting) {
+        setIsConnected(false);
+        setStatus(`Reconnecting... (${s.attempt}/${s.maxAttempts})`);
+      } else {
+        setIsConnected(false);
+        setStatus('Disconnected. Attempting to reconnect...');
+      }
+    };
+    const handleSocketError = (err) => {
+      if (!mounted) return;
+      console.error('[BR Lobby] socket_error:', err);
+      const msg = err?.message || (typeof err === 'string' ? err : 'Unknown socket error');
+      setErrorMsg(msg);
+    };
+
     const init = async () => {
       try {
         const serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
         battleRoyaleSocket.connect(serverUrl);
 
         // Register listeners BEFORE joining
-        const handleLobbyState = (data) => {
-          if (!mounted || !data) return;
-          setAvailableNodes(data.availableNodes || []);
-          setLobbySelections(Array.isArray(data.selections) ? data.selections : []);
-          setStatus(`Waiting for players... ${data.selections?.length || 0} selected`);
-        };
-        const handleGameStarted = (data) => {
-          if (!mounted) return;
-          setStatus('Game started! Redirecting...');
-          navigate('/battle-royale');
-        };
-        const handleGameStateUpdate = (data) => {
-          if (!mounted || !data) return;
-          if (data.gameState?.isGameActive) {
-            navigate('/battle-royale');
-          }
-        };
-        const handleConnStatus = (s) => {
-          if (!mounted) return;
-          if (s.connected) {
-            setIsConnected(true);
-            setStatus('Connected. Join/restore session...');
-            setErrorMsg(null);
-          } else if (s.reconnecting) {
-            setIsConnected(false);
-            setStatus(`Reconnecting... (${s.attempt}/${s.maxAttempts})`);
-          } else {
-            setIsConnected(false);
-            setStatus('Disconnected. Attempting to reconnect...');
-          }
-        };
-        const handleSocketError = (err) => {
-          if (!mounted) return;
-          console.error('[BR Lobby] socket_error:', err);
-          const msg = err?.message || (typeof err === 'string' ? err : 'Unknown socket error');
-          setErrorMsg(msg);
-        };
-
         battleRoyaleSocket.onLobbyStateUpdate(handleLobbyState);
         battleRoyaleSocket.onGameStarted(handleGameStarted);
         battleRoyaleSocket.onGameStateUpdate(handleGameStateUpdate);
