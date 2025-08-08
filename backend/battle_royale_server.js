@@ -62,6 +62,9 @@ function emitQueueUpdate(ioInstance) {
 // Auto-start timer management per session
 const autoStartTimers = new Map(); // sessionId -> timeoutId
 
+// Lobby selection timer management per session
+const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
+
 function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
   try {
     if (session.gameState.isGameActive || session.gameState.gameOver) return;
@@ -99,11 +102,96 @@ function cancelAutoStartIfScheduled(sessionId) {
   }
 }
 
+function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
+  try {
+    if (lobbySelectionTimers.has(sessionId)) return; // already scheduled
+
+    const timeoutId = setTimeout(async () => {
+      lobbySelectionTimers.delete(sessionId);
+      try {
+        await assignRandomSpawnNodes(sessionId);
+      } catch (e) {
+        console.error('lobby selection timer error:', e);
+      }
+    }, delayMs);
+    
+    lobbySelectionTimers.set(sessionId, timeoutId);
+    io.to(sessionId).emit('lobby_selection_timer', { seconds: Math.round(delayMs/1000) });
+    console.log(`⏰ Scheduled lobby selection timer for session ${sessionId} in ${delayMs}ms`);
+  } catch (e) {
+    console.error('scheduleLobbySelectionTimer error:', e);
+  }
+}
+
+function cancelLobbySelectionTimer(sessionId) {
+  const existing = lobbySelectionTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    lobbySelectionTimers.delete(sessionId);
+    io.to(sessionId).emit('lobby_selection_timer_cancelled');
+    console.log(`🛑 Cancelled lobby selection timer for session ${sessionId}`);
+  }
+}
+
+async function assignRandomSpawnNodes(sessionId) {
+  try {
+    const session = await getOrCreateSession(sessionId);
+    if (session.gameState.isGameActive || session.gameState.gameOver) return;
+
+    const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    const unselectedPlayers = connectedPlayers.filter(p => !p.selectedSpawnNode);
+    
+    if (unselectedPlayers.length === 0) return;
+
+    const allowedSpawnNodes = [...FULL_SPAWN_POOL];
+    const alreadyTaken = new Set();
+    
+    // Track already selected nodes
+    connectedPlayers.forEach(p => {
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode)) {
+        alreadyTaken.add(p.selectedSpawnNode);
+      }
+    });
+
+    // Get available nodes and shuffle for randomness
+    let availableNodes = allowedSpawnNodes.filter(node => !alreadyTaken.has(node));
+    availableNodes.sort(() => Math.random() - 0.5);
+
+    // Assign random nodes to unselected players
+    unselectedPlayers.forEach((player, index) => {
+      if (index < availableNodes.length) {
+        const assignedNode = availableNodes[index];
+        session.updatePlayer(player.playerId, { selectedSpawnNode: assignedNode });
+        console.log(`🎯 Auto-assigned ${assignedNode} to player ${player.playerId}`);
+      }
+    });
+
+    // Broadcast updated lobby state
+    const selections = session.getAllPlayers()
+      .filter(p => !!p.selectedSpawnNode)
+      .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
+    
+    io.to(sessionId).emit('lobby_state_update', {
+      sessionId,
+      availableNodes: allowedSpawnNodes,
+      selections,
+      players: session.getAllPlayers()
+    });
+
+    console.log(`✅ Auto-assigned spawn nodes to ${unselectedPlayers.length} players in session ${sessionId}`);
+  } catch (error) {
+    console.error('Error assigning random spawn nodes:', error);
+  }
+}
+
 async function startGameFromLobby(sessionId, session) {
   try {
     if (session.gameState.isGameActive || session.gameState.gameOver) return;
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
     if (connectedPlayers.length < REQUIRED_PLAYERS) return;
+
+    // Cancel lobby selection timer since game is starting
+    cancelLobbySelectionTimer(sessionId);
 
     const allowedSpawnNodes = [...FULL_SPAWN_POOL];
     const ordered = connectedPlayers
@@ -452,6 +540,9 @@ async function maybeAutoStartBySelections(sessionId, session) {
     );
     if (!canStart) return;
 
+    // Cancel lobby selection timer since game is starting
+    cancelLobbySelectionTimer(sessionId);
+
     // Allowed selectable spawn nodes in Ring 3
     const allowedSpawnNodes = [...FULL_SPAWN_POOL];
 
@@ -646,6 +737,11 @@ io.on('connection', (socket) => {
       // Try to auto-start if conditions are met
       await maybeAutoStartBySelections(sessionId, session);
       scheduleAutoStartIfReady(sessionId, session);
+      
+      // Start lobby selection timer for unselected players (10 seconds)
+      if (!session.gameState.isGameActive && !session.gameState.gameOver) {
+        scheduleLobbySelectionTimer(sessionId, 10000);
+      }
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
@@ -700,6 +796,13 @@ io.on('connection', (socket) => {
         selections,
         players: session.getAllPlayers()
       });
+
+      // Check if all connected players have selected - if so, cancel lobby timer
+      const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+      const selectedConnected = connectedPlayers.filter(p => !!p.selectedSpawnNode);
+      if (selectedConnected.length === connectedPlayers.length) {
+        cancelLobbySelectionTimer(sessionId);
+      }
 
       // Attempt auto-start if enough selections
       await maybeAutoStartBySelections(sessionId, session);
@@ -975,6 +1078,7 @@ io.on('connection', (socket) => {
             const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
             if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
               cancelAutoStartIfScheduled(socket.sessionId);
+              cancelLobbySelectionTimer(socket.sessionId);
             }
           } catch (e) {
             console.error('auto-start cancellation check (disconnect) failed:', e);
@@ -1021,6 +1125,7 @@ io.on('connection', (socket) => {
             const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
             if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
               cancelAutoStartIfScheduled(sessionId);
+              cancelLobbySelectionTimer(sessionId);
             }
           } catch (e) {
             console.error('auto-start cancellation check (leave_game) failed:', e);
