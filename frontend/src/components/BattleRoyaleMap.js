@@ -379,8 +379,8 @@ export default function BattleRoyaleMap({
         }
       ],
       layout: { name: 'preset' },
-      userZoomingEnabled: true,
-      userPanningEnabled: true,
+      userZoomingEnabled: enableZoom && !isMinimized,
+      userPanningEnabled: enablePan && !isMinimized,
       minZoom: initialMinZoom,
       maxZoom: 2
     });
@@ -425,6 +425,7 @@ export default function BattleRoyaleMap({
 
     // Generic tap for placing markers when in marker mode
     cyRef.current.on('tap', (e) => {
+      if (isMinimized) return; // Disable marker placement in minimap
       if (markerModeRef.current) {
         const id = `MARK_${Date.now()}`;
         const pos = e.position;
@@ -437,27 +438,39 @@ export default function BattleRoyaleMap({
     // Auto-fit for different view modes
     setTimeout(() => {
       if (isMinimized) {
-        // Focus the minimap on a single random playable node and its immediate neighborhood
-        const candidates = cyRef.current.nodes('[level > 0]');
-        const focus = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : cyRef.current.$('#TARGET');
+        // Center minimap on the self player with some surrounding nodes
+        const cy = cyRef.current;
+        let focus;
+        if (selfPlayerId && players && players[selfPlayerId]) {
+          const markerNode = cy.$(`#PLAYER_${selfPlayerId}`);
+          if (markerNode && markerNode.length) {
+            focus = markerNode;
+          } else {
+            const nodeId = players[selfPlayerId].currentNode;
+            if (nodeId) focus = cy.$(`#${nodeId}`);
+          }
+        }
+        // Fallback to random node if self not found yet
+        if (!focus || !focus.length) {
+          const candidates = cy.nodes('[level > 0]');
+          focus = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : cy.$('#TARGET');
+        }
         const viewSet = focus.closedNeighborhood();
-        cyRef.current.fit(viewSet, 40);
-        // Slight additional zoom for a tighter view
-        cyRef.current.zoom(Math.min(cyRef.current.maxZoom(), cyRef.current.zoom() * 1.2));
-        cyRef.current.center(focus);
+        cy.fit(viewSet, 40);
+        cy.zoom(Math.min(cy.maxZoom(), cy.zoom() * 1.2));
+        cy.center(focus);
       } else {
         cyRef.current.center();
         cyRef.current.zoom(1);
       }
     }, 100);
 
-    // Clear markers when switching to expanded view
-    if (!isMinimized && markers.length) {
+    // Clear markers when switching to minimap view
+    if (isMinimized && markers.length) {
       markers.forEach(id => cyRef.current.$(`#${id}`).remove());
       setMarkers([]);
       setMarkerMode(false);
     }
-    
     return () => {
       window.removeEventListener('resize', handleResizeCy);
       if (cyRef.current) cyRef.current.destroy();
@@ -546,6 +559,23 @@ export default function BattleRoyaleMap({
       if (!desired.has(n.id())) n.remove();
     });
   }, [players, isMinimized]);
+
+  // Recenter minimap whenever the self player moves or minimap toggles
+  useEffect(() => {
+    if (!isMinimized) return;
+    const cy = cyRef.current;
+    if (!cy) return;
+    if (!selfPlayerId || !players || !players[selfPlayerId]) return;
+
+    const markerNode = cy.$(`#PLAYER_${selfPlayerId}`);
+    const focus = (markerNode && markerNode.length) ? markerNode : cy.$(`#${players[selfPlayerId].currentNode}`);
+    if (!focus || !focus.length) return;
+
+    const viewSet = focus.closedNeighborhood();
+    cy.fit(viewSet, 40);
+    cy.zoom(Math.min(cy.maxZoom(), cy.zoom() * 1.2));
+    cy.center(focus);
+  }, [players, selfPlayerId, isMinimized]);
 
   return (
     <div style={{ 
