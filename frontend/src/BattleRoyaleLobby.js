@@ -26,6 +26,7 @@ export default function BattleRoyaleLobby() {
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState('Connecting to server...');
   const [errorMsg, setErrorMsg] = useState(null);
+  const [hasJoined, setHasJoined] = useState(false);
 
   // Lobby data
   const [lobbySelections, setLobbySelections] = useState([]); // [{playerId, playerName, nodeId, isConnected}]
@@ -44,6 +45,11 @@ export default function BattleRoyaleLobby() {
       setAvailableNodes(data.availableNodes || []);
       setLobbySelections(Array.isArray(data.selections) ? data.selections : []);
       setStatus(`Waiting for players... ${data.selections?.length || 0} selected`);
+      // Mark joined if server includes me in players list
+      if (Array.isArray(data.players)) {
+        const me = data.players.find(p => p.playerId === playerId);
+        if (me) setHasJoined(true);
+      }
     };
     const handleGameStarted = (data) => {
       if (!mounted) return;
@@ -74,7 +80,19 @@ export default function BattleRoyaleLobby() {
       if (!mounted) return;
       console.error('[BR Lobby] socket_error:', err);
       const msg = err?.message || (typeof err === 'string' ? err : 'Unknown socket error');
+      if (!hasJoined && msg === 'Player not found in session') {
+        // Likely clicked before join completed; show info instead of error
+        setStatus('Joining lobby... please wait a moment.');
+        return;
+      }
       setErrorMsg(msg);
+    };
+
+    const handleConnSuccess = () => {
+      if (!mounted) return;
+      setHasJoined(true);
+      setStatus('Joined lobby. Select your spawn node.');
+      setErrorMsg(null);
     };
 
     const init = async () => {
@@ -88,6 +106,7 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.onGameStateUpdate(handleGameStateUpdate);
         battleRoyaleSocket.onConnectionStatus(handleConnStatus);
         battleRoyaleSocket.on('socket_error', handleSocketError);
+        battleRoyaleSocket.onConnectionSuccess(handleConnSuccess);
 
         // Wait for connect
         await new Promise((resolve, reject) => {
@@ -121,9 +140,9 @@ export default function BattleRoyaleLobby() {
         setSessionId(sid);
         try { localStorage.setItem('BR_SESSION_ID', sid); } catch {}
 
-        // Join session
+        // Join session (wait for connection_success to confirm)
         battleRoyaleSocket.joinSession(sid, playerId, `Player ${playerId}`);
-        setStatus('Joined lobby. Select your spawn node.');
+        setStatus('Joining lobby... waiting for server...');
       } catch (err) {
         console.error('[BR Lobby] init failed:', err);
         setErrorMsg(err?.message || String(err));
@@ -143,6 +162,7 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.off('game_state_update', handleGameStateUpdate);
         battleRoyaleSocket.off('connection_status', handleConnStatus);
         battleRoyaleSocket.off('socket_error', handleSocketError);
+        battleRoyaleSocket.off('connection_success', handleConnSuccess);
       } catch {}
       // Keep socket connection for seamless transition to gameplay
     };
@@ -153,6 +173,10 @@ export default function BattleRoyaleLobby() {
     if (!nodeData?.id) return;
     if (!isConnected && !battleRoyaleSocket.isConnected) {
       setErrorMsg('Not connected to server');
+      return;
+    }
+    if (!hasJoined) {
+      setStatus('Joining lobby... please wait a moment.');
       return;
     }
     const nodeId = nodeData.id;
@@ -217,7 +241,7 @@ export default function BattleRoyaleLobby() {
           players={{}}  // no player markers in lobby
           lobbySelections={lobbySelections}
           selfPlayerId={playerId}
-          allowedNodeIds={availableNodes}
+          allowedNodeIds={hasJoined ? availableNodes : []}
         />
       </div>
     </div>
