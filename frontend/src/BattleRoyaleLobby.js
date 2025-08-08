@@ -205,6 +205,7 @@ export default function BattleRoyaleLobby() {
           players={{}}  // no player markers in lobby
           lobbySelections={lobbySelections}
           selfPlayerId={playerId}
+          allowedNodeIds={availableNodes}
         />
       </div>
     </div>

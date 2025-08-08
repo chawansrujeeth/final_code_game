@@ -23,11 +23,15 @@ export default function BattleRoyaleMap({
   enablePan = false,
   players = {},
   lobbySelections = [],
-  selfPlayerId = null
+  selfPlayerId = null,
+  // When provided, only these node IDs are clickable; also highlighted
+  allowedNodeIds = null
 }) {
   const cyRef = useRef(null);
   const nodeCoordsRef = useRef({});
   const canvasRef = useRef(null);
+  const allowedNodeIdsRef = useRef(null);
+  useEffect(() => { allowedNodeIdsRef.current = allowedNodeIds; }, [allowedNodeIds]);
   
   // Game state
   const [gameTimer, setGameTimer] = useState(0);
@@ -306,6 +310,15 @@ export default function BattleRoyaleMap({
           }
         },
         {
+          selector: 'node[spawnAvailable]'
+          ,
+          style: {
+            'border-width': 3,
+            'border-color': '#00ff88',
+            'box-shadow': '0 0 8px #00ff88'
+          }
+        },
+        {
           selector: 'node[lobbySelected]'
           ,
           style: {
@@ -396,7 +409,14 @@ export default function BattleRoyaleMap({
     
     // Add interaction handlers
     cyRef.current.on('tap', 'node', (e) => {
-      onNodeClick(e.target.data());
+      const id = e.target.id();
+      const allow = allowedNodeIdsRef.current;
+      if (Array.isArray(allow) && allow.length > 0 && !allow.includes(id)) {
+        return; // ignore clicks on disallowed nodes when restricted
+      }
+      const data = e.target.data();
+      const payload = { id, ...data };
+      onNodeClick(payload);
     });
     
     cyRef.current.on('tap', 'edge', (e) => {
@@ -442,7 +462,7 @@ export default function BattleRoyaleMap({
       window.removeEventListener('resize', handleResizeCy);
       if (cyRef.current) cyRef.current.destroy();
     };
-  }, [enableZoom, enablePan, isMinimized, onNodeClick, onEdgeClick]);
+  }, [enableZoom, enablePan, isMinimized]);
 
   // Update lobby selection highlights on nodes
   useEffect(() => {
@@ -468,6 +488,20 @@ export default function BattleRoyaleMap({
       }
     });
   }, [lobbySelections, selfPlayerId]);
+  
+  // Highlight allowed spawn nodes if provided
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.nodes().forEach(n => {
+      const id = n.id();
+      if (Array.isArray(allowedNodeIds) && allowedNodeIds.includes(id)) {
+        n.data('spawnAvailable', true);
+      } else if (n.data('spawnAvailable')) {
+        n.removeData('spawnAvailable');
+      }
+    });
+  }, [allowedNodeIds]);
 
   // Sync player markers to Cytoscape based on players' currentNode positions
   useEffect(() => {
