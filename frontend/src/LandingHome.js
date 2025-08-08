@@ -96,7 +96,7 @@ export default function LandingHome() {
           </button>
           <button
             className="btn btn-shadow btn-rect" style={{minWidth:120, background: 'linear-gradient(45deg, #00ff88, #00cc6a)', color: '#000', fontWeight: 'bold'}}
-            onClick={() => navigate("/battle-royale")}
+            onClick={() => navigate("/battle-royale-lobby")}
           >
             🎮 Battle Royale
           </button>
