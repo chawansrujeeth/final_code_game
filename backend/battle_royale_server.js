@@ -26,6 +26,160 @@ app.use(express.json());
 // In-memory cache for active sessions (cleared on Render sleep)
 const sessionCache = new Map();
 
+// Simple in-memory matchmaking queue for Battle Royale
+const BR_QUEUE_ROOM = 'BR_QUEUE';
+const REQUIRED_PLAYERS = 4;
+let battleRoyaleQueue = []; // [{ socketId, playerId, playerName }]
+
+function emitQueueUpdate(ioInstance) {
+  try {
+    ioInstance.to(BR_QUEUE_ROOM).emit('queue_update', {
+      mode: 'battle_royale',
+      size: battleRoyaleQueue.length,
+      required: REQUIRED_PLAYERS
+    });
+  } catch (e) {
+    console.error('emitQueueUpdate error:', e);
+  }
+}
+
+// Close emitQueueUpdate function here
+
+// Auto-start timer management per session
+const autoStartTimers = new Map(); // sessionId -> timeoutId
+
+function scheduleAutoStartIfReady(sessionId, session, delayMs = 3000) {
+  try {
+    if (session.gameState.isGameActive || session.gameState.gameOver) return;
+    const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    if (connectedPlayers.length < REQUIRED_PLAYERS) return;
+    if (autoStartTimers.has(sessionId)) return; // already scheduled
+
+    const timeoutId = setTimeout(async () => {
+      autoStartTimers.delete(sessionId);
+      try {
+        // Re-check conditions just before starting
+        const refreshed = await getOrCreateSession(sessionId);
+        const connected = Array.from(refreshed.players.values()).filter(p => !!p.socketId);
+        if (connected.length < REQUIRED_PLAYERS || refreshed.gameState.isGameActive || refreshed.gameState.gameOver) return;
+        await startGameFromLobby(sessionId, refreshed);
+      } catch (e) {
+        console.error('autoStart timer error:', e);
+      }
+    }, delayMs);
+    autoStartTimers.set(sessionId, timeoutId);
+    io.to(sessionId).emit('lobby_countdown', { seconds: Math.round(delayMs/1000), reason: 'enough_players' });
+    console.log(`⏳ Scheduled auto-start for session ${sessionId} in ${delayMs}ms`);
+  } catch (e) {
+    console.error('scheduleAutoStartIfReady error:', e);
+  }
+}
+
+function cancelAutoStartIfScheduled(sessionId) {
+  const existing = autoStartTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    autoStartTimers.delete(sessionId);
+    io.to(sessionId).emit('lobby_countdown_cancelled');
+    console.log(`🛑 Cancelled auto-start for session ${sessionId}`);
+  }
+}
+
+async function startGameFromLobby(sessionId, session) {
+  try {
+    if (session.gameState.isGameActive || session.gameState.gameOver) return;
+    const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    if (connectedPlayers.length < REQUIRED_PLAYERS) return;
+
+    const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+    const ordered = connectedPlayers
+      .slice()
+      .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
+
+    const taken = new Set();
+    ordered.forEach((p) => {
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode)) {
+        taken.add(p.selectedSpawnNode);
+      }
+    });
+
+    let fillIndex = 0;
+    const nextAvailable = () => {
+      while (fillIndex < allowedSpawnNodes.length && taken.has(allowedSpawnNodes[fillIndex])) {
+        fillIndex++;
+      }
+      const node = allowedSpawnNodes[fillIndex % allowedSpawnNodes.length];
+      fillIndex++;
+      return node;
+    };
+
+    ordered.forEach((p) => {
+      const node = (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode))
+        ? p.selectedSpawnNode
+        : nextAvailable();
+      taken.add(node);
+      session.updatePlayer(p.playerId, {
+        currentNode: node,
+        currentZone: getZoneFromNode(node)
+      });
+    });
+
+    session.gameState.isGameActive = true;
+    session.gameState.currentRound = 1;
+    session.gameState.playersAlive = connectedPlayers.length;
+
+    await session.saveSession();
+
+    io.to(sessionId).emit('game_started', {
+      sessionId,
+      players: session.getAllPlayers(),
+      gameState: session.gameState
+    });
+
+    io.to(sessionId).emit('game_state_update', {
+      players: session.getAllPlayers(),
+      gameState: session.gameState,
+      sessionId,
+      usedQuestionsCount: session.usedQuestions.size
+    });
+
+    console.log(`✅ [AUTO-START] Session ${sessionId} started (>=${REQUIRED_PLAYERS} connected players).`);
+  } catch (e) {
+    console.error('startGameFromLobby error:', e);
+  }
+}
+
+function tryFormMatch(ioInstance) {
+  try {
+    while (battleRoyaleQueue.length >= REQUIRED_PLAYERS) {
+      const group = battleRoyaleQueue.splice(0, REQUIRED_PLAYERS);
+      const sessionId = generateSessionId();
+
+      const playersPayload = group.map(p => ({ playerId: p.playerId, playerName: p.playerName }));
+
+      // Notify matched players and remove them from queue room
+      group.forEach(p => {
+        const sock = ioInstance.sockets.sockets.get(p.socketId);
+        if (sock) {
+          try { sock.leave(BR_QUEUE_ROOM); } catch {}
+          sock.emit('match_found', {
+            sessionId,
+            mode: 'battle_royale',
+            players: playersPayload,
+            required: REQUIRED_PLAYERS
+          });
+        }
+      });
+
+      // After forming a match, continue to see if more groups can be formed
+    }
+
+    emitQueueUpdate(ioInstance);
+  } catch (e) {
+    console.error('tryFormMatch error:', e);
+  }
+}
+
 // Persistent Session Management with Supabase
 class PersistentGameSession {
   constructor(sessionId) {
@@ -343,6 +497,51 @@ io.on('connection', (socket) => {
     console.error('Socket error:', error);
   });
 
+  // Matchmaking: join BR queue
+  socket.on('join_battle_royale_queue', (data = {}) => {
+    try {
+      const playerId = data.playerId;
+      const playerName = data.playerName || (playerId ? `Player ${playerId}` : 'Player');
+
+      if (!playerId) {
+        socket.emit('queue_error', { message: 'Missing playerId' });
+        return;
+      }
+
+      // Prevent duplicates by socketId
+      const already = battleRoyaleQueue.find(entry => entry.socketId === socket.id);
+      if (already) {
+        socket.emit('queue_joined', { alreadyInQueue: true, position: battleRoyaleQueue.indexOf(already) + 1, required: REQUIRED_PLAYERS });
+        socket.join(BR_QUEUE_ROOM);
+        emitQueueUpdate(io);
+        return;
+      }
+
+      battleRoyaleQueue.push({ socketId: socket.id, playerId, playerName });
+      socket.join(BR_QUEUE_ROOM);
+      socket.emit('queue_joined', { position: battleRoyaleQueue.length, required: REQUIRED_PLAYERS });
+      emitQueueUpdate(io);
+      tryFormMatch(io);
+    } catch (e) {
+      console.error('join_battle_royale_queue error:', e);
+      socket.emit('queue_error', { message: 'Failed to join queue' });
+    }
+  });
+
+  // Matchmaking: leave BR queue
+  socket.on('leave_battle_royale_queue', () => {
+    try {
+      const before = battleRoyaleQueue.length;
+      battleRoyaleQueue = battleRoyaleQueue.filter(entry => entry.socketId !== socket.id);
+      try { socket.leave(BR_QUEUE_ROOM); } catch {}
+      socket.emit('queue_left', { removed: before !== battleRoyaleQueue.length });
+      emitQueueUpdate(io);
+    } catch (e) {
+      console.error('leave_battle_royale_queue error:', e);
+      socket.emit('queue_error', { message: 'Failed to leave queue' });
+    }
+  });
+
   // Join game session with reconnection support
   socket.on('join_battle_royale', async (data) => {
     try {
@@ -411,6 +610,7 @@ io.on('connection', (socket) => {
 
       // Try to auto-start if conditions are met
       await maybeAutoStartBySelections(sessionId, session);
+      scheduleAutoStartIfReady(sessionId, session);
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
@@ -468,6 +668,7 @@ io.on('connection', (socket) => {
 
       // Attempt auto-start if enough selections
       await maybeAutoStartBySelections(sessionId, session);
+      scheduleAutoStartIfReady(sessionId, session);
     } catch (error) {
       console.error('Error handling select_spawn_node:', error);
       socket.emit('error', { message: 'Failed to select spawn node' });
@@ -694,6 +895,16 @@ io.on('connection', (socket) => {
   // Handle disconnection with reconnection support
   socket.on('disconnect', async () => {
     console.log('Player disconnected:', socket.id);
+    // Remove from queue if present
+    try {
+      const before = battleRoyaleQueue.length;
+      battleRoyaleQueue = battleRoyaleQueue.filter(entry => entry.socketId !== socket.id);
+      if (before !== battleRoyaleQueue.length) {
+        emitQueueUpdate(io);
+      }
+    } catch (e) {
+      console.error('queue cleanup on disconnect error:', e);
+    }
     
     if (socket.sessionId && socket.playerId) {
       try {
@@ -723,6 +934,16 @@ io.on('connection', (socket) => {
           socket.to(socket.sessionId).emit('game_state_update', gameStateUpdate);
           
           console.log(`Player ${socket.playerId} disconnected from session ${socket.sessionId}`);
+
+          // If countdown was scheduled, cancel it when connected players drop below requirement
+          try {
+            const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
+            if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
+              cancelAutoStartIfScheduled(socket.sessionId);
+            }
+          } catch (e) {
+            console.error('auto-start cancellation check (disconnect) failed:', e);
+          }
         }
       } catch (error) {
         console.error('Error handling disconnect:', error);
@@ -759,6 +980,16 @@ io.on('connection', (socket) => {
           socket.to(sessionId).emit('game_state_update', gameStateUpdate);
           
           console.log(`Player ${playerId} left session ${sessionId}`);
+
+          // If countdown was scheduled, cancel it when connected players drop below requirement
+          try {
+            const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
+            if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
+              cancelAutoStartIfScheduled(sessionId);
+            }
+          } catch (e) {
+            console.error('auto-start cancellation check (leave_game) failed:', e);
+          }
         }
       }
     } catch (error) {

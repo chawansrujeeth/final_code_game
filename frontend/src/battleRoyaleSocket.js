@@ -16,6 +16,24 @@ class BattleRoyaleSocket {
     this.eventHandlers = new Map();
   }
 
+  // Matchmaking queue helpers
+  joinQueue(playerId, playerName) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('join_battle_royale_queue', {
+      playerId,
+      playerName
+    });
+  }
+
+  leaveQueue() {
+    if (!this.socket) {
+      return;
+    }
+    this.socket.emit('leave_battle_royale_queue');
+  }
+
   connect(serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003') {
     if (this.socket) {
       this.disconnect();
@@ -302,6 +320,27 @@ class BattleRoyaleSocket {
 
   onLobbyStateUpdate(callback) {
     this.on('lobby_state_update', callback);
+  }
+
+  // Queue events
+  onQueueUpdate(callback) {
+    this.on('queue_update', callback);
+  }
+
+  onMatchFound(callback) {
+    this.on('match_found', callback);
+  }
+
+  onQueueJoined(callback) {
+    this.on('queue_joined', callback);
+  }
+
+  onQueueLeft(callback) {
+    this.on('queue_left', callback);
+  }
+
+  onQueueError(callback) {
+    this.on('queue_error', callback);
   }
 
   // Connection status helpers

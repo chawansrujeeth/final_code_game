@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import BattleRoyaleSocket, { battleRoyaleSocket } from "./battleRoyaleSocket";
 
 export default function LandingHome() {
   const handleLogout = async () => {
@@ -11,6 +12,26 @@ export default function LandingHome() {
   const [user, setUser] = useState(null);
   const [needsProfile, setNeedsProfile] = useState(false);
   const navigate = useNavigate();
+  // Battle Royale queue state
+  const [queueSize, setQueueSize] = useState(0);
+  const [inQueue, setInQueue] = useState(false);
+  const [queueStatus, setQueueStatus] = useState('');
+  const [queueError, setQueueError] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  // Generate or restore a BR playerId for queueing
+  const [playerId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('BR_PLAYER_ID');
+      if (saved) return saved;
+      const gen = BattleRoyaleSocket.generatePlayerId();
+      localStorage.setItem('BR_PLAYER_ID', gen);
+      return gen;
+    } catch {
+      return BattleRoyaleSocket.generatePlayerId();
+    }
+  });
+  const [playerName] = useState(() => `Player ${playerId}`);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -33,6 +54,102 @@ export default function LandingHome() {
     }
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Setup BR socket + queue events
+  useEffect(() => {
+    let mounted = true;
+    const serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
+
+    // Handlers
+    const handleConn = (s) => {
+      if (!mounted) return;
+      if (s.connected) {
+        setSocketConnected(true);
+        setQueueStatus('Connected to matchmaking');
+      } else if (s.reconnecting) {
+        setSocketConnected(false);
+        setQueueStatus(`Reconnecting... (${s.attempt}/${s.maxAttempts})`);
+      } else {
+        setSocketConnected(false);
+        setQueueStatus('Disconnected from matchmaking');
+      }
+    };
+    const handleQueueUpdate = (data) => {
+      if (!mounted) return;
+      setQueueSize(data?.size || 0);
+    };
+    const handleQueueJoined = (data) => {
+      if (!mounted) return;
+      setInQueue(true);
+      setQueueError(null);
+      setQueueStatus(`In queue (${data?.position || '?'}/${data?.required || 4})`);
+    };
+    const handleQueueLeft = () => {
+      if (!mounted) return;
+      setInQueue(false);
+      setQueueStatus('Left queue');
+    };
+    const handleQueueError = (e) => {
+      if (!mounted) return;
+      const msg = e?.message || 'Queue error';
+      setQueueError(msg);
+      setQueueStatus('');
+    };
+    const handleMatchFound = (data) => {
+      if (!mounted) return;
+      const sid = data?.sessionId;
+      if (!sid) return;
+      try { localStorage.setItem('BR_SESSION_ID', sid); } catch {}
+      setInQueue(false);
+      setQueueStatus('Match found! Joining lobby...');
+      // Navigate to lobby with session param
+      navigate(`/battle-royale-lobby?session=${encodeURIComponent(sid)}`);
+    };
+
+    try {
+      // Connect once
+      battleRoyaleSocket.connect(serverUrl);
+      battleRoyaleSocket.onConnectionStatus(handleConn);
+      battleRoyaleSocket.onQueueUpdate(handleQueueUpdate);
+      battleRoyaleSocket.onQueueJoined(handleQueueJoined);
+      battleRoyaleSocket.onQueueLeft(handleQueueLeft);
+      battleRoyaleSocket.onQueueError(handleQueueError);
+      battleRoyaleSocket.onMatchFound(handleMatchFound);
+    } catch (e) {
+      console.error('Matchmaking socket init failed:', e);
+      setQueueError(e?.message || String(e));
+    }
+
+    return () => {
+      mounted = false;
+      try {
+        battleRoyaleSocket.off('connection_status', handleConn);
+        battleRoyaleSocket.off('queue_update', handleQueueUpdate);
+        battleRoyaleSocket.off('queue_joined', handleQueueJoined);
+        battleRoyaleSocket.off('queue_left', handleQueueLeft);
+        battleRoyaleSocket.off('queue_error', handleQueueError);
+        battleRoyaleSocket.off('match_found', handleMatchFound);
+      } catch {}
+    };
+  }, [navigate, playerId, playerName]);
+
+  const joinQueue = () => {
+    try {
+      battleRoyaleSocket.joinQueue(playerId, playerName);
+      setQueueStatus('Joining queue...');
+    } catch (e) {
+      setQueueError(e?.message || String(e));
+    }
+  };
+
+  const leaveQueue = () => {
+    try {
+      battleRoyaleSocket.leaveQueue();
+      setQueueStatus('Leaving queue...');
+    } catch (e) {
+      setQueueError(e?.message || String(e));
+    }
+  };
 
   return (
     <>
@@ -110,6 +227,43 @@ export default function LandingHome() {
             </button>
           )}
         </main>
+        {/* Battle Royale matchmaking queue panel */}
+        <div style={{ width: '100%', maxWidth: 900, marginTop: 24 }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12,
+            padding: '16px 20px',
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Battle Royale Matchmaking</div>
+                <div style={{ fontSize: 13, opacity: 0.9 }}>
+                  Status: {queueStatus || (socketConnected ? 'Connected' : 'Connecting...')}
+                  <br />Queued players: {queueSize} / 4
+                  {queueError && <>
+                    <br /><span style={{ color: '#ff8a80' }}>Error: {queueError}</span>
+                  </>}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {!inQueue ? (
+                  <button className="btn btn-shadow btn-rect" onClick={joinQueue} disabled={!socketConnected}>
+                    🔎 Find Match
+                  </button>
+                ) : (
+                  <button className="btn btn-shadow btn-rect" onClick={leaveQueue}>
+                    ✋ Leave Queue
+                  </button>
+                )}
+                <button className="btn btn-shadow btn-rect" onClick={() => navigate('/battle-royale-lobby')}>
+                  Open Lobby
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         {user && (
           <button
             className="btn btn-shadow btn-rect"
