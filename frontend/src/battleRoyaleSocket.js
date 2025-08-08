@@ -221,6 +221,18 @@ class BattleRoyaleSocket {
     });
   }
 
+  // Lobby: select a spawn node in the pre-game lobby
+  selectSpawnNode(nodeId) {
+    if (!this.socket || !this.sessionId || !this.playerId) {
+      throw new Error('Socket not properly initialized');
+    }
+    this.socket.emit('select_spawn_node', {
+      sessionId: this.sessionId,
+      playerId: this.playerId,
+      nodeId
+    });
+  }
+
   // Enhanced event handling system
   on(event, callback) {
     if (!this.eventHandlers.has(event)) {
@@ -286,6 +298,10 @@ class BattleRoyaleSocket {
 
   onPlayerLeft(callback) {
     this.on('player_left', callback);
+  }
+
+  onLobbyStateUpdate(callback) {
+    this.on('lobby_state_update', callback);
   }
 
   // Connection status helpers

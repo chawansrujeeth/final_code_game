@@ -132,6 +132,7 @@ class PersistentGameSession {
       health: playerData.health || 100,
       questionsAnswered: playerData.questionsAnswered || 0,
       isAlive: true,
+      selectedSpawnNode: playerData.selectedSpawnNode || null,
       joinedAt: new Date().toISOString(),
       lastSeen: new Date().toISOString()
     };
@@ -259,22 +260,47 @@ async function getOrCreateSession(sessionId) {
   return session;
 }
 
-// Attempt to auto-start the game when exactly 4 connected players are present
-async function maybeAutoStart(sessionId, session) {
+// Attempt to auto-start the game when at least 4 connected players have selected spawn nodes
+async function maybeAutoStartBySelections(sessionId, session) {
   try {
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
-    const canStart = connectedPlayers.length === 4 && !session.gameState.isGameActive && !session.gameState.gameOver;
+    const selectedConnected = connectedPlayers.filter(p => !!p.selectedSpawnNode);
+    const canStart = selectedConnected.length >= 4 && !session.gameState.isGameActive && !session.gameState.gameOver;
     if (!canStart) return;
 
-    // Assign balanced Ring 3 spawn nodes
-    const spawnNodes = ['R3_1', 'R3_3', 'R3_5', 'R3_7'];
+    // Allowed selectable spawn nodes in Ring 3
+    const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+
     // Deterministic order so all clients see the same assignment
     const ordered = connectedPlayers
       .slice()
       .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
 
-    ordered.forEach((p, idx) => {
-      const node = spawnNodes[idx % spawnNodes.length];
+    const taken = new Set();
+    // Reserve explicitly selected nodes
+    ordered.forEach((p) => {
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode)) {
+        taken.add(p.selectedSpawnNode);
+      }
+    });
+
+    // Assign nodes: use selection if present, otherwise fill remaining deterministically
+    let fillIndex = 0;
+    const nextAvailable = () => {
+      while (fillIndex < allowedSpawnNodes.length && taken.has(allowedSpawnNodes[fillIndex])) {
+        fillIndex++;
+      }
+      // If out of unique nodes, wrap (rare) but keep game going
+      const node = allowedSpawnNodes[fillIndex % allowedSpawnNodes.length];
+      fillIndex++;
+      return node;
+    };
+
+    ordered.forEach((p) => {
+      const node = (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode))
+        ? p.selectedSpawnNode
+        : nextAvailable();
+      taken.add(node);
       session.updatePlayer(p.playerId, {
         currentNode: node,
         currentZone: getZoneFromNode(node)
@@ -302,7 +328,7 @@ async function maybeAutoStart(sessionId, session) {
     };
     io.to(sessionId).emit('game_state_update', gameStateUpdate);
 
-    console.log(`✅ [AUTO-START] Session ${sessionId} started with 4 connected players.`);
+    console.log(`✅ [AUTO-START] Session ${sessionId} started (>=4 spawn selections).`);
   } catch (err) {
     console.error('Error in maybeAutoStart:', err);
   }
@@ -359,6 +385,20 @@ io.on('connection', (socket) => {
       };
       
       io.to(sessionId).emit('game_state_update', gameStateUpdate);
+
+      // Broadcast lobby state if game not active
+      if (!session.gameState.isGameActive && !session.gameState.gameOver) {
+        const availableNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+        const selections = session.getAllPlayers()
+          .filter(p => !!p.selectedSpawnNode)
+          .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
+        io.to(sessionId).emit('lobby_state_update', {
+          sessionId,
+          availableNodes,
+          selections,
+          players: session.getAllPlayers()
+        });
+      }
       
       // Send welcome message to the connecting player
       socket.emit('connection_success', {
@@ -370,10 +410,67 @@ io.on('connection', (socket) => {
       console.log(`Player ${playerId} ${existingPlayer ? 'reconnected to' : 'joined'} session ${sessionId}`);
 
       // Try to auto-start if conditions are met
-      await maybeAutoStart(sessionId, session);
+      await maybeAutoStartBySelections(sessionId, session);
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
+    }
+  });
+
+  // Lobby: player selects a spawn node on the map
+  socket.on('select_spawn_node', async (data) => {
+    try {
+      const { sessionId, playerId, nodeId } = data || {};
+      if (!sessionId || !playerId || !nodeId) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const player = session.getPlayerData(playerId);
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in session' });
+        return;
+      }
+
+      // Only allow selection before game starts
+      if (session.gameState.isGameActive || session.gameState.gameOver) {
+        socket.emit('error', { message: 'Cannot select spawn after game start' });
+        return;
+      }
+
+      const allowedSpawnNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
+      if (!allowedSpawnNodes.includes(nodeId)) {
+        socket.emit('error', { message: 'Invalid spawn node' });
+        return;
+      }
+
+      // Prevent duplicate selection by different players
+      const alreadyTaken = Array.from(session.players.values())
+        .some(p => p.playerId !== playerId && p.selectedSpawnNode === nodeId);
+      if (alreadyTaken) {
+        socket.emit('error', { message: 'Spawn node already selected by another player' });
+        return;
+      }
+
+      session.updatePlayer(playerId, { selectedSpawnNode: nodeId });
+
+      // Broadcast lobby state after update
+      const selections = session.getAllPlayers()
+        .filter(p => !!p.selectedSpawnNode)
+        .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
+      io.to(sessionId).emit('lobby_state_update', {
+        sessionId,
+        availableNodes: allowedSpawnNodes,
+        selections,
+        players: session.getAllPlayers()
+      });
+
+      // Attempt auto-start if enough selections
+      await maybeAutoStartBySelections(sessionId, session);
+    } catch (error) {
+      console.error('Error handling select_spawn_node:', error);
+      socket.emit('error', { message: 'Failed to select spawn node' });
     }
   });
 

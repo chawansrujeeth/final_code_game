@@ -21,7 +21,9 @@ export default function BattleRoyaleMap({
   showHUD = true,
   enableZoom = false,
   enablePan = false,
-  players = {}
+  players = {},
+  lobbySelections = [],
+  selfPlayerId = null
 }) {
   const cyRef = useRef(null);
   const nodeCoordsRef = useRef({});
@@ -304,6 +306,14 @@ export default function BattleRoyaleMap({
           }
         },
         {
+          selector: 'node[lobbySelected]'
+          ,
+          style: {
+            'border-width': 6,
+            'border-color': 'data(lobbySelectedColor)'
+          }
+        },
+        {
           selector: 'edge',
           style: {
             'width': 3,
@@ -433,6 +443,31 @@ export default function BattleRoyaleMap({
       if (cyRef.current) cyRef.current.destroy();
     };
   }, [enableZoom, enablePan, isMinimized, onNodeClick, onEdgeClick]);
+
+  // Update lobby selection highlights on nodes
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    // Clear previous selection flags
+    cy.nodes().forEach(n => {
+      if (n.data('lobbySelected')) {
+        n.removeData('lobbySelected');
+        n.removeData('lobbySelectedColor');
+      }
+    });
+
+    const selfColor = '#00ff88';
+    const otherColor = '#ff5555';
+
+    (lobbySelections || []).forEach(sel => {
+      const node = cy.$(`#${sel.nodeId}`);
+      if (node && node.length) {
+        node.data('lobbySelected', true);
+        node.data('lobbySelectedColor', sel.playerId === selfPlayerId ? selfColor : otherColor);
+      }
+    });
+  }, [lobbySelections, selfPlayerId]);
 
   // Sync player markers to Cytoscape based on players' currentNode positions
   useEffect(() => {

@@ -19,6 +19,7 @@ import PlayerProfile from "./PlayerProfile";
 import Testing from "./Testing";
 import RadialNetwork from "./RadialNetwork";
 import BattleRoyaleGame from "./BattleRoyaleGame";
+import BattleRoyaleLobby from "./BattleRoyaleLobby";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -110,6 +111,7 @@ function App() {
                     <Route path="/testing" element={<Testing />} />
           <Route path="/radial" element={<RadialNetwork />} />
           <Route path="/battle-royale" element={<BattleRoyaleGame />} />
+          <Route path="/battle-royale-lobby" element={<BattleRoyaleLobby />} />
           <Route path="/player/:id" element={<PlayerProfile />} />
           </Routes>
       </div>
