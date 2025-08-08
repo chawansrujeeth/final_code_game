@@ -48,7 +48,7 @@ function emitQueueUpdate(ioInstance) {
 // Auto-start timer management per session
 const autoStartTimers = new Map(); // sessionId -> timeoutId
 
-function scheduleAutoStartIfReady(sessionId, session, delayMs = 3000) {
+function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
   try {
     if (session.gameState.isGameActive || session.gameState.gameOver) return;
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);

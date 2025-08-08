@@ -26,6 +26,7 @@ export default function BattleRoyaleLobby() {
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState('Connecting to server...');
   const [errorMsg, setErrorMsg] = useState(null);
+  const [countdownEnd, setCountdownEnd] = useState(null); // timestamp when auto-start fires
   const [hasJoined, setHasJoined] = useState(false);
   const [pendingSelection, setPendingSelection] = useState(null);
   const hasJoinedRef = useRef(false);
@@ -87,6 +88,15 @@ export default function BattleRoyaleLobby() {
         setStatus('Disconnected. Attempting to reconnect...');
       }
     };
+    const handleLobbyCountdown = (data) => {
+      if (!mounted || !data) return;
+      const secs = data.seconds || 10;
+      setCountdownEnd(Date.now() + secs*1000);
+    };
+    const handleCountdownCancelled = () => {
+      if (!mounted) return;
+      setCountdownEnd(null);
+    };
     const handleSocketError = (err) => {
       if (!mounted) return;
       console.error('[BR Lobby] socket_error:', err);
@@ -123,6 +133,8 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.onGameStateUpdate(handleGameStateUpdate);
         battleRoyaleSocket.onConnectionStatus(handleConnStatus);
         battleRoyaleSocket.on('socket_error', handleSocketError);
+        battleRoyaleSocket.on('lobby_countdown', handleLobbyCountdown);
+        battleRoyaleSocket.on('lobby_countdown_cancelled', handleCountdownCancelled);
         battleRoyaleSocket.onConnectionSuccess(handleConnSuccess);
 
         // Wait for connect
@@ -189,6 +201,8 @@ export default function BattleRoyaleLobby() {
         battleRoyaleSocket.off('game_state_update', handleGameStateUpdate);
         battleRoyaleSocket.off('connection_status', handleConnStatus);
         battleRoyaleSocket.off('socket_error', handleSocketError);
+        battleRoyaleSocket.off('lobby_countdown', handleLobbyCountdown);
+        battleRoyaleSocket.off('lobby_countdown_cancelled', handleCountdownCancelled);
         battleRoyaleSocket.off('connection_success', handleConnSuccess);
       } catch {}
       if (joinRetryTimer.current) {
@@ -283,7 +297,8 @@ export default function BattleRoyaleLobby() {
           <div>Session: <code>{sessionId || '...'}</code></div>
           <div>Player: <code>{playerId}</code></div>
           <div>Status: {status}</div>
-          {errorMsg && <div style={{ color: '#ff8a80' }}>Error: {errorMsg}</div>}
+          {countdownEnd && <div style={{ color: '#90ee90' }}>Auto-start in: {Math.max(0, Math.ceil((countdownEnd-Date.now())/1000))}s</div>}
+       {errorMsg && <div style={{ color: '#ff8a80' }}>Error: {errorMsg}</div>}
           <div>Selections: {lobbySelections.length} / 8</div>
           {mySelection && <div>Your spawn: <b>{mySelection.nodeId}</b></div>}
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.9 }}>
