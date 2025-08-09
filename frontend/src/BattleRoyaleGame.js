@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BattleRoyaleMap from './components/BattleRoyaleMap';
 import Editor from '@monaco-editor/react';
+import EdgeCard from './components/EdgeCard';
 import BattleRoyaleSocket, { battleRoyaleSocket } from './battleRoyaleSocket';
 
 export default function BattleRoyaleGame() {
@@ -20,6 +21,8 @@ export default function BattleRoyaleGame() {
   
   const [selectedPlayer, setSelectedPlayer] = useState(null); // Will be set to this client's playerId
   const [accessibleEdges, setAccessibleEdges] = useState([]);
+  // Cache of questions already assigned per edgeId
+  const [edgeQuestions, setEdgeQuestions] = useState({});
   
   // Socket and session management
   const [sessionId, setSessionId] = useState(() => {
@@ -403,10 +406,17 @@ export default function BattleRoyaleGame() {
     console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
     
     try {
-      // Request question from backend via socket
-      console.log('Requesting question from backend via socket...');
-      const questionData = await battleRoyaleSocket.requestQuestion(difficulty, edgeData.id);
-      console.log('Received question from backend:', questionData);
+      // Fetch or reuse question for this edge
+      let questionData;
+      if (edgeQuestions[edgeData.id]) {
+        console.log('Using cached question for edge', edgeData.id);
+        questionData = edgeQuestions[edgeData.id];
+      } else {
+        console.log('Requesting question from backend via socket...');
+        questionData = await battleRoyaleSocket.requestQuestion(difficulty, edgeData.id);
+        console.log('Received question from backend:', questionData);
+        setEdgeQuestions(prev => ({ ...prev, [edgeData.id]: questionData }));
+      }
       
       const questionToSet = {
         questionId: questionData.questionId,
@@ -417,6 +427,7 @@ export default function BattleRoyaleGame() {
         sourceNode: actualSource,
         targetNode: actualTarget,
         pathDescription: `${actualSource} → ${actualTarget}`,
+        testCases: questionData.testCases || questionData.test_cases || [],
         playerId: selectedPlayer
       };
       
@@ -737,55 +748,10 @@ export default function BattleRoyaleGame() {
                 {accessibleEdges.length > 0 ? (
                   accessibleEdges.map((edge, index) => {
                     const targetNode = edge.source === players[selectedPlayer]?.currentNode ? edge.target : edge.source;
-                    const difficultyColor = edge.difficulty === 'easy' ? '#28a745' : 
-                                           edge.difficulty === 'medium' ? '#ffc107' : '#dc3545';
-                    const pathTypeColor = edge.pathType === 'spawn' ? '#00bfff' :
-                                         edge.pathType === 'inward' ? '#17a2b8' :
-                                         edge.pathType === 'lateral' ? '#ffc107' :
-                                         edge.pathType === 'final' ? '#dc3545' : '#6c757d';
+                    // Colours now handled inside EdgeCard
                     
                     return (
-                      <div key={index} style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '6px',
-                        padding: '8px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '12px'
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ color: '#fff', fontWeight: 'bold' }}>
-                            {edge.id}
-                          </div>
-                          <div style={{ color: '#ccc', fontSize: '11px' }}>
-                            → <span style={{ color: '#6f42c1' }}>{targetNode}</span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <span style={{
-                            background: difficultyColor,
-                            color: edge.difficulty === 'medium' ? '#000' : '#fff',
-                            padding: '2px 6px',
-                            borderRadius: '10px',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}>
-                            {edge.difficulty.toUpperCase()}
-                          </span>
-                          <span style={{
-                            background: pathTypeColor,
-                            color: edge.pathType === 'lateral' ? '#000' : '#fff',
-                            padding: '2px 6px',
-                            borderRadius: '10px',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}>
-                            {edge.pathType.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
+                      <EdgeCard key={edge.id} edge={edge} onSelect={handleEdgeClick} />
                     );
                   })
                 ) : (
@@ -831,6 +797,10 @@ export default function BattleRoyaleGame() {
                   sourceNode: 'TEST_SOURCE',
                   targetNode: 'TEST_TARGET',
                   pathDescription: 'TEST → TARGET',
+                  testCases: [
+                    { input: '2 2', output: '4' },
+                    { input: '5 7', output: '12' }
+                  ],
                   playerId: selectedPlayer
                 };
                 setCurrentQuestion(testQuestion);
@@ -908,6 +878,21 @@ export default function BattleRoyaleGame() {
                 <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>
                   {currentQuestion.question}
                 </h3>
+                {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <h4 style={{ color: '#00ff88', margin: '0 0 8px 0', fontSize: '15px' }}>📑 Test Cases</h4>
+                    <ul style={{ listStyle: 'none', padding: 0, color: '#fff', fontSize: '13px' }}>
+                      {currentQuestion.testCases.map((tc, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px', background: 'rgba(255,255,255,0.05)', padding: '6px 8px', borderRadius: '6px' }}>
+                          <span style={{ color: '#ffc107' }}>Input:</span> <code>{tc.input ?? JSON.stringify(tc)}</code>
+                          {tc.output !== undefined && (
+                            <><span style={{ color: '#17a2b8', marginLeft: '8px' }}>Expected:</span> <code>{tc.output}</code></>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <input
                 type="text"

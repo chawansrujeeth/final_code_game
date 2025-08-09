@@ -588,16 +588,23 @@ async function getRandomQuestion(difficulty, excludeIds = []) {
 }
 
 // Helper function to get or create session
+// Places a temporary placeholder in the cache **before** any async work so
+// parallel calls during the flurry of player joins share the same instance.
 async function getOrCreateSession(sessionId) {
-  // Check cache first
-  if (sessionCache.has(sessionId)) {
-    return sessionCache.get(sessionId);
-  }
-  
-  // Load from database
-  const session = await PersistentGameSession.loadSession(sessionId);
-  sessionCache.set(sessionId, session);
-  return session;
+  // Fast path – already cached
+  if (sessionCache.has(sessionId)) return sessionCache.get(sessionId);
+
+  // Insert a blank session immediately to avoid race-condition duplicates.
+  const placeholder = new PersistentGameSession(sessionId);
+  sessionCache.set(sessionId, placeholder);
+
+  // Attempt to load persisted state (may be empty on first creation)
+  const loaded = await PersistentGameSession.loadSession(sessionId);
+
+  // Merge loaded data into the placeholder so any references remain valid
+  Object.assign(placeholder, loaded);
+
+  return placeholder;
 }
 
 // Attempt to auto-start the game when at least 4 connected players have selected spawn nodes

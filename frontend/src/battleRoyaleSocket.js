@@ -130,6 +130,28 @@ class BattleRoyaleSocket {
       console.log('🚪 Player left:', data.message);
       this.emit('player_left', data);
     });
+
+    // Forward additional backend events to the internal event dispatcher so
+    // UI components can subscribe via battleRoyaleSocket.onX helpers.
+    const forwardEvents = [
+      'lobby_state_update',
+      'lobby_countdown',
+      'lobby_countdown_cancelled',
+      'lobby_countdown_tick',
+      'game_started',
+      'game_state_update',
+      'queue_update',
+      'match_found',
+      'queue_joined',
+      'queue_left',
+      'queue_error'
+    ];
+    forwardEvents.forEach(evt => {
+      this.socket.on(evt, (payload) => {
+        console.log(`📡 ${evt}:`, payload);
+        this.emit(evt, payload);
+      });
+    });
   }
 
   disconnect() {
