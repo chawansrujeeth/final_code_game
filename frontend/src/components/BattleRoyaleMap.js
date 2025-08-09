@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import cytoscape from 'cytoscape';
+
 // Global map state key to persist across component unmounts (e.g. when toggling
 // minimap/full-screen). This prevents the zone timer from restarting and keeps
 // the blue-zone progression in sync for the current client.
@@ -7,7 +9,6 @@ const MAP_STATE_KEY = '__BR_MAP_STATE__';
 if (typeof window !== 'undefined') {
   window[MAP_STATE_KEY] = window[MAP_STATE_KEY] || {};
 }
-import cytoscape from 'cytoscape';
 
 // Map radius constants - optimized for PUBG-style battle royale
 const MAP_R1 = 80;   // inner ring radius
