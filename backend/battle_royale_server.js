@@ -249,6 +249,9 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
 
     console.log(`✅ Auto-assigned spawn nodes to ${unselectedPlayers.length} players in session ${sessionId}`);
     
+    // Save session before starting game
+    await session.saveSession();
+    
     // Start the game immediately after assignment
     await startGameFromLobby(sessionId, session);
     
@@ -325,9 +328,15 @@ async function startGameFromLobby(sessionId, session) {
       usedQuestionsCount: session.usedQuestions.size
     });
 
-    console.log(`✅ [AUTO-START] Session ${sessionId} started (>=${REQUIRED_PLAYERS} connected players).`);
+    console.log(`✅ [AUTO-START] Session ${sessionId} started with ${connectedPlayers.length} players.`);
   } catch (e) {
     console.error('startGameFromLobby error:', e);
+    // Ensure we save session even if there's an error
+    try {
+      await session.saveSession();
+    } catch (saveError) {
+      console.error('Failed to save session after error:', saveError);
+    }
   }
 }
 
@@ -381,6 +390,7 @@ class PersistentGameSession {
   // Load session from Supabase
   static async loadSession(sessionId) {
     try {
+      console.log(`🔍 Loading session ${sessionId} from database...`);
       const { data, error } = await supabase
         .from('battle_royale_sessions')
         .select('*')
@@ -388,8 +398,13 @@ class PersistentGameSession {
         .eq('is_active', true)
         .single();
 
-      if (error || !data) {
-        console.log(`Creating new session: ${sessionId}`);
+      if (error) {
+        console.log(`📝 No existing session found (${error.message}), creating new: ${sessionId}`);
+        return new PersistentGameSession(sessionId);
+      }
+
+      if (!data) {
+        console.log(`📝 Creating new session: ${sessionId}`);
         return new PersistentGameSession(sessionId);
       }
 
@@ -424,38 +439,57 @@ class PersistentGameSession {
     }
   }
 
-  // Save session to Supabase
+  // Save session to Supabase with better error handling
   async saveSession() {
     try {
       const playersArray = Array.from(this.players.values()).map(player => ({
-        ...player,
+        playerId: player.playerId,
+        playerName: player.playerName,
+        socketId: player.socketId,
+        color: player.color,
+        currentNode: player.currentNode,
+        currentZone: player.currentZone,
+        health: player.health,
+        questionsAnswered: player.questionsAnswered,
+        isAlive: player.isAlive,
+        selectedSpawnNode: player.selectedSpawnNode,
+        joinedAt: player.joinedAt,
         lastSeen: new Date().toISOString()
       }));
 
       const usedQuestionsArray = Array.from(this.usedQuestions);
 
-      const { error } = await supabase
+      const sessionData = {
+        session_id: this.sessionId,
+        players: playersArray,
+        used_questions: usedQuestionsArray,
+        game_state: this.gameState,
+        is_active: !this.gameState.gameOver,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
         .from('battle_royale_sessions')
-        .upsert({
-          session_id: this.sessionId,
-          players: playersArray,
-          used_questions: usedQuestionsArray,
-          game_state: this.gameState,
-          current_turn: this.gameState.currentTurn,
-          winner: this.gameState.winner,
-          game_over: this.gameState.gameOver,
-          is_active: this.gameState.isGameActive,
-          updated_at: new Date().toISOString()
-        });
+        .upsert(sessionData, { onConflict: 'session_id' })
+        .select();
 
       if (error) {
-        console.error('Error saving session:', error);
+        console.error('Error saving session:', {
+          sessionId: this.sessionId,
+          error: error.message,
+          details: error.details,
+          hint: error.hint
+        });
       } else {
         this.lastSaved = new Date();
-        console.log(`Session ${this.sessionId} saved to database`);
+        console.log(`✅ Session ${this.sessionId} saved to database`);
       }
     } catch (error) {
-      console.error('Error saving session:', error);
+      console.error('Error saving session:', {
+        sessionId: this.sessionId,
+        message: error.message,
+        stack: error.stack
+      });
     }
   }
 
@@ -479,13 +513,15 @@ class PersistentGameSession {
     
     this.players.set(playerId, player);
     this.gameState.playersAlive = this.players.size;
-    this.saveSession(); // Auto-save on player changes
+    // Don't auto-save on every player change to avoid DB spam
+    // this.saveSession();
   }
 
   removePlayer(playerId) {
     this.players.delete(playerId);
     this.gameState.playersAlive = this.players.size;
-    this.saveSession(); // Auto-save on player changes
+    // Don't auto-save on every player change to avoid DB spam
+    // this.saveSession();
   }
 
   updatePlayer(playerId, updates) {
@@ -588,23 +624,31 @@ async function getRandomQuestion(difficulty, excludeIds = []) {
 }
 
 // Helper function to get or create session
-// Places a temporary placeholder in the cache **before** any async work so
-// parallel calls during the flurry of player joins share the same instance.
+// Uses a Promise cache to prevent race conditions during concurrent joins
+const sessionLoadPromises = new Map();
+
 async function getOrCreateSession(sessionId) {
   // Fast path – already cached
   if (sessionCache.has(sessionId)) return sessionCache.get(sessionId);
 
-  // Insert a blank session immediately to avoid race-condition duplicates.
-  const placeholder = new PersistentGameSession(sessionId);
-  sessionCache.set(sessionId, placeholder);
+  // Check if we're already loading this session
+  if (sessionLoadPromises.has(sessionId)) {
+    return await sessionLoadPromises.get(sessionId);
+  }
 
-  // Attempt to load persisted state (may be empty on first creation)
-  const loaded = await PersistentGameSession.loadSession(sessionId);
+  // Start loading and cache the promise
+  const loadPromise = PersistentGameSession.loadSession(sessionId);
+  sessionLoadPromises.set(sessionId, loadPromise);
 
-  // Merge loaded data into the placeholder so any references remain valid
-  Object.assign(placeholder, loaded);
-
-  return placeholder;
+  try {
+    const session = await loadPromise;
+    sessionCache.set(sessionId, session);
+    sessionLoadPromises.delete(sessionId);
+    return session;
+  } catch (error) {
+    sessionLoadPromises.delete(sessionId);
+    throw error;
+  }
 }
 
 // Attempt to auto-start the game when at least 4 connected players have selected spawn nodes
@@ -618,8 +662,12 @@ async function maybeAutoStartBySelections(sessionId, session) {
       !session.gameState.isGameActive &&
       !session.gameState.gameOver
     );
-    if (!canStart) return;
+    if (!canStart) {
+      console.log(`⏳ Auto-start check: ${connectedPlayers.length}/${REQUIRED_PLAYERS} connected, ${selectedConnected.length}/${REQUIRED_PLAYERS} selected`);
+      return;
+    }
 
+    console.log(`🚀 Starting game: ${connectedPlayers.length} connected, ${selectedConnected.length} selected`);
     // Cancel lobby selection timer since game is starting
     cancelLobbySelectionTimer(sessionId);
 
@@ -814,14 +862,17 @@ io.on('connection', (socket) => {
 
       console.log(`Player ${playerId} ${existingPlayer ? 'reconnected to' : 'joined'} session ${sessionId}`);
 
-      // Try to auto-start if conditions are met
-      await maybeAutoStartBySelections(sessionId, session);
-      scheduleAutoStartIfReady(sessionId, session);
+      // Only start timers if this is the first player joining
+      const connectedCount = Array.from(session.players.values()).filter(p => !!p.socketId).length;
       
-      // Start lobby selection timer for unselected players (10 seconds)
-      if (!session.gameState.isGameActive && !session.gameState.gameOver) {
+      // Start lobby selection timer only once when first player joins
+      if (connectedCount === 1 && !session.gameState.isGameActive && !session.gameState.gameOver) {
         scheduleLobbySelectionTimer(sessionId, 10000);
       }
+      
+      // Try to auto-start if conditions are met (but don't cancel timer unless game actually starts)
+      await maybeAutoStartBySelections(sessionId, session);
+      scheduleAutoStartIfReady(sessionId, session);
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
