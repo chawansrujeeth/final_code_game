@@ -9,6 +9,19 @@ const MAP_STATE_KEY = '__BR_MAP_STATE__';
 if (typeof window !== 'undefined') {
   window[MAP_STATE_KEY] = window[MAP_STATE_KEY] || {};
 }
+// Inject global animation styles once
+if (typeof document !== 'undefined' && !document.getElementById('br-map-anim-style')) {
+  const style = document.createElement('style');
+  style.id = 'br-map-anim-style';
+  style.innerHTML = `
+    @keyframes timerPulse {
+      0%   { transform: scale(1); color: #ffffff; }
+      50%  { transform: scale(1.08); color: #00ff88; }
+      100% { transform: scale(1); color: #ffffff; }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 // Map radius constants - optimized for PUBG-style battle royale
 const MAP_R1 = 80;   // inner ring radius
@@ -57,6 +70,9 @@ const [gameTimer, setGameTimer] = useState(persisted.gameTimer || 0);
   // Markers
   const [markers, setMarkers] = useState([]);
   const [markerMode, setMarkerMode] = useState(false);
+
+  // Derived values for HUD animations
+  const phaseTotal = phase === 'moving' ? SHRINK_SECONDS : WAIT_SECONDS;
   const markerModeRef = useRef(false);
   useEffect(() => { markerModeRef.current = markerMode; }, [markerMode]);
 
@@ -660,11 +676,23 @@ useEffect(() => {
           border: '1px solid #444'
         }}>
           <div style={{ marginBottom: '8px', color: '#00ff88', fontWeight: 'bold' }}>🎯 BATTLE ROYALE</div>
-          <div>⏱️ Time: {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}</div>
+          {/* Animated match timer */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            ⏱️{' '}
+            <span style={{ animation: 'timerPulse 1s ease-in-out infinite alternate', display: 'inline-block' }}>
+              {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}
+            </span>
+          </div>
           <div style={{ color: phase === 'moving' ? '#4444ff' : '#ff4444' }}>
             🔵 Zone: {phase === 'moving' ? 'SHRINKING' : 'SAFE'}
           </div>
-          <div>⚠️ Phase: {Math.max(0, 60 - phaseTimer)}s</div>
+          {/* Phase countdown with progress bar */}
+          <div style={{ width: '140px' }}>
+            <div style={{ fontSize: '11px' }}>⚠️ Phase: {Math.max(0, phaseTotal - phaseTimer)}s</div>
+            <div style={{ width: '100%', height: '4px', background: '#222', borderRadius: '2px', overflow: 'hidden', marginTop: '2px' }}>
+              <div style={{ width: `${(1 - Math.min(phaseTimer / phaseTotal, 1)) * 100}%`, height: '100%', background: phase === 'moving' ? '#4444ff' : '#ff4444', transition: 'width 1s linear' }} />
+            </div>
+          </div>
           {safeCircle && (
             <div>🎯 Safe: R{Math.round(safeCircle.r)}</div>
           )}

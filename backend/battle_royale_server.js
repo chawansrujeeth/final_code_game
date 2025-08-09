@@ -166,7 +166,8 @@ function initializeZoneState() {
     nextSafeCircle: randomInner(firstSafe),
     blueRadius: MAP_BOUNDARY,
     phase: 'moving',
-    phaseTimer: 0
+    phaseTimer: 0,
+    matchElapsed: 0
   };
 }
 
@@ -183,6 +184,7 @@ function startZoneLoop(sessionId, session) {
       const zs = session.zoneState;
       if (!zs) return;
       zs.phaseTimer += 1;
+      zs.matchElapsed += 1;
 
       if (zs.phase === 'moving') {
         const diff = zs.blueRadius - zs.safeCircle.r;
@@ -214,7 +216,15 @@ function startZoneLoop(sessionId, session) {
         await session.saveSession();
       }
 
+      // Emit authoritative zone state
       io.to(sessionId).emit('zone_update', { zoneState: zs });
+      // Also push periodic game_state_update to sync players/health etc.
+      io.to(sessionId).emit('game_state_update', {
+        players: session.getAllPlayers(),
+        gameState: session.gameState,
+        sessionId,
+        usedQuestionsCount: session.usedQuestions.size
+      });
     } catch (e) {
       console.error('zone loop error:', e);
     }
