@@ -1,4 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+
+// Global map state key to persist across component unmounts (e.g. when toggling
+// minimap/full-screen). This prevents the zone timer from restarting and keeps
+// the blue-zone progression in sync for the current client.
+const MAP_STATE_KEY = '__BR_MAP_STATE__';
+if (typeof window !== 'undefined') {
+  window[MAP_STATE_KEY] = window[MAP_STATE_KEY] || {};
+}
 import cytoscape from 'cytoscape';
 
 // Map radius constants - optimized for PUBG-style battle royale
@@ -14,6 +22,7 @@ const SHRINK_SECONDS = 30; // duration the blue zone takes to reach safe circle
 const WAIT_SECONDS = 30;   // waiting time before next shrink
 
 export default function BattleRoyaleMap({ 
+  zoneState = null,
   gameState = {},
   onNodeClick = () => {},
   onEdgeClick = () => {},
@@ -26,20 +35,24 @@ export default function BattleRoyaleMap({
   selfPlayerId = null,
   // When provided, only these node IDs are clickable; also highlighted
   allowedNodeIds = null
-}) {
+  }) {
   const cyRef = useRef(null);
   const nodeCoordsRef = useRef({});
   const canvasRef = useRef(null);
   const allowedNodeIdsRef = useRef(null);
   useEffect(() => { allowedNodeIdsRef.current = allowedNodeIds; }, [allowedNodeIds]);
   
-  // Game state
-  const [gameTimer, setGameTimer] = useState(0);
-  const [safeCircle, setSafeCircle] = useState(null);
-  const [nextSafeCircle, setNextSafeCircle] = useState(null);
-  const [blueRadius, setBlueRadius] = useState(MAP_BOUNDARY);
-  const [phase, setPhase] = useState('moving'); // 'moving' | 'waiting'
-  const [phaseTimer, setPhaseTimer] = useState(0);
+  // Game state (client-driven if zoneState not provided)
+  // Use persisted values (if any) so the timer/zone state does not reset when the
+// map component unmounts/remounts (e.g. when toggling minimap ↔ full-screen).
+const persisted = typeof window !== 'undefined' ? window[MAP_STATE_KEY] : {};
+
+const [gameTimer, setGameTimer] = useState(persisted.gameTimer || 0);
+  const [safeCircle, setSafeCircle] = useState(persisted.safeCircle || null);
+  const [nextSafeCircle, setNextSafeCircle] = useState(persisted.nextSafeCircle || null);
+  const [blueRadius, setBlueRadius] = useState(persisted.blueRadius || MAP_BOUNDARY);
+  const [phase, setPhase] = useState(persisted.phase || 'moving'); // 'moving' | 'waiting'
+  const [phaseTimer, setPhaseTimer] = useState(persisted.phaseTimer || 0);
   // Markers
   const [markers, setMarkers] = useState([]);
   const [markerMode, setMarkerMode] = useState(false);
@@ -66,8 +79,17 @@ export default function BattleRoyaleMap({
     }
   }, [safeCircle]);
 
-  // Game loop - zone shrinking mechanics
+  // ---------------------------------------------------------------------------
+  // Game loop - zone shrinking mechanics (only run if this client is driving)
+  // ---------------------------------------------------------------------------
+  const serverControlled = zoneState !== null;
   useEffect(() => {
+    if (!serverControlled) return; // when server controls, just mirror updates
+  }, [serverControlled]);
+
+  // Existing effect below only if !serverControlled
+  useEffect(() => {
+    if (serverControlled) return; // skip local progression when server authoritative
     const TICK_MS = 50; // 0.05 s for smoother animation (~20 FPS)
     const interval = setInterval(() => {
       setGameTimer(t => t + TICK_MS/1000);
@@ -107,7 +129,33 @@ export default function BattleRoyaleMap({
     }, TICK_MS);
     
     return () => clearInterval(interval);
-  }, [phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
+  }, [serverControlled, phase, phaseTimer, blueRadius, safeCircle, nextSafeCircle]);
+
+// Sync from server zoneState
+useEffect(() => {
+  if (!zoneState) return;
+  setSafeCircle(zoneState.safeCircle);
+  setNextSafeCircle(zoneState.nextSafeCircle);
+  setBlueRadius(zoneState.blueRadius);
+  setPhase(zoneState.phase);
+  setPhaseTimer(zoneState.phaseTimer);
+  // Note: gameTimer may diverge; keep local
+}, [zoneState]);
+
+// -----------------------------------------------------------------------------
+// Persist the latest timer/zone state to the global object so it can be reused
+// by the next BattleRoyaleMap instance on this page.
+// -----------------------------------------------------------------------------
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  const g = window[MAP_STATE_KEY];
+  g.gameTimer = gameTimer;
+  g.safeCircle = safeCircle;
+  g.nextSafeCircle = nextSafeCircle;
+  g.blueRadius = blueRadius;
+  g.phase = phase;
+  g.phaseTimer = phaseTimer;
+}, [gameTimer, safeCircle, nextSafeCircle, blueRadius, phase, phaseTimer]);
 
   // Canvas drawing for zones
   useEffect(() => {

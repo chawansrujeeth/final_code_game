@@ -18,6 +18,7 @@ export default function BattleRoyaleGame() {
   });
   
   const [players, setPlayers] = useState({});
+  const [zoneState, setZoneState] = useState(null);
   
   const [selectedPlayer, setSelectedPlayer] = useState(null); // Will be set to this client's playerId
   const [accessibleEdges, setAccessibleEdges] = useState([]);
@@ -110,7 +111,11 @@ export default function BattleRoyaleGame() {
         battleRoyaleSocket.connect(serverUrl);
         
         // Set up event listeners EARLY (before join) to avoid missing early emissions
-        battleRoyaleSocket.onGameStateUpdate((data) => {
+        battleRoyaleSocket.on('zone_update', (payload) => {
+            setZoneState(payload.zoneState || payload);
+          });
+          
+          battleRoyaleSocket.onGameStateUpdate((data) => {
           console.log('Game state update:', data);
           // Update game state and players from server data
           if (data.gameState) {
@@ -1172,6 +1177,7 @@ export default function BattleRoyaleGame() {
                 showHUD={false}
                 enableZoom={false}
                 selfPlayerId={playerId}
+                 zoneState={zoneState}
                 players={players}
               />
               
@@ -1252,6 +1258,7 @@ export default function BattleRoyaleGame() {
                 enableZoom={true}
                 enablePan={true}
                 selfPlayerId={playerId}
+                 zoneState={zoneState}
                 players={players}
               />
       

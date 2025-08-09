@@ -63,6 +63,13 @@ function emitQueueUpdate(ioInstance) {
 const autoStartTimers = new Map(); // sessionId -> timeoutId
 
 // Lobby selection timer management per session
+const zoneLoops = new Map(); // sessionId -> intervalId
+
+// ---- Zone constants (keep in sync with frontend) ----
+const MAP_BOUNDARY = 480;
+const SHRINK_SECONDS = 30;
+const WAIT_SECONDS = 30;
+
 const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
 
 function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
@@ -140,6 +147,89 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
     console.log(`⏰ Started synchronized lobby countdown for session ${sessionId} (${totalSeconds}s)`);
   } catch (e) {
     console.error('scheduleLobbySelectionTimer error:', e);
+  }
+}
+
+
+// --------------------- ZONE LOOP ---------------------
+function initializeZoneState() {
+  const firstSafe = { x: 0, y: 0, r: MAP_BOUNDARY * 0.7 };
+  const randomInner = (parent) => {
+    const scale = 0.8 + Math.random() * 0.1; // 80%-90%
+    const r = parent.r * scale;
+    const a = Math.random() * 2 * Math.PI;
+    const d = Math.random() * (parent.r - r);
+    return { x: parent.x + Math.cos(a) * d, y: parent.y + Math.sin(a) * d, r };
+  };
+  return {
+    safeCircle: firstSafe,
+    nextSafeCircle: randomInner(firstSafe),
+    blueRadius: MAP_BOUNDARY,
+    phase: 'moving',
+    phaseTimer: 0
+  };
+}
+
+function startZoneLoop(sessionId, session) {
+  if (zoneLoops.has(sessionId)) return;
+
+  if (!session.zoneState) {
+    session.zoneState = initializeZoneState();
+  }
+
+  const TICK_MS = 1000; // 1s authoritative tick
+  const loopId = setInterval(async () => {
+    try {
+      const zs = session.zoneState;
+      if (!zs) return;
+      zs.phaseTimer += 1;
+
+      if (zs.phase === 'moving') {
+        const diff = zs.blueRadius - zs.safeCircle.r;
+        if (diff <= 1) {
+          zs.blueRadius = zs.safeCircle.r;
+          zs.phase = 'waiting';
+          zs.phaseTimer = 0;
+        } else {
+          zs.blueRadius = Math.max(zs.safeCircle.r, zs.blueRadius - (diff / SHRINK_SECONDS));
+        }
+      } else if (zs.phase === 'waiting' && zs.phaseTimer >= WAIT_SECONDS) {
+        zs.safeCircle = zs.nextSafeCircle;
+        if (zs.nextSafeCircle.r > 20) {
+          const parent = zs.nextSafeCircle;
+          const scale = 0.8 + Math.random() * 0.1;
+          const r = parent.r * scale;
+          const a = Math.random() * 2 * Math.PI;
+          const d = Math.random() * (parent.r - r);
+          zs.nextSafeCircle = { x: parent.x + Math.cos(a) * d, y: parent.y + Math.sin(a) * d, r };
+        } else {
+          zs.nextSafeCircle = { ...zs.nextSafeCircle, r: 0 };
+        }
+        zs.phase = 'moving';
+        zs.phaseTimer = 0;
+      }
+
+      // Persist occasionally (every 10s)
+      if (zs.phaseTimer % 10 === 0) {
+        await session.saveSession();
+      }
+
+      io.to(sessionId).emit('zone_update', { zoneState: zs });
+    } catch (e) {
+      console.error('zone loop error:', e);
+    }
+  }, TICK_MS);
+
+  zoneLoops.set(sessionId, loopId);
+  console.log(`🌐 Started zone loop for session ${sessionId}`);
+}
+
+function stopZoneLoop(sessionId) {
+  const id = zoneLoops.get(sessionId);
+  if (id) {
+    clearInterval(id);
+    zoneLoops.delete(sessionId);
+    console.log(`🛑 Stopped zone loop for session ${sessionId}`);
   }
 }
 
@@ -312,6 +402,11 @@ async function startGameFromLobby(sessionId, session) {
     session.gameState.isGameActive = true;
     session.gameState.currentRound = 1;
     session.gameState.playersAlive = connectedPlayers.length;
+    // Initialize blue-zone loop if not yet running
+    if (!session.zoneState) {
+      session.zoneState = initializeZoneState();
+    }
+    startZoneLoop(sessionId, session);
 
     await session.saveSession();
 
@@ -718,6 +813,11 @@ async function maybeAutoStartBySelections(sessionId, session) {
     session.gameState.isGameActive = true;
     session.gameState.currentRound = 1;
     session.gameState.playersAlive = connectedPlayers.length;
+    // Initialize blue-zone loop if not yet running
+    if (!session.zoneState) {
+      session.zoneState = initializeZoneState();
+    }
+    startZoneLoop(sessionId, session);
 
     await session.saveSession();
 

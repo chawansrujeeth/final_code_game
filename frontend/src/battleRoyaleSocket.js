@@ -134,6 +134,7 @@ class BattleRoyaleSocket {
     // Forward additional backend events to the internal event dispatcher so
     // UI components can subscribe via battleRoyaleSocket.onX helpers.
     const forwardEvents = [
+      'zone_update',
       'lobby_state_update',
       'lobby_countdown',
       'lobby_countdown_cancelled',
