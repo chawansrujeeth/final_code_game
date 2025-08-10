@@ -770,8 +770,8 @@ export default function BattleRoyaleGame() {
           {/* Code Editor & Submission */}
           {currentQuestion ? (
             <>
-              {/* Code Editor */
-              }<div style={{
+              {/* Code Editor */}
+              <div style={{
                 flex: 1,
                 border: '2px solid #555',
                 borderRadius: '8px',
@@ -813,34 +813,7 @@ export default function BattleRoyaleGame() {
               }}>
                 Submit Solution
               </button>
-            </> {/*
-                    color: '#fff', 
-                    margin: '0 0 15px 0', 
-                    fontSize: '16px' 
-                  }}>
-
-                  </h3>
-                  
-
-                    <div key={idx} style={{
-                      marginBottom: '15px',
-                      padding: '10px',
-                      background: 'rgba(255,255,255,0.1)',
-                      borderRadius: '5px'
-                    }}>
-                      <div style={{ marginBottom: '5px' }}>
-                        <strong>Input:</strong> {tc.input ?? JSON.stringify(tc)}
-                      </div>
-                      {tc.output !== undefined && (
-                        <div>
-                          <strong>Output:</strong> {tc.output}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            </>
           ) : (
             <div style={{
               width: '100%',
@@ -855,8 +828,7 @@ export default function BattleRoyaleGame() {
             </div>
           )}
        
-           */}
-            {/* Minimap Container - Only in Code Editor Side */}
+           {/* Minimap Container - Only in Code Editor Side */}
           {mapState.isMinimized && (
             <div style={{
               position: 'absolute',
