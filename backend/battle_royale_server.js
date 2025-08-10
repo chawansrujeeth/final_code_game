@@ -263,96 +263,77 @@ async function assignQuestionsToEdges(sessionId, session) {
   try {
     console.log(`🎯 Assigning questions to edges for session ${sessionId}`);
     
-    // Define all edges in the game with their difficulties
+    // Define all edges in the game - simplified, no difficulty grouping
     const allEdges = [
-      // R3 circular edges (easy)
-      { id: 'R3_1-R3_2', difficulty: 'easy' },
-      { id: 'R3_2-R3_3', difficulty: 'easy' },
-      { id: 'R3_3-R3_4', difficulty: 'easy' },
-      { id: 'R3_4-R3_5', difficulty: 'easy' },
-      { id: 'R3_5-R3_6', difficulty: 'easy' },
-      { id: 'R3_6-R3_7', difficulty: 'easy' },
-      { id: 'R3_7-R3_8', difficulty: 'easy' },
-      { id: 'R3_8-R3_1', difficulty: 'easy' },
-      
-      // R3 to R2 edges (easy)
-      { id: 'R3_1-R2_1', difficulty: 'easy' },
-      { id: 'R3_2-R2_1', difficulty: 'easy' },
-      { id: 'R3_3-R2_2', difficulty: 'easy' },
-      { id: 'R3_4-R2_2', difficulty: 'easy' },
-      { id: 'R3_5-R2_3', difficulty: 'easy' },
-      { id: 'R3_6-R2_3', difficulty: 'easy' },
-      { id: 'R3_7-R2_4', difficulty: 'easy' },
-      { id: 'R3_8-R2_4', difficulty: 'easy' },
-      
-      // R2 circular edges (medium)
-      { id: 'R2_1-R2_2', difficulty: 'medium' },
-      { id: 'R2_2-R2_3', difficulty: 'medium' },
-      { id: 'R2_3-R2_4', difficulty: 'medium' },
-      { id: 'R2_4-R2_1', difficulty: 'medium' },
-      
-      // R2 to R1 edges (medium)
-      { id: 'R2_1-R1_1', difficulty: 'medium' },
-      { id: 'R2_1-R1_2', difficulty: 'medium' },
-      { id: 'R2_2-R1_2', difficulty: 'medium' },
-      { id: 'R2_2-R1_3', difficulty: 'medium' },
-      { id: 'R2_3-R1_3', difficulty: 'medium' },
-      { id: 'R2_3-R1_4', difficulty: 'medium' },
-      { id: 'R2_4-R1_4', difficulty: 'medium' },
-      { id: 'R2_4-R1_1', difficulty: 'medium' },
-      
-      // R1 circular edges (hard)
-      { id: 'R1_1-R1_2', difficulty: 'hard' },
-      { id: 'R1_2-R1_3', difficulty: 'hard' },
-      { id: 'R1_3-R1_4', difficulty: 'hard' },
-      { id: 'R1_4-R1_1', difficulty: 'hard' },
-      
-      // R1 to TARGET edges (hard)
-      { id: 'R1_1-TARGET', difficulty: 'hard' },
-      { id: 'R1_2-TARGET', difficulty: 'hard' },
-      { id: 'R1_3-TARGET', difficulty: 'hard' },
-      { id: 'R1_4-TARGET', difficulty: 'hard' }
+      'R3_1-R3_2', 'R3_2-R3_3', 'R3_3-R3_4', 'R3_4-R3_5', 'R3_5-R3_6', 'R3_6-R3_7', 'R3_7-R3_8', 'R3_8-R3_1',
+      'R3_1-R2_1', 'R3_2-R2_1', 'R3_3-R2_2', 'R3_4-R2_2', 'R3_5-R2_3', 'R3_6-R2_3', 'R3_7-R2_4', 'R3_8-R2_4',
+      'R2_1-R2_2', 'R2_2-R2_3', 'R2_3-R2_4', 'R2_4-R2_1',
+      'R2_1-R1_1', 'R2_1-R1_2', 'R2_2-R1_2', 'R2_2-R1_3', 'R2_3-R1_3', 'R2_3-R1_4', 'R2_4-R1_4', 'R2_4-R1_1',
+      'R1_1-R1_2', 'R1_2-R1_3', 'R1_3-R1_4', 'R1_4-R1_1',
+      'R1_1-TARGET', 'R1_2-TARGET', 'R1_3-TARGET', 'R1_4-TARGET'
     ];
-    
-    // Initialize edge questions map
-    session.edgeQuestions = new Map();
-    
-    // Group edges by difficulty
-    const edgesByDifficulty = {
-      easy: allEdges.filter(e => e.difficulty === 'easy'),
-      medium: allEdges.filter(e => e.difficulty === 'medium'),
-      hard: allEdges.filter(e => e.difficulty === 'hard')
-    };
-    
-    // Assign questions for each difficulty level
-    for (const [difficulty, edges] of Object.entries(edgesByDifficulty)) {
-      console.log(`📚 Fetching ${difficulty} questions for ${edges.length} edges`);
-      
-      // Fetch enough questions for this difficulty
-      const questions = await getMultipleQuestions(difficulty, edges.length);
-      
-      if (questions.length < edges.length) {
-        console.warn(`⚠️ Not enough ${difficulty} questions! Got ${questions.length}, needed ${edges.length}`);
-      }
-      
-      // Assign questions to edges
-      edges.forEach((edge, index) => {
-        const question = questions[index % questions.length]; // Cycle through if not enough questions
-        if (question) {
-          session.edgeQuestions.set(edge.id, {
-            ...question,
-            edgeId: edge.id,
-            difficulty: difficulty
-          });
-        }
-      });
+
+    console.log(`📝 Total edges to assign: ${allEdges.length}`);
+
+    // Fetch ALL questions from Supabase (ignore difficulty for now)
+    const { data: questions, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*')
+      .limit(100); // Get up to 100 questions
+
+    if (error) {
+      console.error('❌ Error fetching questions:', error);
+      console.error('Supabase error details:', error);
+      return;
     }
+
+    if (!questions || questions.length === 0) {
+      console.error('❌ No questions found in database');
+      console.log('🔍 Checking if table exists and has data...');
+      
+      // Try to get table info
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('battle_royale_questions')
+        .select('count(*)', { count: 'exact' });
+      
+      if (tableError) {
+        console.error('❌ Table check error:', tableError);
+      } else {
+        console.log('📊 Table row count:', tableCheck);
+      }
+      return;
+    }
+
+    console.log(`📚 Found ${questions.length} questions in database`);
+    console.log('🔍 Sample question:', questions[0]);
+
+    // Initialize edgeQuestions map
+    session.edgeQuestions = new Map();
+
+    // Assign random questions to each edge
+    allEdges.forEach((edgeId, index) => {
+      // Use modulo to cycle through questions if we have fewer questions than edges
+      const questionIndex = index % questions.length;
+      const question = questions[questionIndex];
+      
+      session.edgeQuestions.set(edgeId, {
+        que_id: question.que_id,
+        que_content: question.que_content,
+        testcase: question.testcase,
+        difficulty: question.difficulty,
+        edgeId: edgeId
+      });
+      
+      console.log(`✅ Assigned question ${question.que_id} to edge ${edgeId}`);
+    });
+
+    console.log(`🎯 Successfully assigned ${session.edgeQuestions.size} questions to edges`);
     
-    console.log(`✅ Assigned ${session.edgeQuestions.size} questions to edges for session ${sessionId}`);
+    // Save the session with assigned questions
     await session.saveSession();
     
   } catch (error) {
-    console.error('Error assigning questions to edges:', error);
+    console.error('❌ Error assigning questions to edges:', error);
   }
 }
 
