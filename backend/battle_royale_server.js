@@ -263,14 +263,35 @@ async function assignQuestionsToEdges(sessionId, session) {
   try {
     console.log(`🎯 Assigning questions to edges for session ${sessionId}`);
     
-    // Define all edges in the game - simplified, no difficulty grouping
+    // Define ALL edges in the game - including bidirectional edges
     const allEdges = [
-      'R3_1-R3_2', 'R3_2-R3_3', 'R3_3-R3_4', 'R3_4-R3_5', 'R3_5-R3_6', 'R3_6-R3_7', 'R3_7-R3_8', 'R3_8-R3_1',
-      'R3_1-R2_1', 'R3_2-R2_1', 'R3_3-R2_2', 'R3_4-R2_2', 'R3_5-R2_3', 'R3_6-R2_3', 'R3_7-R2_4', 'R3_8-R2_4',
-      'R2_1-R2_2', 'R2_2-R2_3', 'R2_3-R2_4', 'R2_4-R2_1',
-      'R2_1-R1_1', 'R2_1-R1_2', 'R2_2-R1_2', 'R2_2-R1_3', 'R2_3-R1_3', 'R2_3-R1_4', 'R2_4-R1_4', 'R2_4-R1_1',
-      'R1_1-R1_2', 'R1_2-R1_3', 'R1_3-R1_4', 'R1_4-R1_1',
-      'R1_1-TARGET', 'R1_2-TARGET', 'R1_3-TARGET', 'R1_4-TARGET'
+      // R3 circular edges (bidirectional)
+      'R3_1-R3_2', 'R3_2-R3_1', 'R3_2-R3_3', 'R3_3-R3_2', 'R3_3-R3_4', 'R3_4-R3_3', 
+      'R3_4-R3_5', 'R3_5-R3_4', 'R3_5-R3_6', 'R3_6-R3_5', 'R3_6-R3_7', 'R3_7-R3_6', 
+      'R3_7-R3_8', 'R3_8-R3_7', 'R3_8-R3_1', 'R3_1-R3_8',
+      
+      // R3 to R2 edges (bidirectional)
+      'R3_1-R2_1', 'R2_1-R3_1', 'R3_2-R2_1', 'R2_1-R3_2', 'R3_3-R2_2', 'R2_2-R3_3', 
+      'R3_4-R2_2', 'R2_2-R3_4', 'R3_5-R2_3', 'R2_3-R3_5', 'R3_6-R2_3', 'R2_3-R3_6', 
+      'R3_7-R2_4', 'R2_4-R3_7', 'R3_8-R2_4', 'R2_4-R3_8',
+      
+      // R2 circular edges (bidirectional) - FIXED: Added missing R2_5, R2_6, R2_7, R2_8
+      'R2_1-R2_2', 'R2_2-R2_1', 'R2_2-R2_3', 'R2_3-R2_2', 'R2_3-R2_4', 'R2_4-R2_3', 
+      'R2_4-R2_5', 'R2_5-R2_4', 'R2_5-R2_6', 'R2_6-R2_5', 'R2_6-R2_7', 'R2_7-R2_6',
+      'R2_7-R2_8', 'R2_8-R2_7', 'R2_8-R2_1', 'R2_1-R2_8',
+      
+      // R2 to R1 edges (bidirectional)
+      'R2_1-R1_1', 'R1_1-R2_1', 'R2_2-R1_1', 'R1_1-R2_2', 'R2_3-R1_2', 'R1_2-R2_3', 
+      'R2_4-R1_2', 'R1_2-R2_4', 'R2_5-R1_3', 'R1_3-R2_5', 'R2_6-R1_3', 'R1_3-R2_6',
+      'R2_7-R1_4', 'R1_4-R2_7', 'R2_8-R1_4', 'R1_4-R2_8',
+      
+      // R1 circular edges (bidirectional)
+      'R1_1-R1_2', 'R1_2-R1_1', 'R1_2-R1_3', 'R1_3-R1_2', 'R1_3-R1_4', 'R1_4-R1_3', 
+      'R1_4-R1_1', 'R1_1-R1_4',
+      
+      // R1 to TARGET edges (bidirectional)
+      'R1_1-TARGET', 'TARGET-R1_1', 'R1_2-TARGET', 'TARGET-R1_2', 
+      'R1_3-TARGET', 'TARGET-R1_3', 'R1_4-TARGET', 'TARGET-R1_4'
     ];
 
     console.log(`📝 Total edges to assign: ${allEdges.length}`);
@@ -733,13 +754,25 @@ async function startGameFromLobby(sessionId, session) {
   }
 }
 
-function tryFormMatch(ioInstance) {
+async function tryFormMatch(ioInstance) {
   try {
     while (battleRoyaleQueue.length >= REQUIRED_PLAYERS) {
       const group = battleRoyaleQueue.splice(0, REQUIRED_PLAYERS);
       const sessionId = generateSessionId();
 
       const playersPayload = group.map(p => ({ playerId: p.playerId, playerName: p.playerName }));
+
+      // Create session and assign questions immediately when match is formed
+      try {
+        console.log(`🎯 Match formed! Creating session ${sessionId} and assigning questions...`);
+        const session = await getOrCreateSession(sessionId);
+        
+        // Assign questions to edges immediately when lobby is created
+        await assignQuestionsToEdges(sessionId, session);
+        console.log(`✅ Questions pre-assigned for session ${sessionId}`);
+      } catch (error) {
+        console.error(`❌ Error setting up session ${sessionId}:`, error);
+      }
 
       // Notify matched players and remove them from queue room
       group.forEach(p => {
@@ -1174,10 +1207,9 @@ io.on('connection', (socket) => {
   });
 
   // Matchmaking: join BR queue
-  socket.on('join_battle_royale_queue', (data = {}) => {
+  socket.on('join_battle_royale_queue', async (data) => {
     try {
-      const playerId = data.playerId;
-      const playerName = data.playerName || (playerId ? `Player ${playerId}` : 'Player');
+      const { playerId, playerName } = data;
 
       if (!playerId) {
         socket.emit('queue_error', { message: 'Missing playerId' });
@@ -1197,7 +1229,7 @@ io.on('connection', (socket) => {
       socket.join(BR_QUEUE_ROOM);
       socket.emit('queue_joined', { position: battleRoyaleQueue.length, required: REQUIRED_PLAYERS });
       emitQueueUpdate(io);
-      tryFormMatch(io);
+      await tryFormMatch(io);
     } catch (e) {
       console.error('join_battle_royale_queue error:', e);
       socket.emit('queue_error', { message: 'Failed to join queue' });
