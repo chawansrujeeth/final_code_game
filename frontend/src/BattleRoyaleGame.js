@@ -685,62 +685,23 @@ export default function BattleRoyaleGame() {
         overflow: 'hidden'
       }}>
         
-        {/* Left Side - Clean Placeholder */}
+        {/* Left Side - Simple Background */}
         <div style={{
           width: '50%',
           height: '100%',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: '#2c3e50',
           display: 'flex',
           flexDirection: 'column',
-          padding: '20px',
-          color: 'white',
-          overflow: 'auto',
-          overflowX: 'hidden',
-          scrollBehavior: 'smooth'
+          color: 'white'
         }}>
-          {/* Header */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: '20px',
-            borderBottom: '2px solid #00ff88',
-            paddingBottom: '15px'
-          }}>
-            <h1 style={{ color: '#00ff88', margin: 0, fontSize: '28px' }}>
-              ⚔️ Battle Royale
-            </h1>
-            <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
-              Ready for a fresh start!
-            </p>
-          </div>
-          
-          {/* Clean Placeholder Content */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '2px dashed #666',
-            borderRadius: '12px',
-            padding: '40px',
-            textAlign: 'center',
-            color: '#999'
-          }}>
-            <div>
-              <h2 style={{ margin: '0 0 20px 0', color: '#00ff88' }}>🚀 Clean Slate</h2>
-              <p style={{ fontSize: '16px', lineHeight: '1.5' }}>
-                Left side cleared and ready for new content.<br/>
-                Minimap and code editor preserved on the right.
-              </p>
-            </div>
-          </div>
+          {/* Empty clean space */}
         </div>
         
-        {/* Right Side - Code Editor */}
+        {/* Right Side - Simple Background */}
         <div style={{
           width: '50%',
           height: '100%',
-          background: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
+          background: '#34495e',
           display: 'flex',
           flexDirection: 'column',
           padding: '20px',
@@ -750,125 +711,68 @@ export default function BattleRoyaleGame() {
           overflowX: 'hidden',
           scrollBehavior: 'smooth'
         }}>
-          <div style={{
-            textAlign: 'center',
-            marginBottom: '20px',
-            borderBottom: '2px solid #007bff',
-            paddingBottom: '15px'
-          }}>
-            <h2 style={{ color: '#007bff', margin: 0, fontSize: '24px' }}>
-              💻 Code Editor
-            </h2>
-            <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
-              Write and test your solutions here
-            </p>
-          </div>
           
-          {/* Language Selector */}
-          <div style={{ marginBottom: '15px' }}>
-            <select style={{
-              background: 'rgba(0, 0, 0, 0.3)',
-              color: 'white',
-              border: '2px solid #007bff',
-              borderRadius: '6px',
-              padding: '8px 12px',
-              fontSize: '14px'
+          {/* Question Display Area - Shows when edge is clicked */}
+          {currentQuestion ? (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              padding: '20px',
+              color: 'white'
             }}>
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="cpp">C++</option>
-              <option value="java">Java</option>
-            </select>
-          </div>
-          
-          {/* Monaco Code Editor Area */}
-          <div style={{
-            flex: 1,
-            border: '2px solid #007bff',
-            borderRadius: '8px',
-            marginBottom: '15px',
-            overflow: 'hidden'
-          }}>
-            <Editor
-              height="100%"
-              defaultLanguage="javascript"
-              defaultValue="// Write your code here...\n// Example:\nfunction solve() {\n    return 'Hello World!';\n}\n\nsolve();"
-              theme="vs-dark"
-              options={{
-                fontSize: 14,
-                fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                minimap: { enabled: true },
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                wordWrap: 'on',
-                lineNumbers: 'on',
-                renderLineHighlight: 'all',
-                selectOnLineNumbers: true,
-                roundedSelection: false,
-                readOnly: false,
-                cursorStyle: 'line',
-              }}
-            />
-          </div>
-          
-          {/* Code Actions */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-            <button style={{
-              background: 'linear-gradient(45deg, #28a745, #20c997)',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              flex: 1
-            }}>
-              ▶️ Run Code
-            </button>
-            <button style={{
-              background: 'linear-gradient(45deg, #007bff, #0056b3)',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}>
-              💾 Save
-            </button>
-            <button style={{
-              background: 'linear-gradient(45deg, #6c757d, #5a6268)',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}>
-              🗑️ Clear
-            </button>
-          </div>
-          
-          {/* Output Console */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.6)',
-            border: '2px solid #28a745',
-            borderRadius: '8px',
-            padding: '15px',
-            minHeight: '120px',
-            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-            fontSize: '13px'
-          }}>
-            <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '8px' }}>
-              🖥️ Console Output:
+              {/* Question */}
+              <h2 style={{ 
+                color: '#fff', 
+                margin: '0 0 20px 0', 
+                fontSize: '20px'
+              }}>
+                {currentQuestion.question}
+              </h2>
+              
+              {/* Test Cases */}
+              {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
+                <div>
+                  <h3 style={{ 
+                    color: '#fff', 
+                    margin: '0 0 15px 0', 
+                    fontSize: '16px' 
+                  }}>
+                    Test Cases:
+                  </h3>
+                  
+                  {currentQuestion.testCases.map((tc, idx) => (
+                    <div key={idx} style={{
+                      marginBottom: '15px',
+                      padding: '10px',
+                      background: 'rgba(255,255,255,0.1)',
+                      borderRadius: '5px'
+                    }}>
+                      <div style={{ marginBottom: '5px' }}>
+                        <strong>Input:</strong> {tc.input ?? JSON.stringify(tc)}
+                      </div>
+                      {tc.output !== undefined && (
+                        <div>
+                          <strong>Output:</strong> {tc.output}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div style={{ color: '#ccc' }}>
-              Ready to run your code...
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999',
+              fontSize: '16px'
+            }}>
+              Click an edge on the map to view question
             </div>
-          </div>
+          )}
        
            {/* Minimap Container - Only in Code Editor Side */}
           {mapState.isMinimized && (
