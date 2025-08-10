@@ -258,6 +258,127 @@ function cancelLobbySelectionTimer(sessionId) {
   }
 }
 
+// ---- Edge Question Assignment Functions ----
+async function assignQuestionsToEdges(sessionId, session) {
+  try {
+    console.log(`🎯 Assigning questions to edges for session ${sessionId}`);
+    
+    // Define all edges in the game with their difficulties
+    const allEdges = [
+      // R3 circular edges (easy)
+      { id: 'R3_1-R3_2', difficulty: 'easy' },
+      { id: 'R3_2-R3_3', difficulty: 'easy' },
+      { id: 'R3_3-R3_4', difficulty: 'easy' },
+      { id: 'R3_4-R3_5', difficulty: 'easy' },
+      { id: 'R3_5-R3_6', difficulty: 'easy' },
+      { id: 'R3_6-R3_7', difficulty: 'easy' },
+      { id: 'R3_7-R3_8', difficulty: 'easy' },
+      { id: 'R3_8-R3_1', difficulty: 'easy' },
+      
+      // R3 to R2 edges (easy)
+      { id: 'R3_1-R2_1', difficulty: 'easy' },
+      { id: 'R3_2-R2_1', difficulty: 'easy' },
+      { id: 'R3_3-R2_2', difficulty: 'easy' },
+      { id: 'R3_4-R2_2', difficulty: 'easy' },
+      { id: 'R3_5-R2_3', difficulty: 'easy' },
+      { id: 'R3_6-R2_3', difficulty: 'easy' },
+      { id: 'R3_7-R2_4', difficulty: 'easy' },
+      { id: 'R3_8-R2_4', difficulty: 'easy' },
+      
+      // R2 circular edges (medium)
+      { id: 'R2_1-R2_2', difficulty: 'medium' },
+      { id: 'R2_2-R2_3', difficulty: 'medium' },
+      { id: 'R2_3-R2_4', difficulty: 'medium' },
+      { id: 'R2_4-R2_1', difficulty: 'medium' },
+      
+      // R2 to R1 edges (medium)
+      { id: 'R2_1-R1_1', difficulty: 'medium' },
+      { id: 'R2_1-R1_2', difficulty: 'medium' },
+      { id: 'R2_2-R1_2', difficulty: 'medium' },
+      { id: 'R2_2-R1_3', difficulty: 'medium' },
+      { id: 'R2_3-R1_3', difficulty: 'medium' },
+      { id: 'R2_3-R1_4', difficulty: 'medium' },
+      { id: 'R2_4-R1_4', difficulty: 'medium' },
+      { id: 'R2_4-R1_1', difficulty: 'medium' },
+      
+      // R1 circular edges (hard)
+      { id: 'R1_1-R1_2', difficulty: 'hard' },
+      { id: 'R1_2-R1_3', difficulty: 'hard' },
+      { id: 'R1_3-R1_4', difficulty: 'hard' },
+      { id: 'R1_4-R1_1', difficulty: 'hard' },
+      
+      // R1 to TARGET edges (hard)
+      { id: 'R1_1-TARGET', difficulty: 'hard' },
+      { id: 'R1_2-TARGET', difficulty: 'hard' },
+      { id: 'R1_3-TARGET', difficulty: 'hard' },
+      { id: 'R1_4-TARGET', difficulty: 'hard' }
+    ];
+    
+    // Initialize edge questions map
+    session.edgeQuestions = new Map();
+    
+    // Group edges by difficulty
+    const edgesByDifficulty = {
+      easy: allEdges.filter(e => e.difficulty === 'easy'),
+      medium: allEdges.filter(e => e.difficulty === 'medium'),
+      hard: allEdges.filter(e => e.difficulty === 'hard')
+    };
+    
+    // Assign questions for each difficulty level
+    for (const [difficulty, edges] of Object.entries(edgesByDifficulty)) {
+      console.log(`📚 Fetching ${difficulty} questions for ${edges.length} edges`);
+      
+      // Fetch enough questions for this difficulty
+      const questions = await getMultipleQuestions(difficulty, edges.length);
+      
+      if (questions.length < edges.length) {
+        console.warn(`⚠️ Not enough ${difficulty} questions! Got ${questions.length}, needed ${edges.length}`);
+      }
+      
+      // Assign questions to edges
+      edges.forEach((edge, index) => {
+        const question = questions[index % questions.length]; // Cycle through if not enough questions
+        if (question) {
+          session.edgeQuestions.set(edge.id, {
+            ...question,
+            edgeId: edge.id,
+            difficulty: difficulty
+          });
+        }
+      });
+    }
+    
+    console.log(`✅ Assigned ${session.edgeQuestions.size} questions to edges for session ${sessionId}`);
+    await session.saveSession();
+    
+  } catch (error) {
+    console.error('Error assigning questions to edges:', error);
+  }
+}
+
+async function getMultipleQuestions(difficulty, count) {
+  try {
+    const { data, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*')
+      .eq('difficulty', difficulty)
+      .limit(Math.max(count, 10)); // Get at least 10 to have variety
+    
+    if (error) {
+      console.error('Supabase error fetching questions:', error);
+      return [];
+    }
+    
+    // Shuffle the questions
+    const shuffled = data.sort(() => Math.random() - 0.5);
+    return shuffled;
+    
+  } catch (error) {
+    console.error('Error fetching multiple questions:', error);
+    return [];
+  }
+}
+
 // ---- Game Timer Functions ----
 function startGameTimer(sessionId) {
   try {
@@ -600,6 +721,9 @@ async function startGameFromLobby(sessionId, session) {
     session.gameState.gameEndTime = now + GAME_DURATION_MS;
     session.gameState.timeRemaining = GAME_DURATION_MS;
     startGameTimer(sessionId);
+    
+    // Assign questions to all edges from Supabase
+    await assignQuestionsToEdges(sessionId, session);
 
     await session.saveSession();
 
@@ -665,6 +789,8 @@ class PersistentGameSession {
     this.sessionId = sessionId;
     this.players = new Map();
     this.usedQuestions = new Set();
+    this.zoneState = null;
+    this.edgeQuestions = new Map(); // Map of edgeId -> question data
     this.gameState = {
       isGameActive: false,
       playersAlive: 0,
@@ -718,6 +844,16 @@ class PersistentGameSession {
         data.used_questions.forEach(qId => session.usedQuestions.add(qId));
       }
 
+      // Restore edge questions
+      if (data.edge_questions && typeof data.edge_questions === 'object') {
+        session.edgeQuestions = new Map(Object.entries(data.edge_questions));
+      }
+
+      // Restore zone state
+      if (data.zone_state) {
+        session.zoneState = data.zone_state;
+      }
+
       // Restore game state
       if (data.game_state) {
         session.gameState = { ...session.gameState, ...data.game_state };
@@ -749,12 +885,15 @@ class PersistentGameSession {
       }));
 
       const usedQuestionsArray = Array.from(this.usedQuestions);
+      const edgeQuestionsObject = Object.fromEntries(this.edgeQuestions);
 
       const sessionData = {
         session_id: this.sessionId,
         players: playersArray,
         used_questions: usedQuestionsArray,
+        edge_questions: edgeQuestionsObject,
         game_state: this.gameState,
+        zone_state: this.zoneState,
         is_active: !this.gameState.gameOver,
         updated_at: new Date().toISOString()
       };
@@ -1262,9 +1401,9 @@ io.on('connection', (socket) => {
   // Request question for edge traversal
   socket.on('request_question', async (data) => {
     try {
-      const { sessionId, playerId, difficulty, edgeId } = data;
+      const { sessionId, playerId, edgeId } = data;
       
-      if (!sessionId || !playerId || !difficulty || !edgeId) {
+      if (!sessionId || !playerId || !edgeId) {
         socket.emit('error', { message: 'Missing required fields' });
         return;
       }
@@ -1285,33 +1424,31 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const usedQuestionIds = Array.from(session.usedQuestions);
-
-      const question = await getRandomQuestion(difficulty, usedQuestionIds);
+      // Get pre-assigned question for this edge
+      const assignedQuestion = session.edgeQuestions?.get(edgeId);
       
-      if (!question) {
+      if (!assignedQuestion) {
         socket.emit('error', { 
-          message: `No available ${difficulty} questions found. Try a different path.` 
+          message: `No question assigned to edge ${edgeId}. Please try again.` 
         });
         return;
       }
 
-      // Mark question as used
-      session.markQuestionUsed(question.que_id);
-
-      // Send question to player (without testcase for security)
+      // Send question to player
       socket.emit('question_received', {
-        questionId: question.que_id,
-        content: question.que_content,
-        difficulty: question.difficulty,
-        edgeId,
-        playerPosition: player.currentNode
+        question: assignedQuestion.que_content,
+        testCases: assignedQuestion.testcase,
+        difficulty: assignedQuestion.difficulty,
+        questionId: assignedQuestion.que_id,
+        edgeId: edgeId,
+        playerId: playerId
       });
 
-      console.log(`Sent ${difficulty} question ${question.que_id} to player ${playerId} at ${player.currentNode}`);
+      console.log(`📝 Pre-assigned question sent to player ${playerId} for edge ${edgeId}: ${assignedQuestion.que_content.substring(0, 50)}...`);
+      
     } catch (error) {
-      console.error('Error handling question request:', error);
-      socket.emit('error', { message: 'Failed to fetch question. Please try again.' });
+      console.error('Error handling request_question:', error);
+      socket.emit('error', { message: 'Failed to get question' });
     }
   });
 

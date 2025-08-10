@@ -194,6 +194,23 @@ export default function BattleRoyaleGame() {
           }));
         });
 
+        // Handle question received from backend
+        battleRoyaleSocket.socket.on('question_received', (data) => {
+          console.log('Question received:', data);
+          
+          const questionToSet = {
+            questionId: data.questionId,
+            question: data.question,
+            difficulty: data.difficulty,
+            edgeId: data.edgeId,
+            testCases: data.testCases || [],
+            playerId: data.playerId
+          };
+          
+          setCurrentQuestion(questionToSet);
+          setConnectionError(null);
+        });
+
         battleRoyaleSocket.onPlayerEliminated((data) => {
           console.log('Player eliminated:', data);
           setPlayers(prev => ({
@@ -402,101 +419,31 @@ export default function BattleRoyaleGame() {
   };
   
   const handleEdgeClick = async (edgeData) => {
-    console.log('=== HANDLE EDGE CLICK START ===');
-    console.log('Edge data received:', edgeData);
-    console.log('Game state active:', gameState.isGameActive);
-    console.log('Selected player:', selectedPlayer);
-    console.log('Socket connected:', isConnected);
+    console.log('Edge clicked:', edgeData.id);
     
-    if (!edgeData.id || !gameState.isGameActive) {
-      console.log('Early return - no edge ID or game not active');
+    if (!edgeData.id) {
       return;
     }
     
     if (!isConnected) {
-      console.log('Socket not connected, cannot request question');
       setConnectionError('Not connected to server');
       return;
     }
     
-    const currentPlayer = players[selectedPlayer];
-    console.log('Current player:', currentPlayer);
-    
-    if (!currentPlayer || !currentPlayer.isAlive) {
-      console.log('Early return - no current player or player not alive');
-      return;
-    }
-    
-    // Check if this edge is accessible from current player position
-    const isAccessible = isEdgeAccessible(edgeData.id, currentPlayer.currentNode);
-    console.log('Edge accessible:', isAccessible, 'from node:', currentPlayer.currentNode);
-    
-    if (!isAccessible) {
-      console.log('Edge not accessible from current position');
-      return;
-    }
-    
-    // Determine actual source and target based on player position (for undirected graph)
-    const edgeSource = edgeData.source;
-    const edgeTarget = edgeData.target;
-    const playerNode = currentPlayer.currentNode;
-    
-    let actualSource, actualTarget;
-    if (edgeSource === playerNode) {
-      actualSource = edgeSource;
-      actualTarget = edgeTarget;
-    } else if (edgeTarget === playerNode) {
-      actualSource = edgeTarget;
-      actualTarget = edgeSource;
-    } else {
-      console.log('Edge not connected to current player position');
-      return;
-    }
-    
-    // Get edge properties to determine difficulty
-    const { difficulty, pathType } = getEdgeProperties(actualSource, actualTarget);
-    console.log('Edge properties:', { difficulty, pathType });
-    
-    console.log(`Edge clicked: ${edgeData.id}, Player at: ${playerNode}, Moving: ${actualSource} → ${actualTarget}, Difficulty: ${difficulty}, PathType: ${pathType}`);
-    
     try {
-      // Fetch or reuse question for this edge
-      let questionData;
-      if (edgeQuestions[edgeData.id]) {
-        console.log('Using cached question for edge', edgeData.id);
-        questionData = edgeQuestions[edgeData.id];
-      } else {
-        console.log('Requesting question from backend via socket...');
-        questionData = await battleRoyaleSocket.requestQuestion(difficulty, edgeData.id);
-        console.log('Received question from backend:', questionData);
-        setEdgeQuestions(prev => ({ ...prev, [edgeData.id]: questionData }));
-      }
+      console.log('Requesting question for edge:', edgeData.id);
       
-      const questionToSet = {
-        questionId: questionData.questionId,
-        question: questionData.content,
-        difficulty: questionData.difficulty,
-        pathType,
-        edgeId: edgeData.id,
-        sourceNode: actualSource,
-        targetNode: actualTarget,
-        pathDescription: `${actualSource} → ${actualTarget}`,
-        testCases: questionData.testCases || questionData.test_cases || [],
-        playerId: selectedPlayer
-      };
-      
-      console.log('Setting current question:', questionToSet);
-      setCurrentQuestion(questionToSet);
-      setPlayerAnswer('');
-      setShowResult(false);
-      setConnectionError(null);
+      // Request the pre-assigned question for this edge
+      battleRoyaleSocket.socket.emit('request_question', {
+        sessionId,
+        playerId,
+        edgeId: edgeData.id
+      });
       
     } catch (error) {
-      console.error('Failed to get question:', error);
+      console.error('Failed to request question:', error);
       setConnectionError(`Failed to get question: ${error.message}`);
     }
-    
-    console.log('=== HANDLE EDGE CLICK END ===');
   };
   
   // Check if an edge is accessible from current player position
@@ -685,16 +632,74 @@ export default function BattleRoyaleGame() {
         overflow: 'hidden'
       }}>
         
-        {/* Left Side - Simple Background */}
+        {/* Left Side - Code Editor */}
         <div style={{
           width: '50%',
           height: '100%',
           background: '#2c3e50',
           display: 'flex',
           flexDirection: 'column',
-          color: 'white'
+          color: 'white',
+          padding: '20px'
         }}>
-          {/* Empty clean space */}
+          {currentQuestion ? (
+            <>
+              {/* Code Editor */}
+              <div style={{
+                flex: 1,
+                border: '2px solid #555',
+                borderRadius: '8px',
+                marginBottom: '15px',
+                overflow: 'hidden'
+              }}>
+                <Editor
+                  height="100%"
+                  defaultLanguage="javascript"
+                  defaultValue="// Write your solution here..."
+                  theme="vs-dark"
+                  options={{
+                    fontSize: 14,
+                    fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                    renderLineHighlight: 'all',
+                    selectOnLineNumbers: true,
+                    roundedSelection: false,
+                    readOnly: false,
+                    cursorStyle: 'line',
+                  }}
+                />
+              </div>
+              
+              {/* Submit Button */}
+              <button style={{
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '6px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}>
+                Submit Solution
+              </button>
+            </>
+          ) : (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999',
+              fontSize: '16px'
+            }}>
+              Select an edge to start coding
+            </div>
+          )}
         </div>
         
         {/* Right Side - Simple Background */}
