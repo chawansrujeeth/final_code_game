@@ -687,49 +687,56 @@ export default function BattleRoyaleGame() {
         }}>
           {currentQuestion ? (
             <>
-              {/* Code Editor */}
+              {/* Question */}
               <div style={{
-                flex: 1,
-                border: '2px solid #555',
-                borderRadius: '8px',
-                marginBottom: '15px',
-                overflow: 'hidden'
-              }}>
-                <Editor
-                  height="100%"
-                  defaultLanguage="javascript"
-                  defaultValue="// Write your solution here..."
-                  theme="vs-dark"
-                  options={{
-                    fontSize: 14,
-                    fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    wordWrap: 'on',
-                    lineNumbers: 'on',
-                    renderLineHighlight: 'all',
-                    selectOnLineNumbers: true,
-                    roundedSelection: false,
-                    readOnly: false,
-                    cursorStyle: 'line',
-                  }}
-                />
-              </div>
-              
-              {/* Submit Button */}
-              <button style={{
-                background: '#28a745',
+                width: '100%',
+                height: '100%',
+                padding: '20px',
                 color: 'white',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '6px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
+                overflowY: 'auto'
               }}>
-                Submit Solution
-              </button>
+                <h2 style={{
+                  color: '#fff',
+                  margin: '0 0 20px 0',
+                  fontSize: '20px'
+                }}>
+                  {currentQuestion.question}
+                </h2>
+                
+                {/* Test Cases */}
+                {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
+                  <div>
+                    <h3 style={{
+                      color: '#fff',
+                      margin: '0 0 15px 0',
+                      fontSize: '16px'
+                    }}>
+  
+                    Test Cases:
+                    </h3>
+
+                    {currentQuestion.testCases.map((tc, idx) => (
+                    
+  
+                      <div key={idx} style={{
+                        marginBottom: '15px',
+                        padding: '10px',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '5px'
+                      }}>
+                        <div style={{ marginBottom: '5px' }}>
+                          <strong>Input:</strong> {tc.input ?? JSON.stringify(tc)}
+                        </div>
+                        {tc.output !== undefined && (
+                          <div>
+                            <strong>Output:</strong> {tc.output}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div style={{
@@ -760,35 +767,61 @@ export default function BattleRoyaleGame() {
           scrollBehavior: 'smooth'
         }}>
           
-          {/* Question Display Area - Shows when edge is clicked */}
+          {/* Code Editor & Submission */}
           {currentQuestion ? (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              padding: '20px',
-              color: 'white'
-            }}>
-              {/* Question */}
-              <h2 style={{ 
-                color: '#fff', 
-                margin: '0 0 20px 0', 
-                fontSize: '20px'
+            <>
+              {/* Code Editor */
+              }<div style={{
+                flex: 1,
+                border: '2px solid #555',
+                borderRadius: '8px',
+                marginBottom: '15px',
+                overflow: 'hidden'
               }}>
-                {currentQuestion.question}
-              </h2>
+                <Editor
+                  height="100%"
+                  defaultLanguage="javascript"
+                  defaultValue="// Write your solution here..."
+                  theme="vs-dark"
+                  options={{
+                    fontSize: 14,
+                    fontFamily: 'Monaco, Consolas, \"Courier New\", monospace',
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                    renderLineHighlight: 'all',
+                    selectOnLineNumbers: true,
+                    roundedSelection: false,
+                    readOnly: false,
+                    cursorStyle: 'line',
+                  }}
+                />
+              </div>
               
-              {/* Test Cases */}
-              {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
-                <div>
-                  <h3 style={{ 
+              {/* Submit Button */}
+              <button style={{
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '6px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}>
+                Submit Solution
+              </button>
+            </> {/*
                     color: '#fff', 
                     margin: '0 0 15px 0', 
                     fontSize: '16px' 
                   }}>
-                    Test Cases:
+
                   </h3>
                   
-                  {currentQuestion.testCases.map((tc, idx) => (
+
                     <div key={idx} style={{
                       marginBottom: '15px',
                       padding: '10px',
@@ -818,11 +851,12 @@ export default function BattleRoyaleGame() {
               color: '#999',
               fontSize: '16px'
             }}>
-              Click an edge on the map to view question
+              Select an edge to start coding
             </div>
           )}
        
-           {/* Minimap Container - Only in Code Editor Side */}
+           */}
+            {/* Minimap Container - Only in Code Editor Side */}
           {mapState.isMinimized && (
             <div style={{
               position: 'absolute',
