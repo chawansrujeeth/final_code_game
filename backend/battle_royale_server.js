@@ -28,7 +28,10 @@ const sessionCache = new Map();
 
 // Simple in-memory matchmaking queue for Battle Royale
 const BR_QUEUE_ROOM = 'BR_QUEUE';
-const REQUIRED_PLAYERS = 4;
+// Number of players required to auto-start a Battle Royale match.
+// Can be customized with env var BR_REQUIRED_PLAYERS (e.g. 2 for local testing, 4 for production).
+// const REQUIRED_PLAYERS = parseInt(process.env.BR_REQUIRED_PLAYERS || '2', 10);
+const REQUIRED_PLAYERS = 1;
 let battleRoyaleQueue = []; // [{ socketId, playerId, playerName }]
 
 // Build a full list of spawnable nodes across all rings once per process
