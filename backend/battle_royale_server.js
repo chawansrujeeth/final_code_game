@@ -1401,33 +1401,49 @@ io.on('connection', (socket) => {
   // Request question for edge traversal
   socket.on('request_question', async (data) => {
     try {
+      console.log('🔍 request_question received:', data);
       const { sessionId, playerId, edgeId } = data;
       
       if (!sessionId || !playerId || !edgeId) {
+        console.log('❌ Missing required fields:', { sessionId, playerId, edgeId });
         socket.emit('error', { message: 'Missing required fields' });
         return;
       }
 
       // Get session from cache or database
       const session = await getOrCreateSession(sessionId);
+      console.log('📋 Session loaded:', {
+        sessionId,
+        gameActive: session.gameState.isGameActive,
+        gameOver: session.gameState.gameOver,
+        edgeQuestionsCount: session.edgeQuestions?.size || 0
+      });
       
       // Verify player exists in session
       const player = session.getPlayerData(playerId);
       if (!player) {
+        console.log('❌ Player not found in session:', playerId);
         socket.emit('error', { message: 'Player not found in session' });
         return;
       }
 
       // Check if game is still active
       if (!session.gameState.isGameActive || session.gameState.gameOver) {
+        console.log('❌ Game is not active:', {
+          isGameActive: session.gameState.isGameActive,
+          gameOver: session.gameState.gameOver
+        });
         socket.emit('error', { message: 'Game is not active' });
         return;
       }
 
       // Get pre-assigned question for this edge
       const assignedQuestion = session.edgeQuestions?.get(edgeId);
+      console.log('🎯 Looking for question for edge:', edgeId, 'Found:', !!assignedQuestion);
       
       if (!assignedQuestion) {
+        console.log('❌ No question assigned to edge:', edgeId);
+        console.log('Available edges:', Array.from(session.edgeQuestions?.keys() || []));
         socket.emit('error', { 
           message: `No question assigned to edge ${edgeId}. Please try again.` 
         });
@@ -1444,7 +1460,7 @@ io.on('connection', (socket) => {
         playerId: playerId
       });
 
-      console.log(`📝 Pre-assigned question sent to player ${playerId} for edge ${edgeId}: ${assignedQuestion.que_content.substring(0, 50)}...`);
+      console.log(`✅ Pre-assigned question sent to player ${playerId} for edge ${edgeId}: ${assignedQuestion.que_content.substring(0, 50)}...`);
       
     } catch (error) {
       console.error('Error handling request_question:', error);

@@ -144,6 +144,8 @@ export default function BattleRoyaleGame() {
                 isAlive: player.health > 0
               };
             });
+            console.log('🎮 Updated players state:', updatedPlayers);
+            console.log('🎯 Current player data:', updatedPlayers[playerId]);
             setPlayers(updatedPlayers);
             if (!selectedPlayer || !updatedPlayers[selectedPlayer]) {
               setSelectedPlayer(playerId);
@@ -196,7 +198,7 @@ export default function BattleRoyaleGame() {
 
         // Handle question received from backend
         battleRoyaleSocket.socket.on('question_received', (data) => {
-          console.log('Question received:', data);
+          console.log('✅ Question received:', data);
           
           const questionToSet = {
             questionId: data.questionId,
@@ -209,6 +211,12 @@ export default function BattleRoyaleGame() {
           
           setCurrentQuestion(questionToSet);
           setConnectionError(null);
+        });
+
+        // Handle errors from backend
+        battleRoyaleSocket.socket.on('error', (data) => {
+          console.log('❌ Backend error:', data);
+          setConnectionError(data.message || 'Unknown error occurred');
         });
 
         battleRoyaleSocket.onPlayerEliminated((data) => {
@@ -422,6 +430,7 @@ export default function BattleRoyaleGame() {
     console.log('Edge clicked:', edgeData.id);
     
     if (!edgeData.id) {
+      console.log('No edge ID provided');
       return;
     }
     
@@ -430,13 +439,47 @@ export default function BattleRoyaleGame() {
       return;
     }
     
+    // Ensure we have required fields
+    if (!sessionId || !playerId) {
+      console.log('Missing sessionId or playerId:', { sessionId, playerId });
+      setConnectionError('Session not properly initialized');
+      return;
+    }
+    
+    // Check if player exists and is at a valid position
+    const currentPlayer = players[playerId];
+    if (!currentPlayer || !currentPlayer.currentNode) {
+      console.log('Player not found or no current position:', { currentPlayer, playerId });
+      setConnectionError('Player position not found');
+      return;
+    }
+    
+    // Check if this edge is accessible from current player position
+    const isAccessible = isEdgeAccessible(edgeData.id, currentPlayer.currentNode);
+    if (!isAccessible) {
+      console.log('Edge not accessible from current position:', {
+        edgeId: edgeData.id,
+        currentNode: currentPlayer.currentNode
+      });
+      setConnectionError(`Cannot access this path from ${currentPlayer.currentNode}`);
+      return;
+    }
+    
     try {
-      console.log('Requesting question for edge:', edgeData.id);
+      console.log('Requesting question for edge:', {
+        edgeId: edgeData.id,
+        sessionId: sessionId,
+        playerId: playerId,
+        currentNode: currentPlayer.currentNode
+      });
+      
+      // Clear any previous errors
+      setConnectionError(null);
       
       // Request the pre-assigned question for this edge
       battleRoyaleSocket.socket.emit('request_question', {
-        sessionId,
-        playerId,
+        sessionId: sessionId,
+        playerId: playerId,
         edgeId: edgeData.id
       });
       
@@ -840,6 +883,65 @@ export default function BattleRoyaleGame() {
                 </button>
               </div>
               
+              {connectionError && (
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ff4444',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            zIndex: 1000
+          }}>
+            {connectionError}
+          </div>
+        )}
+
+        {/* Debug Panel */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          padding: '10px',
+          borderRadius: '5px',
+          fontSize: '12px',
+          zIndex: 1000
+        }}>
+          <div><strong>Debug Info:</strong></div>
+          <div>Session: {sessionId || 'None'}</div>
+          <div>Player: {playerId || 'None'}</div>
+          <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+          <div>Current Node: {players[playerId]?.currentNode || 'None'}</div>
+          <div>Game Active: {gameState.isGameActive ? 'Yes' : 'No'}</div>
+          <button 
+            onClick={() => {
+              console.log('🔍 Debug State Check:');
+              console.log('- sessionId:', sessionId);
+              console.log('- playerId:', playerId);
+              console.log('- isConnected:', isConnected);
+              console.log('- players:', players);
+              console.log('- gameState:', gameState);
+              console.log('- currentQuestion:', currentQuestion);
+            }}
+            style={{
+              marginTop: '5px',
+              padding: '2px 8px',
+              fontSize: '10px',
+              background: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer'
+            }}
+          >
+            Log Debug Info
+          </button>
+        </div>
+
               {/* Minimap Label */}
               <div style={{
                 position: 'absolute',
@@ -977,6 +1079,66 @@ export default function BattleRoyaleGame() {
         </div>
       )}
       
+      {/* Connection Error */}
+      {connectionError && (
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#ff4444',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '5px',
+          zIndex: 1000
+        }}>
+          {connectionError}
+        </div>
+      )}
+
+      {/* Debug Panel */}
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        background: 'rgba(0,0,0,0.8)',
+        color: 'white',
+        padding: '10px',
+        borderRadius: '5px',
+        fontSize: '12px',
+        zIndex: 1000
+      }}>
+        <div><strong>Debug Info:</strong></div>
+        <div>Session: {sessionId || 'None'}</div>
+        <div>Player: {playerId || 'None'}</div>
+        <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+        <div>Current Node: {players[playerId]?.currentNode || 'None'}</div>
+        <div>Game Active: {gameState.isGameActive ? 'Yes' : 'No'}</div>
+        <button 
+          onClick={() => {
+            console.log('🔍 Debug State Check:');
+            console.log('- sessionId:', sessionId);
+            console.log('- playerId:', playerId);
+            console.log('- isConnected:', isConnected);
+            console.log('- players:', players);
+            console.log('- gameState:', gameState);
+            console.log('- currentQuestion:', currentQuestion);
+          }}
+          style={{
+            marginTop: '5px',
+            padding: '2px 8px',
+            fontSize: '10px',
+            background: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer'
+          }}
+        >
+          Log Debug Info
+        </button>
+      </div>
+
       {/* Overlay for modals */}
       {(currentQuestion || gameState.winner) && (
         <div style={{
