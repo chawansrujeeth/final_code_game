@@ -70,7 +70,12 @@ const MAP_BOUNDARY = 480;
 const SHRINK_SECONDS = 30;
 const WAIT_SECONDS = 30;
 
+// ---- Game Timer constants ----
+const GAME_DURATION_MS = 32 * 60 * 1000; // 32 minutes in milliseconds
+const TIMER_BROADCAST_INTERVAL = 1000; // Broadcast time every second
+
 const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
+const gameTimers = new Map(); // sessionId -> { startTime, endTime, intervalId }
 
 function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
   try {
@@ -253,6 +258,177 @@ function cancelLobbySelectionTimer(sessionId) {
   }
 }
 
+// ---- Game Timer Functions ----
+function startGameTimer(sessionId) {
+  try {
+    // Clear any existing timer
+    stopGameTimer(sessionId);
+    
+    const now = Date.now();
+    const endTime = now + GAME_DURATION_MS;
+    
+    // Broadcast timer updates every second
+    const intervalId = setInterval(async () => {
+      try {
+        const currentTime = Date.now();
+        const timeRemaining = Math.max(0, endTime - currentTime);
+        
+        // Update session with current time
+        const session = await getOrCreateSession(sessionId);
+        session.gameState.timeRemaining = timeRemaining;
+        session.gameState.gameEndTime = endTime;
+        await session.saveSession();
+        
+        // Broadcast time update to all players
+        io.to(sessionId).emit('game_timer_update', {
+          timeRemaining,
+          totalDuration: GAME_DURATION_MS,
+          timeElapsed: GAME_DURATION_MS - timeRemaining,
+          formattedTime: formatTime(timeRemaining)
+        });
+        
+        // End game when time runs out
+        if (timeRemaining <= 0) {
+          await endGameByTimeout(sessionId);
+        }
+      } catch (error) {
+        console.error('Game timer update error:', error);
+      }
+    }, TIMER_BROADCAST_INTERVAL);
+    
+    gameTimers.set(sessionId, {
+      startTime: now,
+      endTime,
+      intervalId
+    });
+    
+    console.log(`⏰ Started game timer for session ${sessionId} - Duration: ${GAME_DURATION_MS / 60000} minutes`);
+  } catch (error) {
+    console.error('Error starting game timer:', error);
+  }
+}
+
+function stopGameTimer(sessionId) {
+  const timer = gameTimers.get(sessionId);
+  if (timer) {
+    clearInterval(timer.intervalId);
+    gameTimers.delete(sessionId);
+    console.log(`🛑 Stopped game timer for session ${sessionId}`);
+  }
+}
+
+function formatTime(milliseconds) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+async function endGameByTimeout(sessionId) {
+  try {
+    console.log(`⏰ Game ended by timeout for session ${sessionId}`);
+    
+    const session = await getOrCreateSession(sessionId);
+    if (session.gameState.gameOver) return; // Already ended
+    
+    // Stop all timers
+    stopGameTimer(sessionId);
+    stopZoneLoop(sessionId);
+    
+    // Find winner (player with most health, or random if tied)
+    const alivePlayers = Array.from(session.players.values()).filter(p => p.health > 0);
+    let winner = null;
+    
+    if (alivePlayers.length > 0) {
+      // Find player(s) with highest health
+      const maxHealth = Math.max(...alivePlayers.map(p => p.health));
+      const topPlayers = alivePlayers.filter(p => p.health === maxHealth);
+      
+      // If tied, pick random winner
+      winner = topPlayers[Math.floor(Math.random() * topPlayers.length)];
+    }
+    
+    // Update game state
+    session.gameState.gameOver = true;
+    session.gameState.isGameActive = false;
+    session.gameState.winner = winner ? winner.playerId : null;
+    session.gameState.timeRemaining = 0;
+    
+    await session.saveSession();
+    
+    // Notify all players
+    io.to(sessionId).emit('game_ended', {
+      reason: 'timeout',
+      winner: winner ? {
+        playerId: winner.playerId,
+        playerName: winner.playerName,
+        health: winner.health
+      } : null,
+      finalStats: {
+        playersAlive: alivePlayers.length,
+        totalPlayers: session.players.size,
+        gameDuration: GAME_DURATION_MS
+      }
+    });
+    
+    console.log(`🏆 Game ${sessionId} ended by timeout. Winner: ${winner ? winner.playerName : 'None'}`);
+  } catch (error) {
+    console.error('Error ending game by timeout:', error);
+  }
+}
+
+function restoreGameTimer(sessionId, session) {
+  try {
+    const currentTime = Date.now();
+    const endTime = session.gameState.gameEndTime;
+    const timeRemaining = Math.max(0, endTime - currentTime);
+    
+    if (timeRemaining <= 0) {
+      // Game should have ended, trigger timeout
+      endGameByTimeout(sessionId);
+      return;
+    }
+    
+    console.log(`🔄 Restoring game timer for session ${sessionId} - ${Math.floor(timeRemaining / 60000)} minutes remaining`);
+    
+    // Start timer from current point
+    const intervalId = setInterval(async () => {
+      try {
+        const currentTime = Date.now();
+        const timeRemaining = Math.max(0, endTime - currentTime);
+        
+        // Update session with current time
+        session.gameState.timeRemaining = timeRemaining;
+        await session.saveSession();
+        
+        // Broadcast time update to all players
+        io.to(sessionId).emit('game_timer_update', {
+          timeRemaining,
+          totalDuration: GAME_DURATION_MS,
+          timeElapsed: GAME_DURATION_MS - timeRemaining,
+          formattedTime: formatTime(timeRemaining)
+        });
+        
+        // End game when time runs out
+        if (timeRemaining <= 0) {
+          await endGameByTimeout(sessionId);
+        }
+      } catch (error) {
+        console.error('Restored timer update error:', error);
+      }
+    }, TIMER_BROADCAST_INTERVAL);
+    
+    gameTimers.set(sessionId, {
+      startTime: session.gameState.gameStartTime,
+      endTime,
+      intervalId
+    });
+    
+  } catch (error) {
+    console.error('Error restoring game timer:', error);
+  }
+}
+
 async function assignRandomSpawnNodes(sessionId) {
   try {
     const session = await getOrCreateSession(sessionId);
@@ -417,6 +593,13 @@ async function startGameFromLobby(sessionId, session) {
       session.zoneState = initializeZoneState();
     }
     startZoneLoop(sessionId, session);
+    
+    // Initialize game timing and start synchronized timer
+    const now = Date.now();
+    session.gameState.gameStartTime = now;
+    session.gameState.gameEndTime = now + GAME_DURATION_MS;
+    session.gameState.timeRemaining = GAME_DURATION_MS;
+    startGameTimer(sessionId);
 
     await session.saveSession();
 
@@ -487,7 +670,10 @@ class PersistentGameSession {
       playersAlive: 0,
       currentRound: 1,
       winner: null,
-      gameOver: false
+      gameOver: false,
+      gameStartTime: null,
+      gameEndTime: null,
+      timeRemaining: GAME_DURATION_MS
     };
     this.lastSaved = new Date();
   }
@@ -749,6 +935,12 @@ async function getOrCreateSession(sessionId) {
     const session = await loadPromise;
     sessionCache.set(sessionId, session);
     sessionLoadPromises.delete(sessionId);
+    
+    // Restore game timer if session has an active game
+    if (session.gameState.isGameActive && session.gameState.gameStartTime && session.gameState.gameEndTime) {
+      restoreGameTimer(sessionId, session);
+    }
+    
     return session;
   } catch (error) {
     sessionLoadPromises.delete(sessionId);
@@ -948,6 +1140,19 @@ io.on('connection', (socket) => {
       };
       
       io.to(sessionId).emit('game_state_update', gameStateUpdate);
+      
+      // Send timer sync for active games
+      if (session.gameState.isGameActive && session.gameState.gameStartTime) {
+        const currentTime = Date.now();
+        const timeRemaining = Math.max(0, session.gameState.gameEndTime - currentTime);
+        
+        socket.emit('game_timer_update', {
+          timeRemaining,
+          totalDuration: GAME_DURATION_MS,
+          timeElapsed: GAME_DURATION_MS - timeRemaining,
+          formattedTime: formatTime(timeRemaining)
+        });
+      }
 
       // Broadcast lobby state if game not active
       if (!session.gameState.isGameActive && !session.gameState.gameOver) {
@@ -1191,6 +1396,11 @@ io.on('connection', (socket) => {
           session.gameState.gameOver = true;
           session.gameState.winner = playerId;
           session.gameState.isGameActive = false;
+          session.gameState.timeRemaining = 0;
+          
+          // Stop game timer and zone loop
+          stopGameTimer(sessionId);
+          stopZoneLoop(sessionId);
           
           await session.saveSession(); // Save final state
           
@@ -1240,6 +1450,11 @@ io.on('connection', (socket) => {
               session.gameState.gameOver = true;
               session.gameState.winner = winner.playerId;
               session.gameState.isGameActive = false;
+              session.gameState.timeRemaining = 0;
+              
+              // Stop game timer and zone loop
+              stopGameTimer(sessionId);
+              stopZoneLoop(sessionId);
               
               await session.saveSession();
               
@@ -1512,6 +1727,20 @@ setInterval(async () => {
 // Graceful shutdown for Render
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully...');
+  
+  // Clean up all timers before shutdown
+  for (const sessionId of gameTimers.keys()) {
+    stopGameTimer(sessionId);
+  }
+  for (const sessionId of zoneLoops.keys()) {
+    stopZoneLoop(sessionId);
+  }
+  for (const sessionId of autoStartTimers.keys()) {
+    cancelAutoStartIfScheduled(sessionId);
+  }
+  for (const sessionId of lobbySelectionTimers.keys()) {
+    cancelLobbySelectionTimer(sessionId);
+  }
   
   // Save all cached sessions to database
   for (const [sessionId, session] of sessionCache.entries()) {

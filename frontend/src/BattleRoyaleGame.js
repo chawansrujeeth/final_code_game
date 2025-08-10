@@ -9,7 +9,19 @@ export default function BattleRoyaleGame() {
     isGameActive: false,
     playersAlive: 4,
     currentRound: 1,
-    winner: null
+    winner: null,
+    gameStartTime: null,
+    gameEndTime: null,
+    timeRemaining: null
+  });
+  
+  // Timer state for synchronized display
+  const [timerState, setTimerState] = useState({
+    timeRemaining: null,
+    totalDuration: null,
+    timeElapsed: null,
+    formattedTime: '--:--',
+    isActive: false
   });
   
   const [mapState, setMapState] = useState({
@@ -190,6 +202,43 @@ export default function BattleRoyaleGame() {
               ...prev[data.playerId],
               isAlive: false
             }
+          }));
+        });
+
+        // Handle synchronized timer updates
+        battleRoyaleSocket.socket.on('game_timer_update', (data) => {
+          console.log('Timer update:', data);
+          setTimerState({
+            timeRemaining: data.timeRemaining,
+            totalDuration: data.totalDuration,
+            timeElapsed: data.timeElapsed,
+            formattedTime: data.formattedTime,
+            isActive: data.timeRemaining > 0
+          });
+          
+          // Update game state with timer info
+          setGameState(prev => ({
+            ...prev,
+            timeRemaining: data.timeRemaining
+          }));
+        });
+
+        // Handle game ended by timeout
+        battleRoyaleSocket.socket.on('game_ended', (data) => {
+          console.log('Game ended:', data);
+          setGameState(prev => ({
+            ...prev,
+            isGameActive: false,
+            gameOver: true,
+            winner: data.winner?.playerId || null,
+            timeRemaining: 0
+          }));
+          
+          setTimerState(prev => ({
+            ...prev,
+            timeRemaining: 0,
+            formattedTime: '00:00',
+            isActive: false
           }));
         });
         
@@ -636,12 +685,11 @@ export default function BattleRoyaleGame() {
         overflow: 'hidden'
       }}>
         
-        {/* Left Side - Questions Panel */}
+        {/* Left Side - Clean Placeholder */}
         <div style={{
           width: '50%',
           height: '100%',
-          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-          borderRight: '3px solid #00ff88',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           display: 'flex',
           flexDirection: 'column',
           padding: '20px',
@@ -650,370 +698,41 @@ export default function BattleRoyaleGame() {
           overflowX: 'hidden',
           scrollBehavior: 'smooth'
         }}>
+          {/* Header */}
           <div style={{
             textAlign: 'center',
-            marginBottom: '30px',
+            marginBottom: '20px',
             borderBottom: '2px solid #00ff88',
             paddingBottom: '15px'
           }}>
-            <h2 style={{ color: '#00ff88', margin: 0, fontSize: '24px' }}>
-              🛤️ Path Traversal
-            </h2>
+            <h1 style={{ color: '#00ff88', margin: 0, fontSize: '28px' }}>
+              ⚔️ Battle Royale
+            </h1>
             <p style={{ color: '#ccc', fontSize: '14px', margin: '5px 0 0 0' }}>
-              Click edges to traverse paths - answer questions to unlock routes
+              Ready for a fresh start!
             </p>
           </div>
           
-          {/* Connection Status */}
+          {/* Clean Placeholder Content */}
           <div style={{
-            background: isConnected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)',
-            border: `2px solid ${isConnected ? '#28a745' : '#dc3545'}`,
-            borderRadius: '8px',
-            padding: '10px',
-            marginBottom: '20px',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              color: isConnected ? '#28a745' : '#dc3545',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}>
-              {isConnected ? '🟢 Connected to Server' : '🔴 Disconnected from Server'}
-            </div>
-            {sessionId && (
-              <div style={{ color: '#ccc', fontSize: '12px', marginTop: '5px' }}>
-                Session: {sessionId}
-              </div>
-            )}
-            {connectionError && (
-              <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px' }}>
-                Error: {connectionError}
-              </div>
-            )}
-          </div>
-          
-          {/* Player Selection */}
-          <div style={{
-            background: 'rgba(111, 66, 193, 0.1)',
-            border: '2px solid #6f42c1',
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '2px dashed #666',
             borderRadius: '12px',
-            padding: '15px',
-            marginBottom: '20px'
+            padding: '40px',
+            textAlign: 'center',
+            color: '#999'
           }}>
-            <h4 style={{ color: '#6f42c1', margin: '0 0 10px 0' }}>👤 Current Player</h4>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              {Object.keys(players).map(playerId => (
-                <button
-                  key={playerId}
-                  onClick={() => setSelectedPlayer(playerId)}
-                  style={{
-                    background: selectedPlayer === playerId ? '#6f42c1' : 'rgba(111, 66, 193, 0.3)',
-                    color: 'white',
-                    border: selectedPlayer === playerId ? '2px solid #fff' : '2px solid #6f42c1',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  {playerId.replace('PLAYER_', '')}
-                </button>
-              ))}
+            <div>
+              <h2 style={{ margin: '0 0 20px 0', color: '#00ff88' }}>🚀 Clean Slate</h2>
+              <p style={{ fontSize: '16px', lineHeight: '1.5' }}>
+                Left side cleared and ready for new content.<br/>
+                Minimap and code editor preserved on the right.
+              </p>
             </div>
-            <div style={{ fontSize: '14px', color: '#ccc' }}>
-              <div>📍 Position: <span style={{ color: '#6f42c1' }}>{players[selectedPlayer]?.currentNode}</span></div>
-              <div>❤️ Health: <span style={{ color: players[selectedPlayer]?.health > 50 ? '#28a745' : '#dc3545' }}>{players[selectedPlayer]?.health}/100</span></div>
-              <div>🎯 Zone: <span style={{ color: '#00ff88' }}>{players[selectedPlayer]?.currentZone}</span></div>
-              <div>✅ Questions: <span style={{ color: '#ffc107' }}>{players[selectedPlayer]?.questionsAnswered}</span></div>
-            </div>
-            
-            {/* Spawn Guidance removed: players now spawn directly on ring nodes from backend */}
-            
-            {/* Accessible Edges Display */}
-            <div style={{
-              background: 'rgba(255, 193, 7, 0.1)',
-              border: '2px solid #ffc107',
-              borderRadius: '8px',
-              padding: '15px',
-              marginTop: '15px'
-            }}>
-              <div style={{ color: '#ffc107', fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>
-                🛤️ Available Paths ({accessibleEdges.length})
-              </div>
-              <div style={{ color: '#fff', fontSize: '12px', marginBottom: '10px' }}>
-                From: <span style={{ color: '#6f42c1', fontWeight: 'bold' }}>{players[selectedPlayer]?.currentNode}</span>
-              </div>
-              <div style={{ 
-                maxHeight: '150px', 
-                overflowY: 'auto',
-                display: 'grid',
-                gap: '8px'
-              }}>
-                {accessibleEdges.length > 0 ? (
-                  accessibleEdges.map((edge, index) => {
-                    const targetNode = edge.source === players[selectedPlayer]?.currentNode ? edge.target : edge.source;
-                    // Colours now handled inside EdgeCard
-                    
-                    return (
-                      <EdgeCard key={edge.id} edge={edge} onSelect={handleEdgeClick} />
-                    );
-                  })
-                ) : (
-                  <div style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>
-                    No accessible paths from current position
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Current Question Display */}
-          {console.log('Rendering question display, currentQuestion:', currentQuestion)}
-          
-          {/* Debug Information */}
-          <div style={{ 
-            background: 'rgba(255, 0, 0, 0.1)', 
-            border: '1px solid red', 
-            padding: '10px', 
-            marginBottom: '10px',
-            fontSize: '12px',
-            color: '#fff'
-          }}>
-            <div>Debug Info:</div>
-            <div>currentQuestion exists: {currentQuestion ? 'YES' : 'NO'}</div>
-            <div>currentQuestion type: {typeof currentQuestion}</div>
-            {currentQuestion && (
-              <div>
-                <div>Question: {currentQuestion.question || 'NO QUESTION'}</div>
-                <div>Difficulty: {currentQuestion.difficulty || 'NO DIFFICULTY'}</div>
-                <div>Edge ID: {currentQuestion.edgeId || 'NO EDGE ID'}</div>
-              </div>
-            )}
-            <button 
-              onClick={() => {
-                console.log('Test button clicked - setting test question');
-                const testQuestion = {
-                  question: 'Test Question: What is 2+2?',
-                  answer: '4',
-                  difficulty: 'easy',
-                  pathType: 'test',
-                  edgeId: 'test-edge',
-                  sourceNode: 'TEST_SOURCE',
-                  targetNode: 'TEST_TARGET',
-                  pathDescription: 'TEST → TARGET',
-                  testCases: [
-                    { input: '2 2', output: '4' },
-                    { input: '5 7', output: '12' }
-                  ],
-                  playerId: selectedPlayer
-                };
-                setCurrentQuestion(testQuestion);
-                console.log('Test question set:', testQuestion);
-              }}
-              style={{
-                background: '#28a745',
-                color: '#fff',
-                border: 'none',
-                padding: '5px 10px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                marginTop: '5px'
-              }}
-            >
-              Test Question
-            </button>
-          </div>
-          
-          {currentQuestion ? (
-            <div style={{
-              background: 'rgba(0, 255, 136, 0.1)',
-              border: '2px solid #00ff88',
-              borderRadius: '12px',
-              padding: '20px',
-              marginBottom: '20px'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '15px'
-              }}>
-                <span style={{
-                  background: currentQuestion.difficulty === 'easy' ? '#28a745' : 
-                           currentQuestion.difficulty === 'medium' ? '#ffc107' : '#dc3545',
-                  color: currentQuestion.difficulty === 'medium' ? '#000' : '#fff',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 'bold'
-                }}>
-                  {currentQuestion.difficulty.toUpperCase()}
-                </span>
-                <span style={{ color: '#00ff88', fontSize: '14px' }}>
-                  Path: {currentQuestion.pathDescription}
-                </span>
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <div style={{ 
-                  color: '#00ff88', 
-                  fontSize: '14px', 
-                  marginBottom: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <span style={{
-                    background: currentQuestion.pathType === 'inward' ? '#17a2b8' :
-                               currentQuestion.pathType === 'lateral' ? '#ffc107' :
-                               currentQuestion.pathType === 'final' ? '#dc3545' : '#6c757d',
-                    color: currentQuestion.pathType === 'lateral' ? '#000' : '#fff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 'bold'
-                  }}>
-                    {currentQuestion.pathType.toUpperCase()}
-                  </span>
-                  {currentQuestion.pathType === 'inward' && '→ Moving toward center'}
-                  {currentQuestion.pathType === 'lateral' && '↔ Moving within same ring'}
-                  {currentQuestion.pathType === 'final' && '🎯 Final approach to victory'}
-                </div>
-                <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>
-                  {currentQuestion.question}
-                </h3>
-                {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
-                  <div style={{ marginTop: '12px' }}>
-                    <h4 style={{ color: '#00ff88', margin: '0 0 8px 0', fontSize: '15px' }}>📑 Test Cases</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, color: '#fff', fontSize: '13px' }}>
-                      {currentQuestion.testCases.map((tc, idx) => (
-                        <li key={idx} style={{ marginBottom: '6px', background: 'rgba(255,255,255,0.05)', padding: '6px 8px', borderRadius: '6px' }}>
-                          <span style={{ color: '#ffc107' }}>Input:</span> <code>{tc.input ?? JSON.stringify(tc)}</code>
-                          {tc.output !== undefined && (
-                            <><span style={{ color: '#17a2b8', marginLeft: '8px' }}>Expected:</span> <code>{tc.output}</code></>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-              <input
-                type="text"
-                value={playerAnswer}
-                onChange={(e) => setPlayerAnswer(e.target.value)}
-                placeholder="Type your answer here..."
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  fontSize: '16px',
-                  border: '2px solid #00ff88',
-                  borderRadius: '8px',
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  color: 'white',
-                  marginBottom: '15px'
-                }}
-                onKeyPress={(e) => e.key === 'Enter' && submitAnswer()}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={submitAnswer}
-                  style={{
-                    background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
-                    color: '#000',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    flex: 1
-                  }}
-                >
-                  ✅ Submit Answer
-                </button>
-                <button
-                  onClick={() => setCurrentQuestion(null)}
-                  style={{
-                    background: 'linear-gradient(45deg, #dc3545, #c82333)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ❌ Cancel
-                </button>
-              </div>
-              
-              {showResult && (
-                <div style={{
-                  marginTop: '15px',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  background: resultMessage.includes('✅') ? 'rgba(40, 167, 69, 0.2)' : 'rgba(220, 53, 69, 0.2)',
-                  border: `2px solid ${resultMessage.includes('✅') ? '#28a745' : '#dc3545'}`
-                }}>
-                  <p style={{ 
-                    color: resultMessage.includes('✅') ? '#28a745' : '#dc3545',
-                    fontWeight: 'bold',
-                    margin: 0,
-                    fontSize: '16px'
-                  }}>
-                    {resultMessage}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '2px dashed #666',
-              borderRadius: '12px',
-              padding: '30px',
-              textAlign: 'center',
-              color: '#999'
-            }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>🛤️ How to Play</h3>
-              <div style={{ 
-                fontSize: '13px', 
-                color: '#ccc',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                textAlign: 'left'
-              }}>
-                <div>👤 <strong>Select a player</strong> above to control</div>
-                <div>🟢 <strong>Green edges</strong> = paths you can take</div>
-                <div>❓ <strong>Click green edges</strong> to see questions</div>
-                <div>✅ <strong>Answer correctly</strong> to move forward</div>
-                <div>❌ <strong>Wrong answers</strong> = lose 10 health</div>
-                <div>🎯 <strong>Reach TARGET</strong> to win!</div>
-              </div>
-            </div>
-          )}
-          
-          {/* Game Instructions */}
-          <div style={{
-            marginTop: 'auto',
-            background: 'rgba(0, 0, 0, 0.3)',
-            borderRadius: '8px',
-            padding: '15px'
-          }}>
-            <h4 style={{ color: '#00ff88', margin: '0 0 10px 0' }}>🎮 Player Movement System:</h4>
-            <ul style={{ color: '#ccc', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
-              <li>👤 <strong>Select player</strong> to control from buttons above</li>
-              <li>🟢 <strong>Green highlighted edges</strong> = accessible paths</li>
-              <li>❓ <strong>Click accessible edges</strong> to answer questions</li>
-              <li>✅ <strong>Correct answers</strong> = move to new position</li>
-              <li>❌ <strong>Wrong answers</strong> = lose health, stay in place</li>
-              <li>🎯 <strong>Reach TARGET node</strong> to win the game!</li>
-            </ul>
           </div>
         </div>
         
