@@ -905,7 +905,44 @@ export default function BattleRoyaleGame() {
           </div>
         )}
 
-        {/* Debug Panel */}
+        {/* Players Health Box */}
+            <div style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              background: 'rgba(0,0,0,0.8)',
+              color: 'white',
+              padding: '10px',
+              borderRadius: '5px',
+              fontSize: '12px',
+              zIndex: 1000,
+              width: '180px',
+              maxHeight: '40%',
+              overflowY: 'auto',
+              border: '2px solid #00ff88',
+              backdropFilter: 'blur(4px)', display: 'none'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '6px', textAlign: 'center', letterSpacing: '0.5px' }}>
+                PLAYERS HEALTH
+              </div>
+              {Object.entries(players).map(([pid, pdata]) => (
+                <div key={pid} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ width: '48px', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pid === playerId ? 'You' : `P-${pid.slice(-4)}`}
+                  </span>
+                  <div style={{ flex: 1, marginLeft: '4px', background: '#555', borderRadius: '3px', height: '6px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${pdata.health}%`,
+                      height: '100%',
+                      background: pdata.health > 50 ? '#00ff88' : pdata.health > 20 ? '#ffcc00' : '#ff4444'
+                    }} />
+                  </div>
+                  <span style={{ marginLeft: '4px', fontSize: '10px' }}>{pdata.health}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Debug Panel */}
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -1086,6 +1123,7 @@ export default function BattleRoyaleGame() {
       )}
       
       {/* Connection Error */}
+
       {connectionError && (
         <div style={{
           position: 'absolute',
@@ -1102,7 +1140,44 @@ export default function BattleRoyaleGame() {
         </div>
       )}
 
-      {/* Debug Panel */}
+      {/* Players Health Box */}
+            <div style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              background: 'rgba(0,0,0,0.8)',
+              color: 'white',
+              padding: '10px',
+              borderRadius: '5px',
+              fontSize: '12px',
+              zIndex: 1000,
+              width: '180px',
+              maxHeight: '40%',
+              overflowY: 'auto',
+              border: '2px solid #00ff88',
+              backdropFilter: 'blur(4px)', display: 'none'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '6px', textAlign: 'center', letterSpacing: '0.5px' }}>
+                PLAYERS HEALTH
+              </div>
+              {Object.entries(players).map(([pid, pdata]) => (
+                <div key={pid} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ width: '48px', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pid === playerId ? 'You' : `P-${pid.slice(-4)}`}
+                  </span>
+                  <div style={{ flex: 1, marginLeft: '4px', background: '#555', borderRadius: '3px', height: '6px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${pdata.health}%`,
+                      height: '100%',
+                      background: pdata.health > 50 ? '#00ff88' : pdata.health > 20 ? '#ffcc00' : '#ff4444'
+                    }} />
+                  </div>
+                  <span style={{ marginLeft: '4px', fontSize: '10px' }}>{pdata.health}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Debug Panel */}
       <div style={{
         position: 'absolute',
         top: '10px',
@@ -1143,6 +1218,35 @@ export default function BattleRoyaleGame() {
         >
           Log Debug Info
         </button>
+      </div>
+
+      {/* Player Health Bar */}
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '350px',
+        background: 'rgba(0,0,0,0.8)',
+        border: '2px solid #00ff88',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        textAlign: 'center',
+        color: '#ffffff',
+        zIndex: 1000,
+        backdropFilter: 'blur(4px)'
+      }}>
+        <div style={{ marginBottom: '4px', fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
+          HEALTH
+        </div>
+        <div style={{ width: '100%', height: '10px', background: '#555', borderRadius: '4px', overflow: 'hidden' }}>
+          <div style={{
+            width: `${players[playerId]?.health ?? 100}%`,
+            height: '100%',
+            background: (players[playerId]?.health ?? 100) > 50 ? '#00ff88' : (players[playerId]?.health ?? 100) > 20 ? '#ffcc00' : '#ff4444',
+            transition: 'width 0.25s ease'
+          }} />
+        </div>
       </div>
 
       {/* Overlay for modals */}
