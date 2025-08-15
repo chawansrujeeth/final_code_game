@@ -937,6 +937,250 @@ class PersistentGameSession {
     }
   }
 
+  // ==================== GAME LOGIC METHODS ====================
+  
+  // Get all accessible edges for a player (moved from frontend)
+  getAccessibleEdges(playerId) {
+    const player = this.players.get(playerId);
+    if (!player || !player.currentNode) return [];
+    
+    const currentNode = player.currentNode;
+    const allEdges = this.getAllEdgeDefinitions();
+    
+    // Filter edges that start from current node (undirected graph)
+    return allEdges.filter(edge => 
+      edge.source === currentNode || edge.target === currentNode
+    ).map(edge => ({
+      ...edge,
+      isAccessible: true,
+      canTraverse: !player.isEliminated && player.health > 0
+    }));
+  }
+  
+  // Define all edges in the game (moved from frontend)
+  getAllEdgeDefinitions() {
+    return [
+      // R3 circular edges
+      { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_4-R3_5', source: 'R3_4', target: 'R3_5', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_5-R3_6', source: 'R3_5', target: 'R3_6', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_6-R3_7', source: 'R3_6', target: 'R3_7', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
+      { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
+      
+      // R3 to R2 edges
+      { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_4-R2_2', source: 'R3_4', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_5-R2_3', source: 'R3_5', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_6-R2_3', source: 'R3_6', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      
+      // R2 circular edges
+      { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
+      
+      // R2 to R1 edges
+      { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_2-R1_3', source: 'R2_2', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_3-R1_3', source: 'R2_3', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_3-R1_4', source: 'R2_3', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+      
+      // R1 circular edges
+      { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_4-R1_5', source: 'R1_4', target: 'R1_5', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_5-R1_6', source: 'R1_5', target: 'R1_6', difficulty: 'hard', pathType: 'lateral' },
+      { id: 'R1_6-R1_1', source: 'R1_6', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
+      
+      // R1 to TARGET edges
+      { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_4-TARGET', source: 'R1_4', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_5-TARGET', source: 'R1_5', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+      { id: 'R1_6-TARGET', source: 'R1_6', target: 'TARGET', difficulty: 'hard', pathType: 'final' }
+    ];
+  }
+  
+  // Validate if edge is accessible from player's current position
+  isEdgeAccessible(playerId, edgeId) {
+    const accessibleEdges = this.getAccessibleEdges(playerId);
+    return accessibleEdges.some(edge => edge.id === edgeId);
+  }
+  
+  // Get target node for edge traversal
+  getTargetNode(edgeId, currentNode) {
+    const allEdges = this.getAllEdgeDefinitions();
+    const edge = allEdges.find(e => e.id === edgeId);
+    if (!edge) return null;
+    
+    // Return the opposite node (undirected graph)
+    return edge.source === currentNode ? edge.target : edge.source;
+  }
+  
+  // Update player position after successful traversal
+  updatePlayerPosition(playerId, targetNode) {
+    const player = this.players.get(playerId);
+    if (!player) return false;
+    
+    player.currentNode = targetNode;
+    player.currentZone = this.getZoneFromNode(targetNode);
+    player.questionsAnswered++;
+    player.lastUpdateTime = new Date();
+    
+    // Check win condition
+    if (targetNode === 'TARGET') {
+      this.gameState.winner = playerId;
+      this.gameState.gameOver = true;
+      this.gameState.isGameActive = false;
+      this.gameState.gameEndTime = new Date();
+    }
+    
+    return true;
+  }
+  
+  // Process player movement attempt
+  attemptMove(playerId, edgeId) {
+    const player = this.players.get(playerId);
+    if (!player) return { success: false, error: 'Player not found' };
+    
+    // Check if player can move
+    if (player.isEliminated) {
+      return { success: false, error: 'Player is eliminated' };
+    }
+    
+    if (player.health <= 0) {
+      return { success: false, error: 'Player has no health' };
+    }
+    
+    // Validate edge accessibility
+    const accessibleEdges = this.getAccessibleEdges(playerId);
+    const edge = accessibleEdges.find(e => e.id === edgeId);
+    
+    if (!edge) {
+      return { success: false, error: 'Edge not accessible from current position' };
+    }
+    
+    // Get the question for this edge
+    const question = this.edgeQuestions?.get(edgeId);
+    if (!question) {
+      return { success: false, error: 'No question assigned to this edge' };
+    }
+    
+    return { 
+      success: true, 
+      edge,
+      question: {
+        id: question.que_id,
+        content: question.que_content,
+        difficulty: edge.difficulty,
+        edgeId: edgeId
+      }
+    };
+  }
+  
+  // Validate answer and process movement
+  processAnswer(playerId, edgeId, answer) {
+    const player = this.players.get(playerId);
+    if (!player) return { success: false, error: 'Player not found' };
+    
+    const edge = this.getAllEdgeDefinitions().find(e => e.id === edgeId);
+    if (!edge) return { success: false, error: 'Invalid edge' };
+    
+    const question = this.edgeQuestions?.get(edgeId);
+    if (!question) return { success: false, error: 'No question for this edge' };
+    
+    // Validate answer against testcases
+    let isCorrect = false;
+    try {
+      const testcases = question.testcase;
+      if (testcases && Array.isArray(testcases)) {
+        isCorrect = testcases.some(tc => {
+          const expected = String(tc.expected).trim();
+          const userAnswer = String(answer).trim();
+          return expected === userAnswer;
+        });
+      }
+    } catch (error) {
+      console.error('Error validating answer:', error);
+    }
+    
+    if (isCorrect) {
+      // Move player to target node
+      const targetNode = this.getTargetNode(edgeId, player.currentNode);
+      this.updatePlayerPosition(playerId, targetNode);
+      
+      return {
+        success: true,
+        correct: true,
+        targetNode,
+        health: player.health,
+        questionsAnswered: player.questionsAnswered,
+        winner: this.gameState.winner
+      };
+    } else {
+      // Wrong answer - reduce health
+      player.health = Math.max(0, player.health - 10);
+      player.wrongAnswers = (player.wrongAnswers || 0) + 1;
+      
+      if (player.health <= 0) {
+        player.isEliminated = true;
+        player.isAlive = false;
+        this.gameState.playersAlive--;
+      }
+      
+      return {
+        success: true,
+        correct: false,
+        health: player.health,
+        isEliminated: player.isEliminated
+      };
+    }
+  }
+  
+  // Get current game view for a player
+  getPlayerView(playerId) {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+    
+    return {
+      player: {
+        id: playerId,
+        health: player.health,
+        currentNode: player.currentNode,
+        currentZone: player.currentZone,
+        questionsAnswered: player.questionsAnswered,
+        wrongAnswers: player.wrongAnswers || 0,
+        isEliminated: player.isEliminated || false
+      },
+      accessibleEdges: this.getAccessibleEdges(playerId),
+      gameState: this.gameState,
+      players: this.getAllPlayers(),
+      zoneState: this.zoneState
+    };
+  }
+  
+  // Get zone level from node ID
+  getZoneFromNode(nodeId) {
+    if (nodeId === 'TARGET') return 'target';
+    if (nodeId.startsWith('R1_')) return 'ring1';
+    if (nodeId.startsWith('R2_')) return 'ring2';
+    if (nodeId.startsWith('R3_')) return 'ring3';
+    return 'unknown';
+  }
+
   addPlayer(playerId, playerData) {
     const palette = ['#ff3b30', '#007aff', '#34c759', '#ffcc00', '#af52de', '#ff9f0a', '#32ade6', '#ff453a'];
     const assignedColor = playerData.color || palette[this.players.size % palette.length];
@@ -1649,6 +1893,108 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error validating answer:', error);
       socket.emit('error', { message: 'Failed to validate answer' });
+    }
+  });
+
+  // Server-authoritative movement attempt
+  socket.on('attempt_move', async (data) => {
+    try {
+      const { sessionId, playerId, edgeId } = data;
+      if (!sessionId || !playerId || !edgeId) {
+        socket.emit('move_error', { message: 'Missing required data' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const result = session.attemptMove(playerId, edgeId);
+
+      if (!result.success) {
+        socket.emit('move_error', { message: result.error });
+        return;
+      }
+
+      // Send question to player
+      socket.emit('question_for_move', {
+        edgeId,
+        question: result.question,
+        edge: result.edge
+      });
+
+    } catch (error) {
+      console.error('Error attempting move:', error);
+      socket.emit('move_error', { message: 'Failed to process move' });
+    }
+  });
+
+  // Server-authoritative answer processing
+  socket.on('submit_move_answer', async (data) => {
+    try {
+      const { sessionId, playerId, edgeId, answer } = data;
+      if (!sessionId || !playerId || !edgeId || answer === undefined) {
+        socket.emit('answer_error', { message: 'Missing required data' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const result = session.processAnswer(playerId, edgeId, answer);
+
+      if (!result.success) {
+        socket.emit('answer_error', { message: result.error });
+        return;
+      }
+
+      // Save session after answer processing
+      await session.saveSession();
+
+      // Send result to player
+      socket.emit('answer_result', result);
+
+      // Broadcast updated game state to all players
+      const gameView = session.getPlayerView(playerId);
+      io.to(sessionId).emit('game_state_update', {
+        players: session.getAllPlayers(),
+        gameState: session.gameState,
+        sessionId,
+        zoneState: session.zoneState
+      });
+
+      // If there's a winner, announce it
+      if (result.winner) {
+        io.to(sessionId).emit('game_over', {
+          winner: result.winner,
+          gameState: session.gameState,
+          players: session.getAllPlayers()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error processing answer:', error);
+      socket.emit('answer_error', { message: 'Failed to process answer' });
+    }
+  });
+
+  // Get player's current game view
+  socket.on('get_game_view', async (data) => {
+    try {
+      const { sessionId, playerId } = data;
+      if (!sessionId || !playerId) {
+        socket.emit('view_error', { message: 'Missing required data' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const view = session.getPlayerView(playerId);
+
+      if (!view) {
+        socket.emit('view_error', { message: 'Player not found' });
+        return;
+      }
+
+      socket.emit('game_view', view);
+
+    } catch (error) {
+      console.error('Error getting game view:', error);
+      socket.emit('view_error', { message: 'Failed to get game view' });
     }
   });
 

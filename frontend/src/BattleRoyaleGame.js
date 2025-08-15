@@ -319,182 +319,52 @@ export default function BattleRoyaleGame() {
     }
   }, [playerId, selectedPlayer]);
   
-  // Pool of questions for different difficulties (DEPRECATED - now using backend)
-  const questionPools = {
-    easy: [
-      { question: "What is 2 + 2?", answer: "4" },
-      { question: "What color is the sky?", answer: "blue" },
-      { question: "How many legs does a cat have?", answer: "4" },
-      { question: "What is the capital of France?", answer: "paris" },
-      { question: "What is 5 x 3?", answer: "15" },
-      { question: "Which planet is closest to the sun?", answer: "mercury" },
-      { question: "What is 10 - 7?", answer: "3" },
-      { question: "How many days in a week?", answer: "7" },
-      { question: "What is the largest ocean?", answer: "pacific" },
-      { question: "What gas do plants produce?", answer: "oxygen" },
-      { question: "What is 8 / 2?", answer: "4" },
-      { question: "What is 6 + 4?", answer: "10" },
-      { question: "What is 3 + 5?", answer: "8" },
-      { question: "How many continents are there?", answer: "7" },
-      { question: "What is 9 - 4?", answer: "5" },
-      { question: "How many sides does a triangle have?", answer: "3" }
-    ],
-    medium: [
-      { question: "What is the square root of 64?", answer: "8" },
-      { question: "Who wrote Romeo and Juliet?", answer: "shakespeare" },
-      { question: "What is the chemical symbol for gold?", answer: "au" },
-      { question: "In which year did World War II end?", answer: "1945" },
-      { question: "What is 15% of 200?", answer: "30" },
-      { question: "Which programming language is known for AI?", answer: "python" },
-      { question: "What is the powerhouse of the cell?", answer: "mitochondria" },
-      { question: "What is 7 x 8?", answer: "56" },
-      { question: "What is 12 / 4?", answer: "3" },
-      { question: "What is the capital of Italy?", answer: "rome" },
-      { question: "What is 25% of 80?", answer: "20" },
-      { question: "Who painted the Mona Lisa?", answer: "leonardo" }
-    ],
-    hard: [
-      { question: "What is the derivative of x²?", answer: "2x" },
-      { question: "Who developed the theory of relativity?", answer: "einstein" },
-      { question: "What is the time complexity of binary search?", answer: "o(log n)" },
-      { question: "What is the 10th Fibonacci number?", answer: "55" },
-      { question: "What is the atomic number of carbon?", answer: "6" },
-      { question: "In which year was JavaScript created?", answer: "1995" },
-      { question: "What is 15²?", answer: "225" },
-      { question: "What is the speed of light in m/s?", answer: "299792458" },
-      { question: "What is the square root of 144?", answer: "12" },
-      { question: "What is 8! (8 factorial)?", answer: "40320" }
-    ]
-  };
-  
-  // Function to get question for any edge
-  const getQuestionForEdge = (edgeId, difficulty, pathType) => {
-    const pool = questionPools[difficulty] || questionPools.easy;
-    const questionIndex = Math.abs(edgeId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % pool.length;
-    const selectedQuestion = pool[questionIndex];
-    
-    return {
-      ...selectedQuestion,
-      difficulty,
-      pathType
-    };
-  };
-  
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [playerAnswer, setPlayerAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
   
-  // Update accessible edges when player or position changes
+  // Update accessible edges from server game state
   React.useEffect(() => {
-    const currentPlayerData = players[selectedPlayer];
-    if (currentPlayerData) {
-      const edges = getAccessibleEdges(currentPlayerData.currentNode);
-      setAccessibleEdges(edges);
+    // Request game view from server when player changes
+    if (selectedPlayer && sessionId && isGameActive) {
+      battleRoyaleSocket.emit('get_game_view', {
+        sessionId,
+        playerId: selectedPlayer
+      });
     }
-  }, [selectedPlayer, players]);
+  }, [selectedPlayer, players, sessionId, isGameActive]);
   const [resultMessage, setResultMessage] = useState('');
   
-  // Handle edge clicks (when player tries to traverse a path)
-  // Function to determine difficulty and path type based on edge
-  const getEdgeProperties = (sourceNode, targetNode) => {
-    // Determine difficulty based on rings
-    let difficulty = 'easy';
-    let pathType = 'lateral';
-    
-    // Extract ring numbers
-    const sourceRing = sourceNode.includes('R3') ? 3 : sourceNode.includes('R2') ? 2 : sourceNode.includes('R1') ? 1 : 0;
-    const targetRing = targetNode.includes('R3') ? 3 : targetNode.includes('R2') ? 2 : targetNode.includes('R1') ? 1 : targetNode === 'TARGET' ? 0 : 0;
-    
-    // Determine path type and difficulty
-    if (targetNode === 'TARGET') {
-      difficulty = 'hard';
-      pathType = 'final';
-    } else if (sourceRing > targetRing) {
-      // Moving inward
-      pathType = 'inward';
-      if (sourceRing === 3 && targetRing === 2) difficulty = 'easy';
-      else if (sourceRing === 2 && targetRing === 1) difficulty = 'medium';
-      else if (sourceRing === 1 && targetRing === 0) difficulty = 'hard';
-    } else if (sourceRing === targetRing) {
-      // Lateral movement within same ring
-      pathType = 'lateral';
-      if (sourceRing === 3) difficulty = 'easy';
-      else if (sourceRing === 2) difficulty = 'medium';
-      else if (sourceRing === 1) difficulty = 'hard';
-    }
-    
-    return { difficulty, pathType };
-  };
-  
+  // Handle edge clicks (when player tries to traverse a path) - Server Authoritative
   const handleEdgeClick = async (edgeData) => {
     console.log('Edge clicked:', edgeData.id);
     
-    if (!edgeData.id) {
-      console.log('No edge ID provided');
-      return;
-    }
-    
-    if (!isConnected) {
-      setConnectionError('Not connected to server');
-      return;
-    }
-    
-    // Ensure we have required fields
-    if (!sessionId || !playerId) {
-      console.log('Missing sessionId or playerId:', { sessionId, playerId });
-      setConnectionError('Session not properly initialized');
-      return;
-    }
-    
-    // Check if player exists and is at a valid position
-    const currentPlayer = players[playerId];
-    if (!currentPlayer || !currentPlayer.currentNode) {
-      console.log('Player not found or no current position:', { currentPlayer, playerId });
-      setConnectionError('Player position not found');
-      return;
-    }
-    
-    // Check if this edge is accessible from current player position
-    const isAccessible = isEdgeAccessible(edgeData.id, currentPlayer.currentNode);
-    if (!isAccessible) {
-      console.log('Edge not accessible from current position:', {
-        edgeId: edgeData.id,
-        currentNode: currentPlayer.currentNode
-      });
-      setConnectionError(`Cannot access this path from ${currentPlayer.currentNode}`);
+    if (!edgeData.id || !isConnected || !sessionId || !selectedPlayer) {
+      console.log('Missing requirements:', { edgeId: edgeData.id, isConnected, sessionId, selectedPlayer });
+      setConnectionError('Cannot process move - missing requirements');
       return;
     }
     
     try {
-      console.log('Requesting question for edge:', {
-        edgeId: edgeData.id,
-        sessionId: sessionId,
-        playerId: playerId,
-        currentNode: currentPlayer.currentNode
-      });
-      
       // Clear any previous errors
       setConnectionError(null);
       
-      // Request the pre-assigned question for this edge
-      battleRoyaleSocket.socket.emit('request_question', {
+      // Request server to validate and process move attempt
+      battleRoyaleSocket.emit('attempt_move', {
         sessionId: sessionId,
-        playerId: playerId,
+        playerId: selectedPlayer,
         edgeId: edgeData.id
       });
       
+      console.log('Move attempt sent to server for edge:', edgeData.id);
+      
     } catch (error) {
-      console.error('Failed to request question:', error);
-      setConnectionError(`Failed to get question: ${error.message}`);
+      console.error('Failed to attempt move:', error);
+      setConnectionError(`Failed to process move: ${error.message}`);
     }
   };
   
-  // Check if an edge is accessible from current player position
-  const isEdgeAccessible = (edgeId, currentNode) => {
-    const [source, target] = edgeId.split('-');
-    // Player can traverse edge in both directions (undirected graph)
-    return source === currentNode || target === currentNode;
-  };
+
   
   // Handle node clicks (safe points - no questions, just information)
   const handleNodeClick = (nodeData) => {
@@ -504,112 +374,127 @@ export default function BattleRoyaleGame() {
     console.log(`Clicked safe point: ${nodeData.id}`, nodeData);
   };
   
-  // Handle player movement after correct answer
-  const handlePlayerMove = (playerId, targetZoneLevel) => {
-    setPlayers(prev => ({
-      ...prev,
-      [playerId]: {
-        ...prev[playerId],
-        currentZone: targetZoneLevel,
-        questionsAnswered: prev[playerId].questionsAnswered + 1
-      }
-    }));
+  // Socket event listeners for server-authoritative game logic
+  React.useEffect(() => {
+    if (!battleRoyaleSocket) return;
     
-    // Check win condition
-    if (targetZoneLevel === 0) {
-      setGameState(prev => ({
-        ...prev,
-        isGameActive: false,
-        winner: playerId
-      }));
-    }
-  };
+    // Handle question for move from server
+    const handleQuestionForMove = (data) => {
+      console.log('Received question for move:', data);
+      setCurrentQuestion({
+        edgeId: data.edgeId,
+        question: data.question.content,
+        questionId: data.question.id,
+        difficulty: data.question.difficulty
+      });
+      setPlayerAnswer('');
+      setShowResult(false);
+    };
+    
+    // Handle move errors
+    const handleMoveError = (error) => {
+      console.error('Move error:', error);
+      setConnectionError(error.message);
+      setResultMessage(`❌ ${error.message}`);
+      setShowResult(true);
+      setTimeout(() => {
+        setShowResult(false);
+      }, 3000);
+    };
+    
+    // Handle game view updates
+    const handleGameView = (view) => {
+      console.log('Received game view:', view);
+      if (view.accessibleEdges) {
+        setAccessibleEdges(view.accessibleEdges);
+      }
+    };
+    
+    // Handle view errors
+    const handleViewError = (error) => {
+      console.error('View error:', error);
+    };
+    
+    battleRoyaleSocket.on('question_for_move', handleQuestionForMove);
+    battleRoyaleSocket.on('move_error', handleMoveError);
+    battleRoyaleSocket.on('game_view', handleGameView);
+    battleRoyaleSocket.on('view_error', handleViewError);
+    
+    return () => {
+      battleRoyaleSocket.off('question_for_move', handleQuestionForMove);
+      battleRoyaleSocket.off('move_error', handleMoveError);
+      battleRoyaleSocket.off('game_view', handleGameView);
+      battleRoyaleSocket.off('view_error', handleViewError);
+    };
+  }, [battleRoyaleSocket]);
   
-  // Submit answer for edge traversal
+  // Submit answer for edge traversal (server-authoritative)
   const submitAnswer = async () => {
     if (!currentQuestion || !isConnected) return;
     
     try {
-      console.log('Submitting answer to backend:', {
-        questionId: currentQuestion.questionId,
-        answer: playerAnswer.trim(),
-        targetNode: currentQuestion.targetNode
+      // Send answer to server for validation
+      battleRoyaleSocket.emit('submit_move_answer', {
+        sessionId,
+        playerId: selectedPlayer,
+        edgeId: currentQuestion.edgeId,
+        answer: playerAnswer.trim()
       });
       
-      const result = await battleRoyaleSocket.submitAnswer(
-        currentQuestion.questionId,
-        playerAnswer.trim(),
-        currentQuestion.targetNode
-      );
-      
-      console.log('Answer result from backend:', result);
-      
-      if (result.correct) {
-        setResultMessage(`✅ Correct! Path unlocked: ${currentQuestion.pathDescription}`);
-        
-        // Move player to target node locally
-        const targetNode = currentQuestion.targetNode;
-        const playerId = currentQuestion.playerId;
-        
-        setPlayers(prev => ({
-          ...prev,
-          [playerId]: {
-            ...prev[playerId],
-            currentNode: targetNode,
-            currentZone: getZoneFromNode(targetNode),
-            questionsAnswered: prev[playerId].questionsAnswered + 1
-          }
-        }));
-        
-        // Handle successful traversal based on path type
-        if (currentQuestion.pathType === 'inward') {
-          setResultMessage(prev => prev + " You moved closer to the center!");
-        } else if (currentQuestion.pathType === 'final') {
-          setResultMessage(prev => prev + " Final approach to victory!");
-          
-          // Check win condition
-          if (targetNode === 'TARGET') {
-            setGameState(prev => ({
-              ...prev,
-              isGameActive: false,
-              winner: playerId
-            }));
-            setResultMessage(prev => prev + " 🎉 VICTORY! You reached the center!");
-          }
-        } else if (currentQuestion.pathType === 'lateral') {
-          setResultMessage(prev => prev + " You repositioned within the zone.");
-        }
-        
-      } else {
-        setResultMessage(`❌ Wrong answer! Path blocked.`);
-        
-        // Handle failed traversal - player takes damage locally
-        const playerId = currentQuestion.playerId;
-        setPlayers(prev => ({
-          ...prev,
-          [playerId]: {
-            ...prev[playerId],
-            health: Math.max(0, prev[playerId].health - 10)
-          }
-        }));
-        
-        setResultMessage(prev => prev + ` You lost 10 health!`);
-      }
-      
-      setConnectionError(null);
+      // Server will respond with answer_result event
+      setPlayerAnswer('');
       
     } catch (error) {
-      console.error('Failed to submit answer:', error);
-      setResultMessage(`❌ Failed to submit answer: ${error.message}`);
-      setConnectionError(`Answer submission failed: ${error.message}`);
+      console.error('Error submitting answer:', error);
+      setResultMessage('❌ Failed to submit answer');
     }
-    
-    setShowResult(true);
-    setTimeout(() => {
-      setCurrentQuestion(null);
-      setShowResult(false);
-    }, 4000);
   };
+  
+  // Handle server response for answer submission
+  React.useEffect(() => {
+    if (!battleRoyaleSocket) return;
+    
+    const handleAnswerResult = (result) => {
+      if (result.correct) {
+        setResultMessage(`✅ Correct! You moved to ${result.targetNode}`);
+        setShowResult(true);
+        setCurrentQuestion(null);
+        
+        if (result.winner) {
+          setResultMessage('🎉 VICTORY! You reached the center!');
+        }
+      } else {
+        setResultMessage(`❌ Wrong answer! Health: ${result.health}/100`);
+        setShowResult(true);
+        
+        if (result.isEliminated) {
+          setResultMessage(`💀 You have been eliminated!`);
+        }
+      }
+      
+      // Hide result after 3 seconds
+      setTimeout(() => {
+        setShowResult(false);
+        setResultMessage('');
+      }, 3000);
+    };
+    
+    const handleAnswerError = (error) => {
+      setResultMessage(`❌ Error: ${error.message}`);
+      setShowResult(true);
+    };
+    
+    battleRoyaleSocket.on('answer_result', handleAnswerResult);
+    battleRoyaleSocket.on('answer_error', handleAnswerError);
+    
+    return () => {
+      battleRoyaleSocket.off('answer_result', handleAnswerResult);
+      battleRoyaleSocket.off('answer_error', handleAnswerError);
+    };
+  }, [battleRoyaleSocket]);
+  
+  // Deprecated functions - removed as server is now authoritative
+  // All game logic is handled by the backend server
   
   // Helper function to get zone level from node ID
   const getZoneFromNode = (nodeId) => {
