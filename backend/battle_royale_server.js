@@ -6,6 +6,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const { supabase } = require('./supabaseClient');
+const judge0Service = require('./services/judge0Service');
 
 const app = express();
 const server = http.createServer(app);
@@ -2183,13 +2184,78 @@ app.get('/api/sessions', async (req, res) => {
   }
 });
 
+// Judge0 API endpoints for code execution
+app.post('/api/judge0/run', async (req, res) => {
+  try {
+    const { code, language, input } = req.body;
+    
+    if (!code || !language) {
+      return res.status(400).json({ error: 'Code and language are required' });
+    }
+
+    if (!judge0Service.isConfigured()) {
+      return res.status(503).json({ error: 'Judge0 API not configured' });
+    }
+
+    const result = await judge0Service.submitCode(code, language, input || '');
+    res.json(result);
+  } catch (error) {
+    console.error('Judge0 run error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/judge0/test', async (req, res) => {
+  try {
+    const { code, language, testCases } = req.body;
+    
+    if (!code || !language || !testCases) {
+      return res.status(400).json({ error: 'Code, language, and testCases are required' });
+    }
+
+    if (!judge0Service.isConfigured()) {
+      return res.status(503).json({ error: 'Judge0 API not configured' });
+    }
+
+    const results = await judge0Service.runTestCases(code, language, testCases);
+    res.json(results);
+  } catch (error) {
+    console.error('Judge0 test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/judge0/languages', (req, res) => {
+  try {
+    const languages = judge0Service.getSupportedLanguages();
+    res.json({ languages });
+  } catch (error) {
+    console.error('Judge0 languages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/judge0/status', (req, res) => {
+  try {
+    const isConfigured = judge0Service.isConfigured();
+    res.json({ 
+      configured: isConfigured,
+      message: isConfigured ? 'Judge0 API is configured' : 'Judge0 API key not found'
+    });
+  } catch (error) {
+    console.error('Judge0 status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     activeSessions: sessionCache.size,
-    connectedClients: io.engine.clientsCount
+    connectedClients: io.engine.clientsCount,
+    judge0Configured: judge0Service.isConfigured()
   });
 });
 

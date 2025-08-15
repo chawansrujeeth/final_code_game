@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import BattleRoyaleMap from './components/BattleRoyaleMap';
 import CityBattleRoyaleMap from './components/CityBattleRoyaleMap';
-import Editor from '@monaco-editor/react';
-import EdgeCard from './components/EdgeCard';
+import LeetCodeQuestionViewer from './components/LeetCodeQuestionViewer';
+import LeetCodeCodeEditor from './components/LeetCodeCodeEditor';
 import BattleRoyaleSocket, { battleRoyaleSocket } from './battleRoyaleSocket';
 
 export default function BattleRoyaleGame() {
@@ -431,27 +431,25 @@ export default function BattleRoyaleGame() {
   }, [battleRoyaleSocket]);
   
   // Submit answer for edge traversal (server-authoritative)
-  const submitAnswer = async () => {
+  const submitAnswer = async (code, passed = false, testResults = null) => {
     if (!currentQuestion || !isConnected) return;
     
     try {
-      // Send answer to server for validation
-      battleRoyaleSocket.emit('submit_move_answer', {
+      const result = await battleRoyaleSocket.submitAnswer({
         sessionId,
-        playerId: selectedPlayer,
+        playerId,
         edgeId: currentQuestion.edgeId,
-        answer: playerAnswer.trim()
+        answer: code,
+        passed: passed,
+        testResults: testResults
       });
       
-      // Server will respond with answer_result event
-      setPlayerAnswer('');
-      
+      console.log('✅ Answer submitted:', result);
     } catch (error) {
-      console.error('Error submitting answer:', error);
-      setResultMessage('❌ Failed to submit answer');
+      console.error('❌ Submit answer error:', error);
     }
   };
-  
+
   // Handle server response for answer submission
   React.useEffect(() => {
     if (!battleRoyaleSocket) return;
@@ -569,69 +567,19 @@ export default function BattleRoyaleGame() {
         overflow: 'hidden'
       }}>
         
-        {/* Left Side - Code Editor */}
+        {/* Left Side - Question Display */}
         <div style={{
           width: '50%',
           height: '100%',
-          background: '#2c3e50',
+          background: '#1e1e1e',
           display: 'flex',
-          flexDirection: 'column',
-          color: 'white',
-          padding: '20px'
+          flexDirection: 'column'
         }}>
           {currentQuestion ? (
-            <>
-              {/* Question */}
-              <div style={{
-                width: '100%',
-                height: '100%',
-                padding: '20px',
-                color: 'white',
-                overflowY: 'auto'
-              }}>
-                <h2 style={{
-                  color: '#fff',
-                  margin: '0 0 20px 0',
-                  fontSize: '20px'
-                }}>
-                  {currentQuestion.question}
-                </h2>
-                
-                {/* Test Cases */}
-                {currentQuestion.testCases && currentQuestion.testCases.length > 0 && (
-                  <div>
-                    <h3 style={{
-                      color: '#fff',
-                      margin: '0 0 15px 0',
-                      fontSize: '16px'
-                    }}>
-  
-                    Test Cases:
-                    </h3>
-
-                    {currentQuestion.testCases.map((tc, idx) => (
-                    
-  
-                      <div key={idx} style={{
-                        marginBottom: '15px',
-                        padding: '10px',
-                        background: 'rgba(255,255,255,0.1)',
-                        borderRadius: '5px'
-                      }}>
-                        <div style={{ marginBottom: '5px' }}>
-                          <strong>Input:</strong> {tc.input ?? JSON.stringify(tc)}
-                        </div>
-                        {tc.output !== undefined && (
-                          <div>
-                            <strong>Output:</strong> {tc.output}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
+            <LeetCodeQuestionViewer 
+              question={currentQuestion}
+              onClose={() => setCurrentQuestion(null)}
+            />
           ) : (
             <div style={{
               flex: 1,
@@ -639,91 +587,45 @@ export default function BattleRoyaleGame() {
               alignItems: 'center',
               justifyContent: 'center',
               color: '#999',
-              fontSize: '16px'
+              fontSize: '16px',
+              background: '#1e1e1e'
             }}>
               Select an edge to start coding
             </div>
           )}
         </div>
         
-        {/* Right Side - Simple Background */}
+        {/* Right Side - Code Editor */}
         <div style={{
           width: '50%',
           height: '100%',
-          background: '#34495e',
+          background: '#1e1e1e',
           display: 'flex',
-          flexDirection: 'column',
-          padding: '20px',
-          color: 'white',
-          position: 'relative',
-          overflow: 'auto',
-          overflowX: 'hidden',
-          scrollBehavior: 'smooth'
+          flexDirection: 'column'
         }}>
-          
-          {/* Code Editor & Submission */}
           {currentQuestion ? (
-            <>
-              {/* Code Editor */}
-              <div style={{
-                flex: 1,
-                border: '2px solid #555',
-                borderRadius: '8px',
-                marginBottom: '15px',
-                overflow: 'hidden'
-              }}>
-                <Editor
-                  height="100%"
-                  defaultLanguage="javascript"
-                  defaultValue="// Write your solution here..."
-                  theme="vs-dark"
-                  options={{
-                    fontSize: 14,
-                    fontFamily: 'Monaco, Consolas, \"Courier New\", monospace',
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    wordWrap: 'on',
-                    lineNumbers: 'on',
-                    renderLineHighlight: 'all',
-                    selectOnLineNumbers: true,
-                    roundedSelection: false,
-                    readOnly: false,
-                    cursorStyle: 'line',
-                  }}
-                />
-              </div>
-              
-              {/* Submit Button */}
-              <button style={{
-                background: '#28a745',
-                color: 'white',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '6px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}>
-                Submit Solution
-              </button>
-            </>
+            <LeetCodeCodeEditor 
+              question={currentQuestion}
+              onSubmitAnswer={submitAnswer}
+            />
           ) : (
             <div style={{
-              width: '100%',
-              height: '100%',
+              flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#999',
-              fontSize: '16px'
+              fontSize: '16px',
+              background: '#1e1e1e'
             }}>
-              Select an edge to start coding
+              Code editor will appear here
             </div>
           )}
-       
-           {/* Minimap Container - Only in Code Editor Side */}
-          {mapState.isMinimized && (
+        </div>
+      </div>
+      
+      {/* Minimap Container - Only in Code Editor Side */}
+      {mapState.isMinimized && (
             <div style={{
               position: 'absolute',
               top: '20px',
@@ -1043,7 +945,6 @@ export default function BattleRoyaleGame() {
             </div>
           )}
         </div>
-      </div>
       
       {/* Game Over Modal */}
       {gameState.winner && (
@@ -1221,7 +1122,6 @@ export default function BattleRoyaleGame() {
           zIndex: 2500
         }} />
       )}
-      </div>
     </>
   );
 }
