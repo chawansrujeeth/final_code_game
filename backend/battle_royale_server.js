@@ -674,33 +674,33 @@ async function startGameFromLobby(sessionId, session) {
       .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
 
     const taken = new Set();
-    ordered.forEach((p) => {
-      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode)) {
-        taken.add(p.selectedSpawnNode);
+    // Build a pool of available nodes for random assignment
+    let availableNodes = [...allowedSpawnNodes];
+    availableNodes.sort(() => Math.random() - 0.5);
+    let availableIdx = 0;
+    
+    const getNextAvailable = () => {
+      while (availableIdx < availableNodes.length) {
+        const node = availableNodes[availableIdx++];
+        if (!taken.has(node)) {
+          return node;
+        }
       }
-    });
-
-    let fillIndex = 0;
-    // Build a pool of *unused* nodes and shuffle once per game start for uniqueness
-    let remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
-    remainingNodes.sort(() => Math.random() - 0.5);
-    let remainIdx = 0;
-    const nextAvailable = () => {
-      if (remainIdx >= remainingNodes.length) {
-        // Fallback – reuse any node not yet taken (should rarely happen)
-        remainingNodes = allowedSpawnNodes.filter(n => !taken.has(n));
-        remainingNodes.sort(() => Math.random() - 0.5);
-        remainIdx = 0;
-      }
-      const node = remainingNodes[remainIdx++];
-      taken.add(node);
-      return node;
+      // Fallback - should not happen with proper logic
+      return allowedSpawnNodes[Math.floor(Math.random() * allowedSpawnNodes.length)];
     };
 
     ordered.forEach((p) => {
-      const node = (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode))
-        ? p.selectedSpawnNode
-        : nextAvailable();
+      let node;
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode)) {
+        // Player has selected a valid, available node
+        node = p.selectedSpawnNode;
+        console.log(`✅ Player ${p.playerId} assigned selected spawn: ${node}`);
+      } else {
+        // Player didn't select or selected node is taken, assign random
+        node = getNextAvailable();
+        console.log(`🎲 Player ${p.playerId} assigned random spawn: ${node} (selected: ${p.selectedSpawnNode || 'none'})`);
+      }
       taken.add(node);
       session.updatePlayer(p.playerId, {
         currentNode: node,
