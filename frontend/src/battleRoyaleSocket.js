@@ -199,75 +199,16 @@ class BattleRoyaleSocket {
     this.playerName = null;
   }
 
+  // Deprecated - use server-authoritative events instead
   requestQuestion(difficulty, edgeId) {
-    if (!this.socket || !this.sessionId || !this.playerId) {
-      throw new Error('Socket not properly initialized');
-    }
-
-    return new Promise((resolve, reject) => {
-      // Set up one-time listeners for the response
-      const timeout = setTimeout(() => {
-        this.socket.off('question_received');
-        this.socket.off('error');
-        reject(new Error('Question request timeout'));
-      }, 10000);
-
-      this.socket.once('question_received', (data) => {
-        clearTimeout(timeout);
-        this.socket.off('error');
-        resolve(data);
-      });
-
-      this.socket.once('error', (error) => {
-        clearTimeout(timeout);
-        this.socket.off('question_received');
-        reject(error);
-      });
-
-      // Send the request
-      this.lastEmit = 'request_question';
-      this.socket.emit('request_question', {
-        sessionId: this.sessionId,
-        playerId: this.playerId,
-        difficulty,
-        edgeId
-      });
-    });
+    console.warn('requestQuestion is deprecated. Use attempt_move event instead.');
+    return Promise.reject(new Error('Use server-authoritative attempt_move event'));
   }
 
+  // Deprecated - use server-authoritative events instead
   submitAnswer(questionId, answer, targetNode) {
-    if (!this.socket || !this.sessionId || !this.playerId) {
-      throw new Error('Socket not properly initialized');
-    }
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.socket.off('answer_result');
-        this.socket.off('error');
-        reject(new Error('Answer submission timeout'));
-      }, 10000);
-
-      this.socket.once('answer_result', (data) => {
-        clearTimeout(timeout);
-        this.socket.off('error');
-        resolve(data);
-      });
-
-      this.socket.once('error', (error) => {
-        clearTimeout(timeout);
-        this.socket.off('answer_result');
-        reject(error);
-      });
-
-      this.lastEmit = 'submit_answer';
-      this.socket.emit('submit_answer', {
-        sessionId: this.sessionId,
-        playerId: this.playerId,
-        questionId,
-        answer,
-        targetNode
-      });
-    });
+    console.warn('submitAnswer is deprecated. Use submit_move_answer event instead.');
+    return Promise.reject(new Error('Use server-authoritative submit_move_answer event'));
   }
 
   // Lobby: select a spawn node in the pre-game lobby

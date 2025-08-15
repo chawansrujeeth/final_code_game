@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import BattleRoyaleMap from './components/BattleRoyaleMap';
+import CityBattleRoyaleMap from './components/CityBattleRoyaleMap';
 import Editor from '@monaco-editor/react';
 import EdgeCard from './components/EdgeCard';
 import BattleRoyaleSocket, { battleRoyaleSocket } from './battleRoyaleSocket';
@@ -26,7 +27,8 @@ export default function BattleRoyaleGame() {
   
   const [mapState, setMapState] = useState({
     isMinimized: true,
-    isFullscreen: false
+    isFullscreen: false,
+    mapType: 'radial' // 'radial' or 'city'
   });
   
   const [players, setPlayers] = useState({});
@@ -514,6 +516,13 @@ export default function BattleRoyaleGame() {
     }));
   };
   
+  const switchMapType = () => {
+    setMapState(prev => ({
+      ...prev,
+      mapType: prev.mapType === 'radial' ? 'city' : 'radial'
+    }));
+  };
+  
   const toggleFullscreen = () => {
     setMapState(prev => ({
       ...prev,
@@ -731,17 +740,31 @@ export default function BattleRoyaleGame() {
               backdropFilter: 'blur(10px)',
               animation: 'minimapPulse 3s ease-in-out infinite'
             }}>
-              <BattleRoyaleMap 
-                gameState={gameState}
-                onNodeClick={handleNodeClick}
-                onEdgeClick={handleEdgeClick}
-                isMinimized={true}
-                showHUD={false}
-                enableZoom={false}
-                selfPlayerId={playerId}
-                 zoneState={zoneState}
-                players={players}
-              />
+              {mapState.mapType === 'radial' ? (
+                <BattleRoyaleMap 
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={true}
+                  showHUD={false}
+                  enableZoom={false}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                />
+              ) : (
+                <CityBattleRoyaleMap 
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={true}
+                  showHUD={false}
+                  enableZoom={false}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                />
+              )}
               
               {/* Map Controls */}
               <div style={{
@@ -771,6 +794,26 @@ export default function BattleRoyaleGame() {
                   onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
                 >
                   🗺️ FULL SCREEN
+                </button>
+                <button
+                  onClick={switchMapType}
+                  style={{
+                    background: 'linear-gradient(45deg, #ff6b6b, #ee5a52)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(255,107,107,0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={`Switch to ${mapState.mapType === 'radial' ? 'City' : 'Radial'} Map`}
+                  onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                >
+                  {mapState.mapType === 'radial' ? '🏙️ CITY' : '⭕ RADIAL'}
                 </button>
               </div>
               
@@ -907,18 +950,33 @@ export default function BattleRoyaleGame() {
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               animation: 'expandIn 0.5s ease-out'
             }}>
-              <BattleRoyaleMap 
-                gameState={gameState}
-                onNodeClick={handleNodeClick}
-                onEdgeClick={handleEdgeClick}
-                isMinimized={false}
-                showHUD={true}
-                enableZoom={true}
-                enablePan={true}
-                selfPlayerId={playerId}
-                 zoneState={zoneState}
-                players={players}
-              />
+              {mapState.mapType === 'radial' ? (
+                <BattleRoyaleMap 
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={false}
+                  showHUD={true}
+                  enableZoom={true}
+                  enablePan={true}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                />
+              ) : (
+                <CityBattleRoyaleMap 
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={false}
+                  showHUD={true}
+                  enableZoom={true}
+                  enablePan={true}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                />
+              )}
       
               {/* Map Controls */}
               <div style={{
@@ -945,6 +1003,23 @@ export default function BattleRoyaleGame() {
                   title="Back to Minimap"
                 >
                   ➖ BACK
+                </button>
+                <button
+                  onClick={switchMapType}
+                  style={{
+                    background: 'linear-gradient(45deg, #ff6b6b, #ee5a52)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(255,107,107,0.3)'
+                  }}
+                  title={`Switch to ${mapState.mapType === 'radial' ? 'City' : 'Radial'} Map`}
+                >
+                  {mapState.mapType === 'radial' ? '🏙️ CITY MAP' : '⭕ RADIAL MAP'}
                 </button>
               </div>
               
