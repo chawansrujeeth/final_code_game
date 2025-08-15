@@ -326,13 +326,13 @@ export default function BattleRoyaleGame() {
   // Update accessible edges from server game state
   React.useEffect(() => {
     // Request game view from server when player changes
-    if (selectedPlayer && sessionId && isGameActive) {
+    if (selectedPlayer && sessionId && gameState.isGameActive) {
       battleRoyaleSocket.emit('get_game_view', {
         sessionId,
         playerId: selectedPlayer
       });
     }
-  }, [selectedPlayer, players, sessionId, isGameActive]);
+  }, [selectedPlayer, players, sessionId, gameState.isGameActive]);
   const [resultMessage, setResultMessage] = useState('');
   
   // Handle edge clicks (when player tries to traverse a path) - Server Authoritative
@@ -368,7 +368,7 @@ export default function BattleRoyaleGame() {
   
   // Handle node clicks (safe points - no questions, just information)
   const handleNodeClick = (nodeData) => {
-    if (!gameState.isGameActive) return;
+    if (!gameState || !gameState.isGameActive) return;
     
     // Show node information (safe point details)
     console.log(`Clicked safe point: ${nodeData.id}`, nodeData);
