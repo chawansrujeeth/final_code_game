@@ -13,7 +13,9 @@ COPY . .
 
 # Elastic Beanstalk sets the PORT env variable; make sure the server uses it.
 # battle_royale_server.js already falls back to 5003 if PORT is undefined.
+# Ensure the Node server listens on the same port Elastic Beanstalk forwards (8080)
 ENV NODE_ENV=production
+ENV PORT=8080
 
 EXPOSE 8080
 CMD ["node", "backend/battle_royale_server.js"]
