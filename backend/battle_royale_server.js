@@ -22,6 +22,10 @@ const io = socketIo(server, {
 });
 
 app.use(cors());
+
+// Basic health endpoint for Elastic Beanstalk load-balancer health checks
+app.get('/', (_req, res) => res.status(200).send('OK'));
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 app.use(express.json());
 
 // In-memory cache for active sessions (cleared on Render sleep)
