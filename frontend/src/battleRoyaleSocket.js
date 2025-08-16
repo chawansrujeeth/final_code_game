@@ -37,7 +37,12 @@ class BattleRoyaleSocket {
     this.socket.emit('leave_battle_royale_queue');
   }
 
-  connect(serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003') {
+  connect(rawUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003') {
+    // Ensure we use HTTPS/WSS when frontend is served over HTTPS to avoid mixed-content errors
+    let serverUrl = rawUrl;
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && serverUrl.startsWith('http://')) {
+      serverUrl = serverUrl.replace('http://', 'https://');
+    }
     if (this.socket) {
       this.disconnect();
     }
