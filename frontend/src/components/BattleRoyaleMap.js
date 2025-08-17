@@ -50,7 +50,9 @@ export default function BattleRoyaleMap({
   // When provided, only these node IDs are clickable; also highlighted
   allowedNodeIds = null,
   // Map selection: 1 = original radial, 2 = BGMI Erangel style
-  mapType = 2
+  mapType = 2,
+  // Accessible edges that should be highlighted
+  accessibleEdges = []
   }) {
   const cyRef = useRef(null);
   const nodeCoordsRef = useRef({});
@@ -542,6 +544,16 @@ useEffect(() => {
           }
         },
         {
+          selector: 'edge[accessible]',
+          style: {
+            'width': 5,
+            'line-color': '#003d8a',
+            'line-style': 'solid',
+            'opacity': 1,
+            'z-index': 999
+          }
+        },
+        {
           selector: 'node:selected',
           style: {
             'border-width': 4,
@@ -682,6 +694,36 @@ useEffect(() => {
       });
     }
   }, [enableZoom, enablePan, isMinimized, mapType]);
+
+  // Update accessible edges highlighting
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    // Clear all accessible flags first
+    cy.edges().forEach(e => {
+      if (e.data('accessible')) {
+        e.removeData('accessible');
+      }
+    });
+
+    // Mark accessible edges
+    if (accessibleEdges && accessibleEdges.length > 0) {
+      accessibleEdges.forEach(edge => {
+        const edgeId = edge.id || `${edge.source}-${edge.target}`;
+        const cyEdge = cy.$(`#${edgeId}`);
+        if (cyEdge.length > 0) {
+          cyEdge.data('accessible', true);
+        }
+        // Also check reverse edge for undirected graph
+        const reverseId = `${edge.target}-${edge.source}`;
+        const reverseEdge = cy.$(`#${reverseId}`);
+        if (reverseEdge.length > 0) {
+          reverseEdge.data('accessible', true);
+        }
+      });
+    }
+  }, [accessibleEdges]);
 
   // Update lobby selection highlights on nodes
   useEffect(() => {

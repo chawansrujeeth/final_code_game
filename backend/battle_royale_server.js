@@ -70,6 +70,99 @@ const autoStartTimers = new Map(); // sessionId -> timeoutId
 // Lobby selection timer management per session
 const zoneLoops = new Map(); // sessionId -> intervalId
 
+// Function to assign questions to all edges in the map
+async function assignQuestionsToEdges(session) {
+  try {
+    console.log('🎯 Assigning questions to edges...');
+    const edgeQuestions = new Map();
+    const usedQuestions = new Set();
+    
+    // Define all edges with their difficulty
+    const edges = [
+      // Ring 3 to Ring 2 (Easy - inward movement)
+      { id: 'R3_1-R2_1', difficulty: 'easy' },
+      { id: 'R3_2-R2_2', difficulty: 'easy' },
+      { id: 'R3_3-R2_3', difficulty: 'easy' },
+      { id: 'R3_4-R2_4', difficulty: 'easy' },
+      { id: 'R3_5-R2_5', difficulty: 'easy' },
+      { id: 'R3_6-R2_6', difficulty: 'easy' },
+      { id: 'R3_7-R2_7', difficulty: 'easy' },
+      { id: 'R3_8-R2_8', difficulty: 'easy' },
+      
+      // Ring 3 circular edges (Easy - lateral movement)
+      { id: 'R3_1-R3_2', difficulty: 'easy' },
+      { id: 'R3_2-R3_3', difficulty: 'easy' },
+      { id: 'R3_3-R3_4', difficulty: 'easy' },
+      { id: 'R3_4-R3_5', difficulty: 'easy' },
+      { id: 'R3_5-R3_6', difficulty: 'easy' },
+      { id: 'R3_6-R3_7', difficulty: 'easy' },
+      { id: 'R3_7-R3_8', difficulty: 'easy' },
+      { id: 'R3_8-R3_1', difficulty: 'easy' },
+      
+      // Ring 2 to Ring 1 (Medium - inward movement)
+      { id: 'R2_1-R1_1', difficulty: 'medium' },
+      { id: 'R2_2-R1_2', difficulty: 'medium' },
+      { id: 'R2_3-R1_3', difficulty: 'medium' },
+      { id: 'R2_4-R1_4', difficulty: 'medium' },
+      { id: 'R2_5-R1_5', difficulty: 'medium' },
+      { id: 'R2_6-R1_6', difficulty: 'medium' },
+      { id: 'R2_7-R1_1', difficulty: 'medium' },
+      { id: 'R2_8-R1_2', difficulty: 'medium' },
+      
+      // Ring 2 circular edges (Medium - lateral movement)
+      { id: 'R2_1-R2_2', difficulty: 'medium' },
+      { id: 'R2_2-R2_3', difficulty: 'medium' },
+      { id: 'R2_3-R2_4', difficulty: 'medium' },
+      { id: 'R2_4-R2_5', difficulty: 'medium' },
+      { id: 'R2_5-R2_6', difficulty: 'medium' },
+      { id: 'R2_6-R2_7', difficulty: 'medium' },
+      { id: 'R2_7-R2_8', difficulty: 'medium' },
+      { id: 'R2_8-R2_1', difficulty: 'medium' },
+      
+      // Ring 1 to TARGET (Hard - final approach)
+      { id: 'R1_1-TARGET', difficulty: 'hard' },
+      { id: 'R1_2-TARGET', difficulty: 'hard' },
+      { id: 'R1_3-TARGET', difficulty: 'hard' },
+      { id: 'R1_4-TARGET', difficulty: 'hard' },
+      { id: 'R1_5-TARGET', difficulty: 'hard' },
+      { id: 'R1_6-TARGET', difficulty: 'hard' },
+      
+      // Ring 1 circular edges (Hard - lateral movement)
+      { id: 'R1_1-R1_2', difficulty: 'hard' },
+      { id: 'R1_2-R1_3', difficulty: 'hard' },
+      { id: 'R1_3-R1_4', difficulty: 'hard' },
+      { id: 'R1_4-R1_5', difficulty: 'hard' },
+      { id: 'R1_5-R1_6', difficulty: 'hard' },
+      { id: 'R1_6-R1_1', difficulty: 'hard' }
+    ];
+    
+    // Assign a random question to each edge
+    for (const edge of edges) {
+      const question = await getRandomQuestion(edge.difficulty, Array.from(usedQuestions));
+      if (question) {
+        edgeQuestions.set(edge.id, {
+          questionId: question.que_id,
+          questionContent: question.que_content,
+          testcase: question.testcase,
+          difficulty: edge.difficulty
+        });
+        usedQuestions.add(question.que_id);
+      }
+    }
+    
+    // Save edge questions to session
+    session.edgeQuestions = edgeQuestions;
+    session.usedQuestions = usedQuestions;
+    await session.saveSession();
+    
+    console.log(`✅ Assigned ${edgeQuestions.size} questions to edges`);
+    return edgeQuestions;
+  } catch (error) {
+    console.error('Error assigning questions to edges:', error);
+    return new Map();
+  }
+}
+
 // ---- Zone constants (keep in sync with frontend) ----
 const MAP_BOUNDARY = 480;
 const SHRINK_SECONDS = 30;
@@ -122,6 +215,19 @@ function cancelAutoStartIfScheduled(sessionId) {
 function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
   try {
     if (lobbySelectionTimers.has(sessionId)) return; // already scheduled
+
+    // Assign questions to edges immediately when timer starts
+    (async () => {
+      const session = await getOrCreateSession(sessionId);
+      const edgeQuestions = await assignQuestionsToEdges(session);
+      
+      // Convert Map to object for emission
+      const edgeQuestionsObject = Object.fromEntries(edgeQuestions);
+      io.to(sessionId).emit('edge_questions_assigned', {
+        edgeQuestions: edgeQuestionsObject,
+        message: 'Questions assigned to edges. You have 10 seconds to select spawn point.'
+      });
+    })();
 
     const totalSeconds = Math.round(delayMs / 1000);
     let remainingSeconds = totalSeconds;
@@ -1282,7 +1388,28 @@ class PersistentGameSession {
   }
 }
 
-// Fetch random question from Supabase based on difficulty
+// Helper function to get a question by ID
+async function getQuestionById(questionId) {
+  try {
+    const { data, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*')
+      .eq('que_id', questionId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching question by ID:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getQuestionById:', error);
+    return null;
+  }
+}
+
+// Helper function to get a random question for a difficulty
 async function getRandomQuestion(difficulty, excludeIds = []) {
   try {
     let query = supabase
@@ -2000,6 +2127,76 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error getting game view:', error);
       socket.emit('view_error', { message: 'Failed to get game view' });
+    }
+  });
+
+  // Get accessible edges for a player
+  socket.on('get_accessible_edges', async (data) => {
+    try {
+      const { sessionId, playerId } = data;
+      if (!sessionId || !playerId) {
+        socket.emit('edges_error', { message: 'Missing required data' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const accessibleEdges = session.getAccessibleEdges(playerId);
+      
+      socket.emit('accessible_edges', {
+        edges: accessibleEdges,
+        currentNode: session.players.get(playerId)?.currentNode
+      });
+
+    } catch (error) {
+      console.error('Error getting accessible edges:', error);
+      socket.emit('edges_error', { message: 'Failed to get accessible edges' });
+    }
+  });
+
+  // Handle edge click to get question
+  socket.on('edge_clicked', async (data) => {
+    try {
+      const { sessionId, playerId, edgeId } = data;
+      if (!sessionId || !playerId || !edgeId) {
+        socket.emit('edge_error', { message: 'Missing required data' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      
+      // Check if edge is accessible
+      if (!session.isEdgeAccessible(playerId, edgeId)) {
+        socket.emit('edge_error', { message: 'Edge not accessible from your current position' });
+        return;
+      }
+
+      // Get the question for this edge
+      const questionId = session.edgeQuestions?.get(edgeId);
+      if (!questionId) {
+        socket.emit('edge_error', { message: 'No question assigned to this edge' });
+        return;
+      }
+
+      // Fetch the actual question from database
+      const question = await getQuestionById(questionId);
+      if (!question) {
+        socket.emit('edge_error', { message: 'Question not found' });
+        return;
+      }
+
+      socket.emit('edge_question', {
+        edgeId,
+        question: {
+          id: question.que_id,
+          content: question.que_content,
+          difficulty: question.difficulty
+        },
+        targetNode: session.getTargetNode(edgeId, session.players.get(playerId)?.currentNode)
+      });
+
+    } catch (error) {
+      console.error('Error handling edge click:', error);
+      socket.emit('edge_error', { message: 'Failed to get edge question' });
     }
   });
 

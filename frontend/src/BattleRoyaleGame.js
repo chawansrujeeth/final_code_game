@@ -54,6 +54,10 @@ export default function BattleRoyaleGame() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   
+  // Edge question state
+  const [currentEdgeQuestion, setCurrentEdgeQuestion] = useState(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState(null);
+  
   // Get all accessible edges for current player (undirected graph)
   const getAccessibleEdges = (currentNode) => {
     if (!currentNode) return [];
@@ -198,6 +202,35 @@ export default function BattleRoyaleGame() {
           }));
         });
 
+        // Handle edge questions assignment during lobby
+        battleRoyaleSocket.socket.on('edge_questions_assigned', (data) => {
+          console.log('✅ Edge questions assigned:', data);
+          setEdgeQuestions(data.edgeQuestions || {});
+        });
+
+        // Handle accessible edges update
+        battleRoyaleSocket.socket.on('accessible_edges', (data) => {
+          console.log('✅ Accessible edges:', data);
+          setAccessibleEdges(data.edges || []);
+        });
+
+        // Handle edge question response
+        battleRoyaleSocket.socket.on('edge_question', (data) => {
+          console.log('✅ Edge question received:', data);
+          setCurrentEdgeQuestion({
+            edgeId: data.edgeId,
+            question: data.question,
+            targetNode: data.targetNode
+          });
+          setSelectedEdgeId(data.edgeId);
+        });
+
+        // Handle edge errors
+        battleRoyaleSocket.socket.on('edge_error', (error) => {
+          console.log('❌ Edge error:', error);
+          setConnectionError(error.message || 'Edge interaction failed');
+        });
+
         // Handle question received from backend
         battleRoyaleSocket.socket.on('question_received', (data) => {
           console.log('✅ Question received:', data);
@@ -324,10 +357,10 @@ export default function BattleRoyaleGame() {
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [playerAnswer, setPlayerAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
+  const [resultMessage, setResultMessage] = useState('');
   
-  // Update accessible edges from server game state
-  React.useEffect(() => {
-    // Request game view from server when player changes
+  // Request game view from server when player changes
+  useEffect(() => {
     if (selectedPlayer && sessionId && gameState.isGameActive) {
       battleRoyaleSocket.emit('get_game_view', {
         sessionId,
@@ -335,38 +368,13 @@ export default function BattleRoyaleGame() {
       });
     }
   }, [selectedPlayer, players, sessionId, gameState.isGameActive]);
-  const [resultMessage, setResultMessage] = useState('');
-  
-  // Handle edge clicks (when player tries to traverse a path) - Server Authoritative
-  const handleEdgeClick = async (edgeData) => {
-    console.log('Edge clicked:', edgeData.id);
-    
-    if (!edgeData.id || !isConnected || !sessionId || !selectedPlayer) {
-      console.log('Missing requirements:', { edgeId: edgeData.id, isConnected, sessionId, selectedPlayer });
-      setConnectionError('Cannot process move - missing requirements');
-      return;
-    }
-    
-    try {
-      // Clear any previous errors
-      setConnectionError(null);
-      
-      // Request server to validate and process move attempt
-      battleRoyaleSocket.emit('attempt_move', {
-        sessionId: sessionId,
-        playerId: selectedPlayer,
-        edgeId: edgeData.id
-      });
-      
-      console.log('Move attempt sent to server for edge:', edgeData.id);
-      
-    } catch (error) {
-      console.error('Failed to attempt move:', error);
-      setConnectionError(`Failed to process move: ${error.message}`);
-    }
-  };
-  
 
+  // Request accessible edges when game starts or player position changes
+  useEffect(() => {
+    if (gameState.isGameActive && playerId && sessionId) {
+      requestAccessibleEdges();
+    }
+  }, [gameState.isGameActive, players[playerId]?.currentNode]);
   
   // Handle node clicks (safe points - no questions, just information)
   const handleNodeClick = (nodeData) => {
@@ -430,6 +438,37 @@ export default function BattleRoyaleGame() {
     };
   }, [battleRoyaleSocket]);
   
+  // Handle edge click to get question
+  const handleEdgeClick = async (edgeData) => {
+    const edgeId = typeof edgeData === 'string' ? edgeData : edgeData.id;
+    if (!isConnected || !sessionId || !playerId || !edgeId) return;
+    
+    try {
+      battleRoyaleSocket.socket.emit('edge_clicked', {
+        sessionId,
+        playerId,
+        edgeId
+      });
+      console.log('📍 Edge clicked:', edgeId);
+    } catch (error) {
+      console.error('❌ Edge click error:', error);
+    }
+  };
+
+  // Request accessible edges from backend
+  const requestAccessibleEdges = async () => {
+    if (!isConnected || !sessionId || !playerId) return;
+    
+    try {
+      battleRoyaleSocket.socket.emit('get_accessible_edges', {
+        sessionId,
+        playerId
+      });
+    } catch (error) {
+      console.error('❌ Request edges error:', error);
+    }
+  };
+
   // Submit answer for edge traversal (server-authoritative)
   const submitAnswer = async (code, passed = false, testResults = null) => {
     if (!currentQuestion || !isConnected) return;
@@ -575,7 +614,19 @@ export default function BattleRoyaleGame() {
           display: 'flex',
           flexDirection: 'column'
         }}>
-          {currentQuestion ? (
+          {currentEdgeQuestion ? (
+            <LeetCodeQuestionViewer 
+              question={{
+                ...currentEdgeQuestion.question,
+                edgeId: currentEdgeQuestion.edgeId,
+                targetNode: currentEdgeQuestion.targetNode
+              }}
+              onClose={() => {
+                setCurrentEdgeQuestion(null);
+                setSelectedEdgeId(null);
+              }}
+            />
+          ) : currentQuestion ? (
             <LeetCodeQuestionViewer 
               question={currentQuestion}
               onClose={() => setCurrentQuestion(null)}
@@ -590,7 +641,7 @@ export default function BattleRoyaleGame() {
               fontSize: '16px',
               background: '#1e1e1e'
             }}>
-              Select an edge to start coding
+              Click an accessible edge (dark blue) to see the question
             </div>
           )}
         </div>
@@ -603,7 +654,15 @@ export default function BattleRoyaleGame() {
           display: 'flex',
           flexDirection: 'column'
         }}>
-          {currentQuestion ? (
+          {currentEdgeQuestion ? (
+            <LeetCodeCodeEditor 
+              question={{
+                ...currentEdgeQuestion.question,
+                edgeId: currentEdgeQuestion.edgeId
+              }}
+              onSubmitAnswer={submitAnswer}
+            />
+          ) : currentQuestion ? (
             <LeetCodeCodeEditor 
               question={currentQuestion}
               onSubmitAnswer={submitAnswer}
@@ -654,6 +713,7 @@ export default function BattleRoyaleGame() {
                 zoneState={zoneState}
                 players={players}
                 mapType={2}
+                accessibleEdges={accessibleEdges}
               />
               
               {/* Map Controls */}
@@ -852,6 +912,7 @@ export default function BattleRoyaleGame() {
                 zoneState={zoneState}
                 players={players}
                 mapType={2}
+                accessibleEdges={accessibleEdges}
               />
       
               {/* Map Controls */}
