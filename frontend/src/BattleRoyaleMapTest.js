@@ -21,7 +21,7 @@ export default function BattleRoyaleMapTest() {
 
   const handleEdgeClick = useCallback((edgeData) => {
     setSelectedEdge(edgeData);
-    addToLog(`Edge clicked: ${edgeData.source} → ${edgeData.target} (${edgeData.difficulty})`, 'edge');
+    addToLog(`Edge clicked: ${edgeData.source} → ${edgeData.target} (Question ID: ${edgeData.question_id})`, 'edge');
   }, [addToLog]);
 
   const clearLog = () => {
@@ -150,7 +150,10 @@ export default function BattleRoyaleMapTest() {
                     Edge: {selectedEdge.source} → {selectedEdge.target}
                   </div>
                   <div style={{ color: '#bdc3c7', fontSize: '12px' }}>
-                    Difficulty: {selectedEdge.difficulty}
+                    Question ID: {selectedEdge.question_id}
+                  </div>
+                  <div style={{ color: '#95a5a6', fontSize: '11px' }}>
+                    Type: {selectedEdge.type}
                   </div>
                 </div>
               )}

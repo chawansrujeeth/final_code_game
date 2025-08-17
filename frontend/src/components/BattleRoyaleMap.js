@@ -48,7 +48,9 @@ export default function BattleRoyaleMap({
   lobbySelections = [],
   selfPlayerId = null,
   // When provided, only these node IDs are clickable; also highlighted
-  allowedNodeIds = null
+  allowedNodeIds = null,
+  // Map selection: 1 = original radial, 2 = BGMI Erangel style
+  mapType = 2
   }) {
   const cyRef = useRef(null);
   const nodeCoordsRef = useRef({});
@@ -216,11 +218,18 @@ useEffect(() => {
         p.y * DPR
       );
 
-      // Boundary
+      // Boundary - show for both map types
       ctx.strokeStyle = '#00ffff';
       ctx.lineWidth = 4 / scale;
       ctx.setLineDash([]);
-      ctx.strokeRect(-MAP_BOUNDARY, -MAP_BOUNDARY, MAP_BOUNDARY*2, MAP_BOUNDARY*2);
+      if (mapType === 2) {
+        // For BGMI Erangel map, create a boundary that encompasses all nodes
+        const boundarySize = 400; // Slightly larger than the node spread
+        ctx.strokeRect(-boundarySize, -boundarySize, boundarySize*2, boundarySize*2);
+      } else {
+        // Original boundary for Map 1
+        ctx.strokeRect(-MAP_BOUNDARY, -MAP_BOUNDARY, MAP_BOUNDARY*2, MAP_BOUNDARY*2);
+      }
 
       // Safe circle
       if (safeCircle) {
@@ -273,10 +282,97 @@ useEffect(() => {
     };
   }, [safeCircle, nextSafeCircle, blueRadius, phase, isMinimized]);
 
-  // Initialize Cytoscape network
-  useEffect(() => {
-    if (cyRef.current) cyRef.current.destroy();
+  // Helper function to create BGMI Erangel-style irregular network
+  const createErangelNetwork = () => {
+    const nodes = [];
+    const edges = [];
     
+    // Define irregular node positions inspired by BGMI Erangel map
+    const nodePositions = [
+      // Top row
+      { id: 'N1', x: -200, y: -150 },
+      { id: 'N2', x: -50, y: -180 },
+      { id: 'N3', x: 100, y: -160 },
+      { id: 'N4', x: 250, y: -140 },
+      
+      // Second row
+      { id: 'N5', x: -250, y: -50 },
+      { id: 'N6', x: -100, y: -80 },
+      { id: 'N7', x: 80, y: -60 },
+      { id: 'N8', x: 200, y: -40 },
+      { id: 'N9', x: 300, y: -20 },
+      
+      // Middle row
+      { id: 'N10', x: -180, y: 40 },
+      { id: 'N11', x: -30, y: 20 },
+      { id: 'N12', x: 120, y: 50 },
+      { id: 'N13', x: 280, y: 60 },
+      
+      // Fourth row
+      { id: 'N14', x: -220, y: 140 },
+      { id: 'N15', x: -70, y: 120 },
+      { id: 'N16', x: 90, y: 150 },
+      { id: 'N17', x: 240, y: 130 },
+      
+      // Bottom row
+      { id: 'N18', x: -150, y: 220 },
+      { id: 'N19', x: 50, y: 240 },
+      { id: 'N20', x: 200, y: 210 }
+    ];
+    
+    // Create all nodes with uniform properties
+    nodePositions.forEach(pos => {
+      nodes.push({
+        data: { id: pos.id, type: 'location', level: 1 },
+        position: { x: pos.x, y: pos.y }
+      });
+    });
+    
+    // Define connections inspired by the reference image
+    const connections = [
+      // Top connections
+      ['N1', 'N2'], ['N2', 'N3'], ['N3', 'N4'],
+      ['N1', 'N5'], ['N2', 'N6'], ['N3', 'N7'], ['N4', 'N8'],
+      
+      // Second row connections
+      ['N5', 'N6'], ['N6', 'N7'], ['N7', 'N8'], ['N8', 'N9'],
+      ['N5', 'N10'], ['N6', 'N11'], ['N7', 'N12'], ['N8', 'N13'], ['N9', 'N13'],
+      
+      // Middle connections
+      ['N10', 'N11'], ['N11', 'N12'], ['N12', 'N13'],
+      ['N10', 'N14'], ['N11', 'N15'], ['N12', 'N16'], ['N13', 'N17'],
+      
+      // Fourth row connections
+      ['N14', 'N15'], ['N15', 'N16'], ['N16', 'N17'],
+      ['N14', 'N18'], ['N15', 'N19'], ['N16', 'N19'], ['N17', 'N20'],
+      
+      // Bottom connections
+      ['N18', 'N19'], ['N19', 'N20'],
+      
+      // Some diagonal/cross connections for complexity
+      ['N6', 'N12'], ['N11', 'N16'], ['N7', 'N13'], ['N2', 'N11'],
+      ['N15', 'N12'], ['N10', 'N6'], ['N16', 'N13']
+    ];
+    
+    // Create all edges with uniform properties and random question IDs
+    connections.forEach(([source, target]) => {
+      const questionId = Math.floor(Math.random() * 1000) + 1;
+      edges.push({
+        data: { 
+          id: `${source}-${target}`, 
+          source, 
+          target, 
+          type: 'path',
+          question_id: questionId
+        }
+      });
+    });
+    
+    return { nodes, edges };
+  };
+
+  // Helper function to create original radial network
+  const createRadialNetwork = () => {
     const polar = (r, deg) => ({ 
       x: r * Math.cos(deg * Math.PI / 180), 
       y: r * Math.sin(deg * Math.PI / 180) 
@@ -331,6 +427,16 @@ useEffect(() => {
       }
     });
     
+    return { nodes, edges };
+  };
+
+  // Initialize Cytoscape network
+  useEffect(() => {
+    if (cyRef.current) cyRef.current.destroy();
+    
+    // Choose map based on mapType
+    const { nodes, edges } = mapType === 2 ? createErangelNetwork() : createRadialNetwork();
+    
     // Store coordinates
     nodes.forEach(n => nodeCoordsRef.current[n.data.id] = n.position);
 
@@ -343,7 +449,35 @@ useEffect(() => {
     cyRef.current = cytoscape({
       container: containerEl,
       elements: [...nodes, ...edges],
-      style: [
+      style: mapType === 2 ? [
+        // Map 2 (BGMI Erangel) - Uniform styling
+        {
+          selector: 'node',
+          style: {
+            'background-color': '#34495e',
+            'width': isMinimized ? 20 : 30,
+            'height': isMinimized ? 20 : 30,
+            'label': 'data(id)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'color': '#ffffff',
+            'font-size': isMinimized ? '6px' : '8px',
+            'font-weight': 'bold',
+            'border-width': 2,
+            'border-color': '#2c3e50'
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'line-color': '#7f8c8d',
+            'curve-style': 'straight',
+            'opacity': 0.8
+          }
+        },
+      ] : [
+        // Map 1 (Original Radial) - Original styling
         {
           selector: 'node[id="TARGET"]',
           style: {
@@ -375,8 +509,17 @@ useEffect(() => {
           }
         },
         {
-          selector: 'node[spawnAvailable]'
-          ,
+          selector: 'edge',
+          style: {
+            'width': 3,
+            'line-color': '#aaaaaa',
+            'curve-style': 'straight',
+            'opacity': 0.8
+          }
+        }
+      ].concat([
+        {
+          selector: 'node[spawnAvailable]',
           style: {
             'border-width': 3,
             'border-color': '#00ff88',
@@ -384,20 +527,10 @@ useEffect(() => {
           }
         },
         {
-          selector: 'node[lobbySelected]'
-          ,
+          selector: 'node[lobbySelected]',
           style: {
             'border-width': 6,
             'border-color': 'data(lobbySelectedColor)'
-          }
-        },
-        {
-          selector: 'edge',
-          style: {
-            'width': 3,
-            'line-color': '#aaaaaa',
-            'curve-style': 'straight',
-            'opacity': 0.8
           }
         },
         {
@@ -442,7 +575,7 @@ useEffect(() => {
             'text-background-shape': 'roundrectangle'
           }
         }
-      ],
+      ]),
       layout: { name: 'preset' },
       userZoomingEnabled: enableZoom && !isMinimized,
       userPanningEnabled: enablePan && !isMinimized,
@@ -548,7 +681,7 @@ useEffect(() => {
         cyRef.current.userPanningEnabled(z > 1.05);
       });
     }
-  }, [enableZoom, enablePan, isMinimized]);
+  }, [enableZoom, enablePan, isMinimized, mapType]);
 
   // Update lobby selection highlights on nodes
   useEffect(() => {

@@ -102,10 +102,17 @@ export default function NewBattleRoyaleMap({
       ['N15', 'N12'], ['N10', 'N6'], ['N16', 'N13']
     ];
     
-    // Create all edges with uniform properties
+    // Create all edges with uniform properties and random question IDs
     connections.forEach(([source, target]) => {
+      const questionId = Math.floor(Math.random() * 1000) + 1; // Random ID between 1-1000
       edges.push({
-        data: { id: `${source}-${target}`, source, target, type: 'path' }
+        data: { 
+          id: `${source}-${target}`, 
+          source, 
+          target, 
+          type: 'path',
+          question_id: questionId
+        }
       });
     });
     

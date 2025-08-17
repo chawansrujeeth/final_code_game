@@ -650,21 +650,11 @@ export default function BattleRoyaleGame() {
                   isMinimized={true}
                   showHUD={false}
                   enableZoom={false}
+                  enablePan={false}
                   selfPlayerId={playerId}
                   zoneState={zoneState}
                   players={players}
-                />
-              ) : (
-                <CityBattleRoyaleMap 
-                  gameState={gameState}
-                  onNodeClick={handleNodeClick}
-                  onEdgeClick={handleEdgeClick}
-                  isMinimized={true}
-                  showHUD={false}
-                  enableZoom={false}
-                  selfPlayerId={playerId}
-                  zoneState={zoneState}
-                  players={players}
+                  mapType={2}
                 />
               )}
               
@@ -866,17 +856,18 @@ export default function BattleRoyaleGame() {
                   players={players}
                 />
               ) : (
-                <CityBattleRoyaleMap 
+                <BattleRoyaleMap 
                   gameState={gameState}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
-                  isMinimized={false}
-                  showHUD={true}
-                  enableZoom={true}
-                  enablePan={true}
+                  isMinimized={true}
+                  showHUD={false}
+                  enableZoom={false}
+                  enablePan={false}
                   selfPlayerId={playerId}
                   zoneState={zoneState}
                   players={players}
+                  mapType={2}
                 />
               )}
       
