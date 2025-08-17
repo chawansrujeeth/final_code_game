@@ -351,7 +351,7 @@ export default function BattleRoyaleLobby() {
           lobbySelections={lobbySelections}
           selfPlayerId={playerId}
           allowedNodeIds={availableNodes}
-          mapType={2}
+          mapType={1}
         />
       </div>
     </div>

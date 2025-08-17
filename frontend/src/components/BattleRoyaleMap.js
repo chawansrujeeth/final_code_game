@@ -50,7 +50,7 @@ export default function BattleRoyaleMap({
   // When provided, only these node IDs are clickable; also highlighted
   allowedNodeIds = null,
   // Map selection: 1 = original radial, 2 = BGMI Erangel style
-  mapType = 2,
+  mapType = 1,
   // Accessible edges that should be highlighted
   accessibleEdges = []
   }) {

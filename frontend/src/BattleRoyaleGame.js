@@ -646,39 +646,106 @@ export default function BattleRoyaleGame() {
           )}
         </div>
         
-        {/* Right Side - Code Editor */}
+        {/* Right Side - Code Editor or Expanded Map */}
         <div style={{
           width: '50%',
           height: '100%',
           background: '#1e1e1e',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          position: 'relative'
         }}>
-          {currentEdgeQuestion ? (
-            <LeetCodeCodeEditor 
-              question={{
-                ...currentEdgeQuestion.question,
-                edgeId: currentEdgeQuestion.edgeId
-              }}
-              onSubmitAnswer={submitAnswer}
-            />
-          ) : currentQuestion ? (
-            <LeetCodeCodeEditor 
-              question={currentQuestion}
-              onSubmitAnswer={submitAnswer}
-            />
+          {mapState.isMinimized ? (
+            // Show Code Editor when map is minimized
+            currentEdgeQuestion ? (
+              <LeetCodeCodeEditor 
+                question={{
+                  ...currentEdgeQuestion.question,
+                  edgeId: currentEdgeQuestion.edgeId
+                }}
+                onSubmitAnswer={submitAnswer}
+              />
+            ) : currentQuestion ? (
+              <LeetCodeCodeEditor 
+                question={currentQuestion}
+                onSubmitAnswer={submitAnswer}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '16px',
+                background: '#1e1e1e'
+              }}>
+                Code editor will appear here
+              </div>
+            )
           ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999',
-              fontSize: '16px',
-              background: '#1e1e1e'
-            }}>
-              Code editor will appear here
-            </div>
+            // Show Expanded Map when map is not minimized
+            <>
+              <BattleRoyaleMap 
+                gameState={gameState}
+                onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
+                isMinimized={false}
+                showHUD={true}
+                enableZoom={true}
+                enablePan={true}
+                selfPlayerId={playerId}
+                zoneState={zoneState}
+                players={players}
+                mapType={1}
+                accessibleEdges={accessibleEdges}
+              />
+              
+              {/* Map Controls */}
+              <div style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                zIndex: 3001,
+                display: 'flex',
+                gap: '6px'
+              }}>
+                <button
+                  onClick={toggleMap}
+                  style={{
+                    background: 'linear-gradient(45deg, #dc3545, #c82333)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
+                  }}
+                  title="Back to Minimap"
+                >
+                  ➖ MINIMIZE
+                </button>
+              </div>
+              
+              {/* Instructions for zoom/pan */}
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: '#00ff88',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                zIndex: 3001,
+                border: '1px solid #00ff88'
+              }}>
+                🖱️ Scroll to zoom • Drag to pan • Click edges to see questions
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -880,103 +947,6 @@ export default function BattleRoyaleGame() {
               }}>
                 🗺️ BATTLE MAP
               </div>
-            </div>
-          )}
-          
-          {/* Expanded Map - Covers Entire Right Side */}
-          {!mapState.isMinimized && (
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 2000,
-              border: '3px solid #00ff88',
-              borderRadius: '15px',
-              overflow: 'hidden',
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-              boxShadow: '0 20px 60px rgba(0,255,136,0.3)',
-              transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-              animation: 'expandIn 0.5s ease-out'
-            }}>
-              <BattleRoyaleMap 
-                gameState={gameState}
-                onNodeClick={handleNodeClick}
-                onEdgeClick={handleEdgeClick}
-                isMinimized={false}
-                showHUD={true}
-                enableZoom={true}
-                enablePan={true}
-                selfPlayerId={playerId}
-                zoneState={zoneState}
-                players={players}
-                mapType={1}
-                accessibleEdges={accessibleEdges}
-              />
-      
-              {/* Map Controls */}
-              <div style={{
-                position: 'absolute',
-                top: '8px',
-                left: '8px',
-                zIndex: 3001,
-                display: 'flex',
-                gap: '6px'
-              }}>
-                <button
-                  onClick={toggleMap}
-                  style={{
-                    background: 'linear-gradient(45deg, #dc3545, #c82333)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 8px rgba(220,53,69,0.3)'
-                  }}
-                  title="Back to Minimap"
-                >
-                  ➖ BACK
-                </button>
-                <button
-                  onClick={switchMapType}
-                  style={{
-                    background: 'linear-gradient(45deg, #ff6b6b, #ee5a52)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 8px rgba(255,107,107,0.3)'
-                  }}
-                  title={`Switch to ${mapState.mapType === 'radial' ? 'City' : 'Radial'} Map`}
-                >
-                  {mapState.mapType === 'radial' ? '🏙️ CITY MAP' : '⭕ RADIAL MAP'}
-                </button>
-              </div>
-              
-              {/* Instructions for zoom/pan */}
-              <div style={{
-                position: 'absolute',
-                bottom: '8px',
-                left: '8px',
-                background: 'rgba(0, 0, 0, 0.8)',
-                color: '#00ff88',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                zIndex: 3001,
-                border: '1px solid #00ff88'
-              }}>
-                🖱️ Scroll to zoom • Drag to pan
-              </div>
-      
             </div>
           )}
         </div>
