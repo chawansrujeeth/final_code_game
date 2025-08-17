@@ -217,6 +217,12 @@ export default function LandingHome() {
           >
             🎮 Battle Royale
           </button>
+          <button
+            className="btn btn-shadow btn-rect" style={{minWidth:120, background: 'linear-gradient(45deg, #ff6b6b, #ee5a24)', color: '#fff', fontWeight: 'bold'}}
+            onClick={() => navigate("/battle-royale-map-test")}
+          >
+            🗺️ New Map Test
+          </button>
           {user && (
             <button
               className={needsProfile ? 'btn btn-attn btn-rect' : 'btn btn-shadow btn-rect'}
