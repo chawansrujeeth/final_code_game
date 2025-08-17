@@ -712,7 +712,7 @@ export default function BattleRoyaleGame() {
                 selfPlayerId={playerId}
                 zoneState={zoneState}
                 players={players}
-                mapType={2}
+                mapType={1}
                 accessibleEdges={accessibleEdges}
               />
               
@@ -911,7 +911,7 @@ export default function BattleRoyaleGame() {
                 selfPlayerId={playerId}
                 zoneState={zoneState}
                 players={players}
-                mapType={2}
+                mapType={1}
                 accessibleEdges={accessibleEdges}
               />
       
