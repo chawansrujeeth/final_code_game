@@ -686,20 +686,35 @@ export default function BattleRoyaleGame() {
           ) : (
             // Show Expanded Map when map is not minimized
             <>
-              <BattleRoyaleMap 
-                gameState={gameState}
-                onNodeClick={handleNodeClick}
-                onEdgeClick={handleEdgeClick}
-                isMinimized={false}
-                showHUD={true}
-                enableZoom={true}
-                enablePan={true}
-                selfPlayerId={playerId}
-                zoneState={zoneState}
-                players={players}
-                mapType={1}
-                accessibleEdges={accessibleEdges}
-              />
+              {(mapState.mapType === 'city' ? (
+                <CityBattleRoyaleMap
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={false}
+                  showHUD={true}
+                  enableZoom={true}
+                  enablePan={true}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                />
+              ) : (
+                <BattleRoyaleMap 
+                  gameState={gameState}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  isMinimized={false}
+                  showHUD={true}
+                  enableZoom={true}
+                  enablePan={true}
+                  selfPlayerId={playerId}
+                  zoneState={zoneState}
+                  players={players}
+                  mapType={1}
+                  accessibleEdges={accessibleEdges}
+                />
+              ))}
               
               {/* Map Controls */}
               <div style={{
