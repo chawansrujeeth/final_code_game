@@ -2157,39 +2157,74 @@ io.on('connection', (socket) => {
   socket.on('edge_clicked', async (data) => {
     try {
       const { sessionId, playerId, edgeId } = data;
+      console.log('🎯 Edge clicked:', { sessionId, playerId, edgeId });
+      
       if (!sessionId || !playerId || !edgeId) {
+        console.log('❌ Missing required data for edge click');
         socket.emit('edge_error', { message: 'Missing required data' });
         return;
       }
 
       const session = await getOrCreateSession(sessionId);
+      console.log('📋 Session found, checking edge accessibility...');
       
       // Check if edge is accessible
       if (!session.isEdgeAccessible(playerId, edgeId)) {
+        console.log('❌ Edge not accessible:', edgeId, 'for player:', playerId);
         socket.emit('edge_error', { message: 'Edge not accessible from your current position' });
         return;
       }
+      
+      console.log('✅ Edge is accessible, getting question...');
 
       // Get the question for this edge
-      const questionId = session.edgeQuestions?.get(edgeId);
-      if (!questionId) {
+      const questionData = session.edgeQuestions?.get(edgeId);
+      console.log('🔍 Question data for edge:', edgeId, questionData);
+      console.log('📚 Available edges with questions:', Array.from(session.edgeQuestions?.keys() || []));
+      
+      if (!questionData) {
+        console.log('❌ No question assigned to edge:', edgeId);
         socket.emit('edge_error', { message: 'No question assigned to this edge' });
         return;
       }
 
-      // Fetch the actual question from database
-      const question = await getQuestionById(questionId);
-      if (!question) {
-        socket.emit('edge_error', { message: 'Question not found' });
+      // Extract question ID from the stored data
+      const questionId = questionData.questionId || questionData.que_id;
+      if (!questionId) {
+        socket.emit('edge_error', { message: 'Invalid question data for this edge' });
         return;
       }
+
+      // Use the stored question data if available, otherwise fetch from database
+      let question;
+      if (questionData.questionContent || questionData.que_content) {
+        question = {
+          que_id: questionId,
+          que_content: questionData.questionContent || questionData.que_content,
+          difficulty: questionData.difficulty,
+          testcase: questionData.testcase
+        };
+      } else {
+        question = await getQuestionById(questionId);
+        if (!question) {
+          socket.emit('edge_error', { message: 'Question not found' });
+          return;
+        }
+      }
+
+      console.log('✅ Sending edge question to client:', {
+        edgeId,
+        questionId: question.que_id,
+        difficulty: question.difficulty
+      });
 
       socket.emit('edge_question', {
         edgeId,
         question: {
           id: question.que_id,
           content: question.que_content,
-          difficulty: question.difficulty
+          difficulty: question.difficulty,
+          testcase: question.testcase
         },
         targetNode: session.getTargetNode(edgeId, session.players.get(playerId)?.currentNode)
       });
