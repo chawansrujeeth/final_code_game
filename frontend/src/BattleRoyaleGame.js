@@ -642,21 +642,19 @@ export default function BattleRoyaleGame() {
               backdropFilter: 'blur(10px)',
               animation: 'minimapPulse 3s ease-in-out infinite'
             }}>
-              {mapState.mapType === 'radial' ? (
-                <BattleRoyaleMap 
-                  gameState={gameState}
-                  onNodeClick={handleNodeClick}
-                  onEdgeClick={handleEdgeClick}
-                  isMinimized={true}
-                  showHUD={false}
-                  enableZoom={false}
-                  enablePan={false}
-                  selfPlayerId={playerId}
-                  zoneState={zoneState}
-                  players={players}
-                  mapType={2}
-                />
-              )}
+              <BattleRoyaleMap 
+                gameState={gameState}
+                onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
+                isMinimized={true}
+                showHUD={false}
+                enableZoom={false}
+                enablePan={false}
+                selfPlayerId={playerId}
+                zoneState={zoneState}
+                players={players}
+                mapType={2}
+              />
               
               {/* Map Controls */}
               <div style={{
@@ -842,34 +840,19 @@ export default function BattleRoyaleGame() {
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               animation: 'expandIn 0.5s ease-out'
             }}>
-              {mapState.mapType === 'radial' ? (
-                <BattleRoyaleMap 
-                  gameState={gameState}
-                  onNodeClick={handleNodeClick}
-                  onEdgeClick={handleEdgeClick}
-                  isMinimized={false}
-                  showHUD={true}
-                  enableZoom={true}
-                  enablePan={true}
-                  selfPlayerId={playerId}
-                  zoneState={zoneState}
-                  players={players}
-                />
-              ) : (
-                <BattleRoyaleMap 
-                  gameState={gameState}
-                  onNodeClick={handleNodeClick}
-                  onEdgeClick={handleEdgeClick}
-                  isMinimized={true}
-                  showHUD={false}
-                  enableZoom={false}
-                  enablePan={false}
-                  selfPlayerId={playerId}
-                  zoneState={zoneState}
-                  players={players}
-                  mapType={2}
-                />
-              )}
+              <BattleRoyaleMap 
+                gameState={gameState}
+                onNodeClick={handleNodeClick}
+                onEdgeClick={handleEdgeClick}
+                isMinimized={false}
+                showHUD={true}
+                enableZoom={true}
+                enablePan={true}
+                selfPlayerId={playerId}
+                zoneState={zoneState}
+                players={players}
+                mapType={2}
+              />
       
               {/* Map Controls */}
               <div style={{
