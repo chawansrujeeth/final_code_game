@@ -77,6 +77,28 @@ async function assignQuestionsToEdges(session) {
     const edgeQuestions = new Map();
     const usedQuestions = new Set();
     
+    // First, get all available questions from Supabase
+    const { data: allQuestions, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*');
+    
+    if (error) {
+      console.error('❌ Error fetching questions from Supabase:', error);
+      return new Map();
+    }
+    
+    if (!allQuestions || allQuestions.length === 0) {
+      console.error('❌ No questions found in battle_royale_questions table');
+      return new Map();
+    }
+    
+    console.log(`📚 Found ${allQuestions.length} questions in database`);
+    console.log('📊 Questions by difficulty:', {
+      easy: allQuestions.filter(q => q.difficulty === 'easy').length,
+      medium: allQuestions.filter(q => q.difficulty === 'medium').length,
+      hard: allQuestions.filter(q => q.difficulty === 'hard').length
+    });
+    
     // Define all edges with their difficulty
     const edges = [
       // Ring 3 to Ring 2 (Easy - inward movement)
@@ -136,18 +158,29 @@ async function assignQuestionsToEdges(session) {
       { id: 'R1_6-R1_1', difficulty: 'hard' }
     ];
     
-    // Assign a random question to each edge
-    for (const edge of edges) {
-      const question = await getRandomQuestion(edge.difficulty, Array.from(usedQuestions));
-      if (question) {
-        edgeQuestions.set(edge.id, {
-          questionId: question.que_id,
-          questionContent: question.que_content,
-          testcase: question.testcase,
-          difficulty: edge.difficulty
-        });
-        usedQuestions.add(question.que_id);
-      }
+    // Limit edges to available questions - assign only as many edges as we have questions
+    const maxAssignments = Math.min(edges.length, allQuestions.length);
+    const edgesToAssign = edges.slice(0, maxAssignments);
+    
+    console.log(`🎯 Assigning questions to ${edgesToAssign.length} edges (limited by ${allQuestions.length} available questions)`);
+    
+    // Create a shuffled copy of questions to ensure random distribution
+    const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+    
+    // Assign questions to edges
+    for (let i = 0; i < edgesToAssign.length && i < shuffledQuestions.length; i++) {
+      const edge = edgesToAssign[i];
+      const question = shuffledQuestions[i];
+      
+      edgeQuestions.set(edge.id, {
+        questionId: question.que_id,
+        questionContent: question.que_content,
+        testcase: question.testcase,
+        difficulty: question.difficulty // Use question's actual difficulty
+      });
+      usedQuestions.add(question.que_id);
+      
+      console.log(`✅ Assigned question ${question.que_id} (${question.difficulty}) to edge ${edge.id}`);
     }
     
     // Save edge questions to session
@@ -155,7 +188,7 @@ async function assignQuestionsToEdges(session) {
     session.usedQuestions = usedQuestions;
     await session.saveSession();
     
-    console.log(`✅ Assigned ${edgeQuestions.size} questions to edges`);
+    console.log(`✅ Successfully assigned ${edgeQuestions.size} questions to edges`);
     return edgeQuestions;
   } catch (error) {
     console.error('Error assigning questions to edges:', error);
