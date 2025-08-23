@@ -57,6 +57,10 @@ export default function BattleRoyaleGame() {
   // Edge question state
   const [currentEdgeQuestion, setCurrentEdgeQuestion] = useState(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [playerAnswer, setPlayerAnswer] = useState('');
+  const [showResult, setShowResult] = useState(false);
+  const [resultMessage, setResultMessage] = useState('');
   
   // Get all accessible edges for current player (undirected graph)
   const getAccessibleEdges = (currentNode) => {
@@ -206,12 +210,30 @@ export default function BattleRoyaleGame() {
         battleRoyaleSocket.socket.on('edge_questions_assigned', (data) => {
           console.log('✅ Edge questions assigned:', data);
           setEdgeQuestions(data.edgeQuestions || {});
+          // Store questions for quick access when edges are clicked
+          if (data.message) {
+            console.log('📢', data.message);
+          }
         });
 
         // Handle accessible edges update
         battleRoyaleSocket.socket.on('accessible_edges', (data) => {
           console.log('✅ Accessible edges:', data);
           setAccessibleEdges(data.edges || []);
+        });
+
+        // Handle question for move from server
+        battleRoyaleSocket.socket.on('question_for_move', (data) => {
+          console.log('Received question for move:', data);
+          const questionToSet = {
+            ...data.question,
+            edgeId: data.edgeId,
+            targetNode: data.targetNode
+          };
+          setCurrentQuestion(questionToSet);
+          setSelectedEdgeId(data.edgeId);
+          setPlayerAnswer('');
+          setShowResult(false);
         });
 
         // Handle edge question response
@@ -354,11 +376,6 @@ export default function BattleRoyaleGame() {
     }
   }, [playerId, selectedPlayer]);
   
-  const [currentQuestion, setCurrentQuestion] = useState(null);
-  const [playerAnswer, setPlayerAnswer] = useState('');
-  const [showResult, setShowResult] = useState(false);
-  const [resultMessage, setResultMessage] = useState('');
-  
   // Request game view from server when player changes
   useEffect(() => {
     if (selectedPlayer && sessionId && gameState.isGameActive) {
@@ -443,15 +460,29 @@ export default function BattleRoyaleGame() {
     const edgeId = typeof edgeData === 'string' ? edgeData : edgeData.id;
     if (!isConnected || !sessionId || !playerId || !edgeId) return;
     
-    try {
-      battleRoyaleSocket.socket.emit('edge_clicked', {
-        sessionId,
-        playerId,
-        edgeId
+    // Check if we have a pre-assigned question for this edge
+    if (edgeQuestions && edgeQuestions[edgeId]) {
+      console.log('📖 Showing pre-assigned question for edge:', edgeId);
+      const question = edgeQuestions[edgeId];
+      setCurrentQuestion({
+        ...question,
+        edgeId: edgeId
       });
-      console.log('📍 Edge clicked:', edgeId);
-    } catch (error) {
-      console.error('❌ Edge click error:', error);
+      setSelectedEdgeId(edgeId);
+      setPlayerAnswer('');
+      setShowResult(false);
+    } else {
+      // Fallback to requesting from server
+      try {
+        battleRoyaleSocket.socket.emit('edge_clicked', {
+          sessionId,
+          playerId,
+          edgeId
+        });
+        console.log('📍 Edge clicked, requesting question:', edgeId);
+      } catch (error) {
+        console.error('❌ Edge click error:', error);
+      }
     }
   };
 
@@ -614,22 +645,13 @@ export default function BattleRoyaleGame() {
           display: 'flex',
           flexDirection: 'column'
         }}>
-          {currentEdgeQuestion ? (
-            <LeetCodeQuestionViewer 
-              question={{
-                ...currentEdgeQuestion.question,
-                edgeId: currentEdgeQuestion.edgeId,
-                targetNode: currentEdgeQuestion.targetNode
-              }}
-              onClose={() => {
-                setCurrentEdgeQuestion(null);
-                setSelectedEdgeId(null);
-              }}
-            />
-          ) : currentQuestion ? (
+          {currentQuestion ? (
             <LeetCodeQuestionViewer 
               question={currentQuestion}
-              onClose={() => setCurrentQuestion(null)}
+              onClose={() => {
+                setCurrentQuestion(null);
+                setSelectedEdgeId(null);
+              }}
             />
           ) : (
             <div style={{
@@ -657,15 +679,7 @@ export default function BattleRoyaleGame() {
         }}>
           {mapState.isMinimized ? (
             // Show Code Editor when map is minimized
-            currentEdgeQuestion ? (
-              <LeetCodeCodeEditor 
-                question={{
-                  ...currentEdgeQuestion.question,
-                  edgeId: currentEdgeQuestion.edgeId
-                }}
-                onSubmitAnswer={submitAnswer}
-              />
-            ) : currentQuestion ? (
+            currentQuestion ? (
               <LeetCodeCodeEditor 
                 question={currentQuestion}
                 onSubmitAnswer={submitAnswer}
