@@ -66,11 +66,7 @@ function emitQueueUpdate(ioInstance) {
 
 // Close emitQueueUpdate function here
 
-// Auto-start timer management per session
-const autoStartTimers = new Map(); // sessionId -> timeoutId
-
-// Lobby selection timer management per session
-const zoneLoops = new Map(); // sessionId -> intervalId
+// Note: autoStartTimers and zoneLoops are declared later with other timers
 
 // Function to assign questions to all edges in the map
 async function assignQuestionsToEdges(session) {
@@ -210,6 +206,24 @@ const TIMER_BROADCAST_INTERVAL = 1000; // Broadcast time every second
 const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
 const gameTimers = new Map(); // sessionId -> { startTime, endTime, intervalId }
 const disconnectTimeouts = new Map(); // sessionId -> Map(playerId -> timeoutId)
+const socketToPlayer = new Map(); // socketId -> { sessionId, playerId }
+const autoStartTimers = new Map(); // sessionId -> timeout ID
+const zoneLoops = new Map(); // sessionId -> interval ID
+
+// Helper function to track socket-player mapping
+function setPlayerSocket(socketId, sessionId, playerId) {
+  socketToPlayer.set(socketId, { sessionId, playerId });
+}
+
+// Helper function to get player info from socket
+function getPlayerFromSocket(socketId) {
+  return socketToPlayer.get(socketId);
+}
+
+// Helper function to clear socket mapping
+function clearPlayerSocket(socketId) {
+  socketToPlayer.delete(socketId);
+}
 
 function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
   try {
@@ -1624,7 +1638,7 @@ io.on('connection', (socket) => {
   socket.on('heartbeat', (data) => {
     socket.emit('heartbeat_ack', { 
       timestamp: Date.now(),
-      received: data.timestamp 
+      received: data ? data.timestamp : null
     });
   });
 
@@ -1686,19 +1700,15 @@ io.on('connection', (socket) => {
       
       // Check if player is reconnecting
       const existingPlayer = session.getPlayerData(playerId);
-      if (existingPlayer && isReconnection) {
-        // Reconnection - update socket ID
-        console.log(`🔄 Player ${playerName} reconnecting to session ${sessionId}`);
+      if (existingPlayer) {
+        // Reconnection or updating socket
+        const wasDisconnected = !existingPlayer.socketId;
+        console.log(`${wasDisconnected ? '🔄' : '⚠️'} Player ${playerName} ${wasDisconnected ? 'reconnecting to' : 'already in'} session ${sessionId}`);
         session.updatePlayer(playerId, { 
           socketId: socket.id,
-          lastSeen: Date.now()
-        });
-      } else if (existingPlayer) {
-        // Player already in session but not marked as reconnection
-        console.log(`⚠️ Player ${playerName} already in session, updating socket`);
-        session.updatePlayer(playerId, { 
-          socketId: socket.id,
-          lastSeen: Date.now()
+          isConnected: true,
+          lastSeen: Date.now(),
+          disconnectedAt: null
         });
       } else {
         // New player joining
@@ -1716,6 +1726,11 @@ io.on('connection', (socket) => {
       
       // Track socket-player mapping for disconnect handling
       setPlayerSocket(socket.id, sessionId, playerId);
+      
+      // Store session info on socket for disconnect handling
+      socket.sessionId = sessionId;
+      socket.playerId = playerId;
+      socket.playerName = playerName;
       
       // Cancel any existing disconnect timeout if player is reconnecting
       if (disconnectTimeouts.has(sessionId)) {
@@ -2414,7 +2429,7 @@ io.on('connection', (socket) => {
       console.error('Error handling leave_game:', error);
     }
   });
-});
+}); // End of io.on('connection')
 
 // Helper function to determine zone from node name
 function getZoneFromNode(nodeName) {

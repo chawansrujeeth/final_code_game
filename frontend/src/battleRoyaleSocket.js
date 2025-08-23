@@ -12,9 +12,10 @@ class BattleRoyaleSocket {
     this.isConnected = false;
     this.isReconnecting = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 10;
     this.eventHandlers = new Map();
     this.lastEmit = null; // Debug: track last emitted event
+    this.heartbeatInterval = null;
   }
 
   // Matchmaking queue helpers
@@ -50,38 +51,76 @@ class BattleRoyaleSocket {
     console.log('Connecting to Battle Royale server:', serverUrl);
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
-      // Optimize for Render free tier
-      timeout: 20000,
+      // Match backend settings for Render free tier
+      timeout: 60000, // Increased from 20000 to match backend expectations
       forceNew: true,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: this.maxReconnectAttempts
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      pingTimeout: 120000, // Match backend: 2 minutes
+      pingInterval: 30000, // Match backend: 30 seconds
+      upgrade: true,
+      rememberUpgrade: true
     });
 
     this.setupSocketEvents();
+    this.startHeartbeat();
     return this.socket;
+  }
+
+  startHeartbeat() {
+    // Clear any existing interval
+    this.stopHeartbeat();
+    
+    // Send heartbeat every 25 seconds (less than server's 30s pingInterval)
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('heartbeat', { 
+          timestamp: Date.now(),
+          sessionId: this.sessionId,
+          playerId: this.playerId
+        });
+      }
+    }, 25000);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   setupSocketEvents() {
     this.socket.on('connect', () => {
       console.log('✅ Connected to Battle Royale server:', this.socket.id);
       this.isConnected = true;
+      const wasReconnecting = this.isReconnecting;
       this.isReconnecting = false;
       this.reconnectAttempts = 0;
+      
+      // Restart heartbeat on reconnection
+      this.startHeartbeat();
       
       // Auto-rejoin session if we were in one
       if (this.sessionId && this.playerId && this.playerName) {
         console.log('🔄 Auto-rejoining session after reconnection...');
-        this.joinSession(this.sessionId, this.playerId, this.playerName);
+        // Add small delay to ensure server is ready
+        setTimeout(() => {
+          this.joinSession(this.sessionId, this.playerId, this.playerName, true);
+        }, 500);
       }
       
-      this.emit('connection_status', { connected: true, reconnected: this.isReconnecting });
+      this.emit('connection_status', { connected: true, reconnected: wasReconnecting });
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('❌ Disconnected from Battle Royale server:', reason);
       this.isConnected = false;
+      
+      // Stop heartbeat on disconnect
+      this.stopHeartbeat();
       
       // Handle different disconnect reasons
       if (reason === 'io server disconnect') {
@@ -91,6 +130,12 @@ class BattleRoyaleSocket {
         // Client-side or network issue, will auto-reconnect
         this.emit('connection_status', { connected: false, willReconnect: true });
       }
+    });
+
+    // Handle heartbeat acknowledgment
+    this.socket.on('heartbeat_ack', (data) => {
+      // Server acknowledged our heartbeat
+      console.log('💓 Heartbeat acknowledged:', data);
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
@@ -161,6 +206,7 @@ class BattleRoyaleSocket {
   }
 
   disconnect() {
+    this.stopHeartbeat();
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
@@ -168,21 +214,32 @@ class BattleRoyaleSocket {
     }
   }
 
-  joinSession(sessionId, playerId, playerName) {
-    if (!this.socket || !this.isConnected) {
+  joinSession(sessionId, playerId, playerName, isReconnection = false) {
+    if (!this.socket) {
+      console.error('Cannot join session: socket not initialized');
       throw new Error('Socket not connected');
+    }
+
+    // Wait for connection if not connected yet
+    if (!this.isConnected) {
+      console.log('⏳ Waiting for connection before joining...');
+      this.socket.once('connect', () => {
+        this.joinSession(sessionId, playerId, playerName, isReconnection);
+      });
+      return;
     }
 
     this.sessionId = sessionId;
     this.playerId = playerId;
     this.playerName = playerName;
 
-    console.log(`🎮 Joining session ${sessionId} as ${playerName} (${playerId})`);
+    console.log(`🎮 ${isReconnection ? 'Rejoining' : 'Joining'} session ${sessionId} as ${playerName} (${playerId})`);
     this.lastEmit = 'join_battle_royale';
     this.socket.emit('join_battle_royale', {
       sessionId,
       playerId,
-      playerName
+      playerName,
+      isReconnection
     });
   }
 
