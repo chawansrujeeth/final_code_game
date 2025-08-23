@@ -15,10 +15,12 @@ const io = socketIo(server, {
     origin: "*", // Allow all origins - replace with your Vercel frontend URL for production
     methods: ["GET", "POST"]
   },
-  // Optimize for Render free tier
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  transports: ['websocket', 'polling']
+  // Optimize for Render free tier with longer timeouts
+  pingTimeout: 120000, // 2 minutes (increased from 60000)
+  pingInterval: 30000, // 30 seconds (increased from 25000)
+  transports: ['websocket', 'polling'],
+  allowEIO3: true, // Allow different Engine.IO versions
+  perMessageDeflate: false // Disable compression for better performance
 });
 
 app.use(cors());
@@ -207,6 +209,7 @@ const TIMER_BROADCAST_INTERVAL = 1000; // Broadcast time every second
 
 const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
 const gameTimers = new Map(); // sessionId -> { startTime, endTime, intervalId }
+const disconnectTimeouts = new Map(); // sessionId -> Map(playerId -> timeoutId)
 
 function scheduleAutoStartIfReady(sessionId, session, delayMs = 10000) {
   try {
@@ -298,7 +301,6 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
     console.error('scheduleLobbySelectionTimer error:', e);
   }
 }
-
 
 // --------------------- ZONE LOOP ---------------------
 function initializeZoneState() {
@@ -983,7 +985,7 @@ class PersistentGameSession {
         return new PersistentGameSession(sessionId);
       }
 
-      console.log(`Loading existing session: ${sessionId}`);
+      console.log('Loading existing session:', sessionId);
       const session = new PersistentGameSession(sessionId);
       
       // Restore players
@@ -1032,12 +1034,13 @@ class PersistentGameSession {
         playerName: player.playerName,
         socketId: player.socketId,
         color: player.color,
-        currentNode: player.currentNode,
-        currentZone: player.currentZone,
+        // Default to no position until game starts (avoids legacy PLAYER_* nodes)
+        currentNode: player.currentNode || null,
+        currentZone: player.currentZone || 'lobby',
         health: player.health,
         questionsAnswered: player.questionsAnswered,
         isAlive: player.isAlive,
-        selectedSpawnNode: player.selectedSpawnNode,
+        selectedSpawnNode: player.selectedSpawnNode || null,
         joinedAt: player.joinedAt,
         lastSeen: new Date().toISOString()
       }));
@@ -1608,11 +1611,21 @@ async function maybeAutoStartBySelections(sessionId, session) {
 
 // Socket.IO connection handling with Render optimizations
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+  console.log('🔌 New socket connection:', socket.id);
   
-  // Handle connection errors
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
+  // Send welcome message
+  socket.emit('connection_success', { 
+    message: 'Connected to Battle Royale server', 
+    serverId: 'render-br-server',
+    timestamp: Date.now()
+  });
+  
+  // Handle heartbeat to keep connection alive
+  socket.on('heartbeat', (data) => {
+    socket.emit('heartbeat_ack', { 
+      timestamp: Date.now(),
+      received: data.timestamp 
+    });
   });
 
   // Matchmaking: join BR queue
@@ -1662,8 +1675,7 @@ io.on('connection', (socket) => {
   // Join game session with reconnection support
   socket.on('join_battle_royale', async (data) => {
     try {
-      const { sessionId, playerId, playerName } = data;
-      
+      const { sessionId, playerId, playerName, isReconnection } = data || {};
       if (!sessionId || !playerId || !playerName) {
         socket.emit('error', { message: 'Missing required fields' });
         return;
@@ -1674,70 +1686,59 @@ io.on('connection', (socket) => {
       
       // Check if player is reconnecting
       const existingPlayer = session.getPlayerData(playerId);
-      if (existingPlayer) {
-        console.log(`Player ${playerId} reconnecting to session ${sessionId}`);
-        // Update socket ID for reconnection
-        session.updatePlayerSocket(playerId, socket.id);
+      if (existingPlayer && isReconnection) {
+        // Reconnection - update socket ID
+        console.log(`🔄 Player ${playerName} reconnecting to session ${sessionId}`);
+        session.updatePlayer(playerId, { 
+          socketId: socket.id,
+          lastSeen: Date.now()
+        });
+      } else if (existingPlayer) {
+        // Player already in session but not marked as reconnection
+        console.log(`⚠️ Player ${playerName} already in session, updating socket`);
+        session.updatePlayer(playerId, { 
+          socketId: socket.id,
+          lastSeen: Date.now()
+        });
       } else {
-        console.log(`Player ${playerId} joining new session ${sessionId}`);
-        // Add new player
-        session.addPlayer(playerId, { 
-          socketId: socket.id, 
-          playerName,
-          playerId 
-        });
-      }
-
-      socket.join(sessionId);
-      socket.sessionId = sessionId;
-      socket.playerId = playerId;
-
-      // Send current game state to all players in session
-      const gameStateUpdate = {
-        players: session.getAllPlayers(),
-        gameState: session.gameState,
-        sessionId,
-        usedQuestionsCount: session.usedQuestions.size
-      };
-      
-      io.to(sessionId).emit('game_state_update', gameStateUpdate);
-      
-      // Send timer sync for active games
-      if (session.gameState.isGameActive && session.gameState.gameStartTime) {
-        const currentTime = Date.now();
-        const timeRemaining = Math.max(0, session.gameState.gameEndTime - currentTime);
+        // New player joining
+        const playerCount = session.players.size;
+        if (playerCount >= 8) {
+          socket.emit('error', { message: 'Session is full (max 8 players)' });
+          return;
+        }
         
-        socket.emit('game_timer_update', {
-          timeRemaining,
-          totalDuration: GAME_DURATION_MS,
-          timeElapsed: GAME_DURATION_MS - timeRemaining,
-          formattedTime: formatTime(timeRemaining)
-        });
-      }
-
-      // Broadcast lobby state if game not active
-      if (!session.gameState.isGameActive && !session.gameState.gameOver) {
-        const availableNodes = ['R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8'];
-        const selections = session.getAllPlayers()
-          .filter(p => !!p.selectedSpawnNode)
-          .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
-        io.to(sessionId).emit('lobby_state_update', {
-          sessionId,
-          availableNodes,
-          selections,
-          players: session.getAllPlayers()
-        });
+        // Add player to session
+        const spawnNode = playerCount < 8 ? `SPAWN_${playerCount + 1}` : 'R3_1';
+        session.addPlayer(playerId, playerName, socket.id, spawnNode);
+        console.log(`✅ Player ${playerName} added to session ${sessionId} at ${spawnNode}`);
       }
       
-      // Send welcome message to the connecting player
+      // Track socket-player mapping for disconnect handling
+      setPlayerSocket(socket.id, sessionId, playerId);
+      
+      // Cancel any existing disconnect timeout if player is reconnecting
+      if (disconnectTimeouts.has(sessionId)) {
+        const sessionTimeouts = disconnectTimeouts.get(sessionId);
+        if (sessionTimeouts.has(playerId)) {
+          clearTimeout(sessionTimeouts.get(playerId));
+          sessionTimeouts.delete(playerId);
+          console.log(`🔄 Cancelled disconnect timeout for ${playerName}`);
+        }
+      }
+      
+      // Send connection success
       socket.emit('connection_success', {
-        message: existingPlayer ? 'Reconnected successfully!' : 'Joined game successfully!',
-        playerData: session.getPlayerData(playerId),
-        gameState: session.gameState
+        message: isReconnection ? 'Reconnected successfully!' : 'Connected to Battle Royale server!',
+        sessionId,
+        playerId,
+        playerName,
+        isReconnection
       });
 
-      console.log(`Player ${playerId} ${existingPlayer ? 'reconnected to' : 'joined'} session ${sessionId}`);
-
+      // Join the room
+      socket.join(sessionId);
+      
       // Only start timers if this is the first player joining
       const connectedCount = Array.from(session.players.values()).filter(p => !!p.socketId).length;
       
@@ -2011,9 +2012,9 @@ io.on('connection', (socket) => {
         // Check if player is eliminated
         if (isEliminated) {
           io.to(sessionId).emit('player_eliminated', {
-            playerId,
+            playerId: playerId,
             playerName: player.playerName,
-            message: `💀 ${player.playerName} has been eliminated!`,
+            message: `${player.playerName} has been eliminated!`,
             playersRemaining: session.gameState.playersAlive
           });
           
@@ -2025,7 +2026,7 @@ io.on('connection', (socket) => {
               session.gameState.gameOver = true;
               session.gameState.winner = winner.playerId;
               session.gameState.isGameActive = false;
-              session.gameState.timeRemaining = 0;
+              session.gameState.gameEndTime = new Date();
               
               // Stop game timer and zone loop
               stopGameTimer(sessionId);
@@ -2270,64 +2271,96 @@ io.on('connection', (socket) => {
 
   // Handle disconnection with reconnection support
   socket.on('disconnect', async () => {
-    console.log('Player disconnected:', socket.id);
-    // Remove from queue if present
     try {
-      const before = battleRoyaleQueue.length;
-      battleRoyaleQueue = battleRoyaleQueue.filter(entry => entry.socketId !== socket.id);
-      if (before !== battleRoyaleQueue.length) {
-        emitQueueUpdate(io);
-      }
-    } catch (e) {
-      console.error('queue cleanup on disconnect error:', e);
-    }
-    
-    if (socket.sessionId && socket.playerId) {
-      try {
-        const session = await getOrCreateSession(socket.sessionId);
-        const player = session.getPlayerData(socket.playerId);
+      const disconnectedPlayer = getPlayerFromSocket(socket.id);
+      
+      if (disconnectedPlayer) {
+        const { sessionId, playerId } = disconnectedPlayer;
+        const session = await getOrCreateSession(sessionId);
+        const player = session.getPlayerData(playerId);
         
         if (player) {
-          // Mark player as disconnected but don't remove immediately
-          // They might reconnect (especially important for Render free tier)
-          session.updatePlayerSocket(socket.playerId, null);
+          console.log(`⚠️ Player ${player.playerName} disconnected from session ${sessionId}`);
           
-          // Notify remaining players about disconnection
-          socket.to(socket.sessionId).emit('player_disconnected', {
-            playerId: socket.playerId,
-            playerName: player.playerName,
-            message: `${player.playerName} disconnected (can reconnect)`
+          // Mark player as disconnected but don't remove yet
+          session.updatePlayer(playerId, {
+            socketId: null,
+            isConnected: false,
+            disconnectedAt: new Date().toISOString()
           });
           
-          // Update game state
-          const gameStateUpdate = {
-            players: session.getAllPlayers(),
-            gameState: session.gameState,
-            sessionId: socket.sessionId,
-            usedQuestionsCount: session.usedQuestions.size
-          };
-          
-          socket.to(socket.sessionId).emit('game_state_update', gameStateUpdate);
-          
-          console.log(`Player ${socket.playerId} disconnected from session ${socket.sessionId}`);
-
-          // If countdown was scheduled, cancel it when connected players drop below requirement
-          try {
-            const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
-            if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
-              cancelAutoStartIfScheduled(socket.sessionId);
-              cancelLobbySelectionTimer(socket.sessionId);
-            }
-          } catch (e) {
-            console.error('auto-start cancellation check (disconnect) failed:', e);
+          // Initialize session timeout map if not exists
+          if (!disconnectTimeouts.has(sessionId)) {
+            disconnectTimeouts.set(sessionId, new Map());
           }
+          const sessionTimeouts = disconnectTimeouts.get(sessionId);
+          
+          // Set timeout to remove player after 30 seconds
+          const timeoutId = setTimeout(async () => {
+            try {
+              const currentSession = await getOrCreateSession(sessionId);
+              const currentPlayer = currentSession.getPlayerData(playerId);
+              
+              // Only remove if still disconnected
+              if (currentPlayer && !currentPlayer.socketId) {
+                console.log(`🗑️ Removing disconnected player ${player.playerName} after timeout`);
+                currentSession.removePlayer(playerId);
+                
+                // Notify remaining players
+                io.to(sessionId).emit('player_removed', {
+                  playerId,
+                  playerName: player.playerName,
+                  reason: 'timeout'
+                });
+                
+                // Broadcast updated game state
+                broadcastGameState(sessionId, currentSession, io, {
+                  event: 'player_removed',
+                  removedPlayer: playerId
+                });
+                
+                // Clean up timeout reference
+                sessionTimeouts.delete(playerId);
+                if (sessionTimeouts.size === 0) {
+                  disconnectTimeouts.delete(sessionId);
+                }
+                
+                // Check if we need to cancel auto-start
+                const connectedPlayers = Array.from(currentSession.players.values())
+                  .filter(p => !!p.socketId);
+                if (connectedPlayers.length < REQUIRED_PLAYERS) {
+                  cancelAutoStartIfScheduled(sessionId);
+                  cancelLobbySelectionTimer(sessionId);
+                }
+              }
+            } catch (error) {
+              console.error('Error in disconnect timeout handler:', error);
+            }
+          }, 30000); // 30 second timeout
+          
+          // Store timeout reference
+          sessionTimeouts.set(playerId, timeoutId);
+          
+          // Notify other players about disconnect
+          socket.to(sessionId).emit('player_disconnected', {
+            playerId,
+            playerName: player.playerName,
+            canReconnect: true,
+            message: `${player.playerName} disconnected (can reconnect within 30s)`
+          });
+          
+          // Update game state for all players
+          broadcastGameState(sessionId, session, io, {
+            event: 'player_disconnected',
+            disconnectedPlayer: playerId
+          });
         }
-      } catch (error) {
-        console.error('Error handling disconnect:', error);
       }
+    } catch (error) {
+      console.error('Error handling disconnect:', error);
     }
   });
-  
+
   // Handle manual leave game
   socket.on('leave_game', async (data) => {
     try {
@@ -2338,8 +2371,19 @@ io.on('connection', (socket) => {
         const player = session.getPlayerData(playerId);
         
         if (player) {
+          // Cancel any disconnect timeout since player is leaving intentionally
+          if (disconnectTimeouts.has(sessionId)) {
+            const sessionTimeouts = disconnectTimeouts.get(sessionId);
+            if (sessionTimeouts.has(playerId)) {
+              clearTimeout(sessionTimeouts.get(playerId));
+              sessionTimeouts.delete(playerId);
+            }
+          }
+          
+          // Remove player from session
           session.removePlayer(playerId);
           
+          // Notify other players
           socket.to(sessionId).emit('player_left', {
             playerId,
             playerName: player.playerName,
@@ -2356,18 +2400,14 @@ io.on('connection', (socket) => {
           
           socket.to(sessionId).emit('game_state_update', gameStateUpdate);
           
-          console.log(`Player ${playerId} left session ${sessionId}`);
-
-          // If countdown was scheduled, cancel it when connected players drop below requirement
-          try {
-            const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
-            if (!session.gameState.isGameActive && !session.gameState.gameOver && connectedNow.length < REQUIRED_PLAYERS) {
-              cancelAutoStartIfScheduled(sessionId);
-              cancelLobbySelectionTimer(sessionId);
-            }
-          } catch (e) {
-            console.error('auto-start cancellation check (leave_game) failed:', e);
+          // Check if we need to cancel auto-start
+          const connectedNow = Array.from(session.players.values()).filter(p => !!p.socketId);
+          if (connectedNow.length < REQUIRED_PLAYERS) {
+            cancelAutoStartIfScheduled(sessionId);
+            cancelLobbySelectionTimer(sessionId);
           }
+          
+          console.log(`Player ${playerId} left session ${sessionId}`);
         }
       }
     } catch (error) {
