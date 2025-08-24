@@ -769,6 +769,13 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
     if (session.gameState.isGameActive || session.gameState.gameOver) return;
 
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
+    
+    // Check if we have enough players to start
+    if (connectedPlayers.length < REQUIRED_PLAYERS) {
+      console.log(`❌ Not enough players to start game: ${connectedPlayers.length}/${REQUIRED_PLAYERS}`);
+      return;
+    }
+    
     const unselectedPlayers = connectedPlayers.filter(p => !p.selectedSpawnNode);
     
     const allowedSpawnNodes = [...FULL_SPAWN_POOL];
@@ -794,6 +801,81 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
       }
     });
 
+    // Now assign currentNode for ALL players (selected + auto-assigned)
+    const ordered = connectedPlayers
+      .slice()
+      .sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
+
+    const finalTaken = new Set();
+    
+    // First pass: reserve explicitly selected nodes
+    ordered.forEach((p) => {
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !finalTaken.has(p.selectedSpawnNode)) {
+        finalTaken.add(p.selectedSpawnNode);
+      }
+    });
+
+    // Second pass: assign currentNode to each player
+    let remainingNodes = allowedSpawnNodes.filter(n => !finalTaken.has(n));
+    remainingNodes.sort(() => Math.random() - 0.5);
+    let remainIdx = 0;
+
+    const getNextAvailable = () => {
+      while (remainIdx < remainingNodes.length) {
+        const node = remainingNodes[remainIdx++];
+        if (!finalTaken.has(node)) {
+          finalTaken.add(node);
+          return node;
+        }
+      }
+      // Fallback - should not happen with proper logic
+      return allowedSpawnNodes[Math.floor(Math.random() * allowedSpawnNodes.length)];
+    };
+
+    ordered.forEach((p) => {
+      let node;
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !finalTaken.has(p.selectedSpawnNode)) {
+        // Player has selected a valid, available node
+        node = p.selectedSpawnNode;
+        finalTaken.add(node);
+        console.log(`✅ Player ${p.playerId} assigned selected spawn: ${node}`);
+      } else {
+        // Player didn't select or selected node is taken, assign random
+        node = getNextAvailable();
+        console.log(`🎲 Player ${p.playerId} assigned random spawn: ${node} (selected: ${p.selectedSpawnNode || 'none'})`);
+      }
+      
+      session.updatePlayer(p.playerId, {
+        currentNode: node,
+        currentZone: getZoneFromNode(node),
+        selectedSpawnNode: node // Ensure selectedSpawnNode is also set
+      });
+    });
+
+    // Set game state to active
+    session.gameState.isGameActive = true;
+    session.gameState.currentRound = 1;
+    session.gameState.playersAlive = connectedPlayers.length;
+    
+    // Initialize zone state and timing
+    if (!session.zoneState) {
+      session.zoneState = initializeZoneState();
+    }
+    startZoneLoop(sessionId, session);
+    
+    // Initialize game timing and start synchronized timer
+    const now = Date.now();
+    session.gameState.gameStartTime = now;
+    session.gameState.gameEndTime = now + GAME_DURATION_MS;
+    session.gameState.timeRemaining = GAME_DURATION_MS;
+    startGameTimer(sessionId);
+    
+    // Assign questions to all edges from Supabase
+    await assignQuestionsToEdges(sessionId, session);
+
+    // Save session before emitting events
+    await session.saveSession();
+
     // Broadcast final lobby state
     const selections = session.getAllPlayers()
       .filter(p => !!p.selectedSpawnNode)
@@ -806,13 +888,21 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
       players: session.getAllPlayers()
     });
 
-    console.log(`✅ Auto-assigned spawn nodes to ${unselectedPlayers.length} players in session ${sessionId}`);
-    
-    // Save session before starting game
-    await session.saveSession();
-    
-    // Start the game immediately after assignment
-    await startGameFromLobby(sessionId, session);
+    // Emit game started events
+    io.to(sessionId).emit('game_started', {
+      sessionId,
+      players: session.getAllPlayers(),
+      gameState: session.gameState
+    });
+
+    io.to(sessionId).emit('game_state_update', {
+      players: session.getAllPlayers(),
+      gameState: session.gameState,
+      sessionId,
+      usedQuestionsCount: session.usedQuestions.size
+    });
+
+    console.log(`✅ [TIMER-AUTO-START] Session ${sessionId} started with ${connectedPlayers.length} players after 10s timer`);
     
   } catch (error) {
     console.error('Error in assignRandomSpawnNodesAndStart:', error);

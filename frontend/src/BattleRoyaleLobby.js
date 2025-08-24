@@ -92,7 +92,10 @@ export default function BattleRoyaleLobby() {
     const handleLobbyCountdown = (data) => {
       if (!mounted || !data) return;
       const secs = data.seconds || 10;
-      setCountdownEnd(Date.now() + secs*1000);
+      const endTs = Date.now() + secs*1000;
+      setCountdownEnd(endTs);
+      // Initialize local tick to ensure UI updates even if server doesn't send per-second ticks
+      setCountdownTick({ remaining: secs, total: secs, message: `Auto-start in ${secs}s` });
     };
     const handleCountdownCancelled = () => {
       if (!mounted) return;
@@ -292,6 +295,28 @@ export default function BattleRoyaleLobby() {
       setPendingSelection(null);
     }
   }, [hasJoined, pendingSelection, lobbySelections, playerId]);
+
+  // Local timer to update countdown UI when using end timestamp only
+  useEffect(() => {
+    if (!countdownEnd) return;
+    // Update every 500ms for smoother display
+    const id = setInterval(() => {
+      const rem = Math.ceil((countdownEnd - Date.now()) / 1000);
+      if (rem >= 0) {
+        setCountdownTick(prev => {
+          // Only update if different to avoid excessive renders
+          if (!prev || prev.remaining !== rem) {
+            return { remaining: rem, total: prev?.total || rem, message: `Auto-start in ${rem}s` };
+          }
+          return prev;
+        });
+      }
+      if (rem <= 0) {
+        clearInterval(id);
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [countdownEnd]);
 
   // No-op edge clicks in lobby
   const handleEdgeClick = () => {};
