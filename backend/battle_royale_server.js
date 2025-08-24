@@ -1636,6 +1636,7 @@ async function maybeAutoStartBySelections(sessionId, session) {
     console.log(`🚀 Starting game: ${connectedPlayers.length} connected, ${selectedConnected.length} selected`);
     // Cancel lobby selection timer since game is starting
     cancelLobbySelectionTimer(sessionId);
+    cancelAutoStartIfScheduled(sessionId);
 
     // Allowed selectable spawn nodes in Ring 3
     const allowedSpawnNodes = [...FULL_SPAWN_POOL];
@@ -1684,11 +1685,22 @@ async function maybeAutoStartBySelections(sessionId, session) {
     session.gameState.isGameActive = true;
     session.gameState.currentRound = 1;
     session.gameState.playersAlive = connectedPlayers.length;
-    // Initialize blue-zone loop if not yet running
+    
+    // Initialize zone state and timing
     if (!session.zoneState) {
       session.zoneState = initializeZoneState();
     }
     startZoneLoop(sessionId, session);
+    
+    // Initialize game timing and start synchronized timer
+    const now = Date.now();
+    session.gameState.gameStartTime = now;
+    session.gameState.gameEndTime = now + GAME_DURATION_MS;
+    session.gameState.timeRemaining = GAME_DURATION_MS;
+    startGameTimer(sessionId);
+    
+    // Assign questions to all edges from Supabase
+    await assignQuestionsToEdges(sessionId, session);
 
     await session.saveSession();
 
@@ -1707,7 +1719,7 @@ async function maybeAutoStartBySelections(sessionId, session) {
     };
     io.to(sessionId).emit('game_state_update', gameStateUpdate);
 
-    console.log(`✅ [AUTO-START] Session ${sessionId} started (>=4 spawn selections).`);
+    console.log(`✅ [SELECTION-AUTO-START] Session ${sessionId} started (>=4 spawn selections).`);
   } catch (err) {
     console.error('Error in maybeAutoStart:', err);
   }
