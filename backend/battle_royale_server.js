@@ -1622,18 +1622,31 @@ async function maybeAutoStartBySelections(sessionId, session) {
   try {
     const connectedPlayers = Array.from(session.players.values()).filter(p => !!p.socketId);
     const selectedConnected = connectedPlayers.filter(p => !!p.selectedSpawnNode);
+    
+    console.log(`🔍 [AUTO-START-CHECK] Session ${sessionId}:`);
+    console.log(`   - Connected players: ${connectedPlayers.length}/${REQUIRED_PLAYERS}`);
+    console.log(`   - Selected players: ${selectedConnected.length}/${REQUIRED_PLAYERS}`);
+    console.log(`   - Game active: ${session.gameState.isGameActive}`);
+    console.log(`   - Game over: ${session.gameState.gameOver}`);
+    
+    // Log each player's status
+    connectedPlayers.forEach(p => {
+      console.log(`   - Player ${p.playerId}: selected=${p.selectedSpawnNode || 'none'}, connected=${!!p.socketId}`);
+    });
+    
     const canStart = (
       connectedPlayers.length >= REQUIRED_PLAYERS &&
       selectedConnected.length >= REQUIRED_PLAYERS &&
       !session.gameState.isGameActive &&
       !session.gameState.gameOver
     );
+    
     if (!canStart) {
-      console.log(`⏳ Auto-start check: ${connectedPlayers.length}/${REQUIRED_PLAYERS} connected, ${selectedConnected.length}/${REQUIRED_PLAYERS} selected`);
+      console.log(`⏳ [AUTO-START-BLOCKED] Cannot start - conditions not met`);
       return;
     }
 
-    console.log(`🚀 Starting game: ${connectedPlayers.length} connected, ${selectedConnected.length} selected`);
+    console.log(`🚀 [SELECTION-AUTO-START] Starting game: ${connectedPlayers.length} connected, ${selectedConnected.length} selected`);
     // Cancel lobby selection timer since game is starting
     cancelLobbySelectionTimer(sessionId);
     cancelAutoStartIfScheduled(sessionId);
@@ -1929,6 +1942,7 @@ io.on('connection', (socket) => {
         cancelLobbySelectionTimer(sessionId);
       }
 
+      console.log(`🔍 [SELECT_SPAWN] Player ${playerId} selected ${nodeId}. Checking auto-start conditions...`);
       // Attempt auto-start if enough selections
       await maybeAutoStartBySelections(sessionId, session);
       scheduleAutoStartIfReady(sessionId, session);
