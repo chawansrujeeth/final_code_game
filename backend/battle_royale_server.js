@@ -264,60 +264,102 @@ function cancelAutoStartIfScheduled(sessionId) {
 
 function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
   try {
+    // Clean up any existing timer first
     if (lobbySelectionTimers.has(sessionId)) {
-      console.log(`⏰ Timer already running for session ${sessionId}`);
-      return; // already scheduled
+      console.log(`⏰ Cleaning up existing timer for session ${sessionId}`);
+      const existingTimer = lobbySelectionTimers.get(sessionId);
+      if (existingTimer) {
+        clearInterval(existingTimer);
+      }
+      lobbySelectionTimers.delete(sessionId);
     }
-
-    // Assign questions to edges and nodes immediately when timer starts
-    (async () => {
-      const session = await getOrCreateSession(sessionId);
-      await assignQuestionsToEdges(sessionId, session);
-      await assignQuestionsToNodes(sessionId, session);
-      
-      console.log(`✅ Questions assigned to edges and nodes for session ${sessionId}`);
-    })();
-
-    const totalSeconds = Math.round(delayMs / 1000);
-    let remainingSeconds = totalSeconds;
     
-    // Start synchronized countdown
+    const session = getOrLoadSession(sessionId);
+    if (!session) {
+      console.error(`❌ Session ${sessionId} not found for lobby timer`);
+      return;
+    }
+    
+    // Don't start timer if game is already active or over
+    if (session.gameState.isGameActive || session.gameState.gameOver) {
+      console.log(`⚠️ Game already active/over for session ${sessionId}, not starting timer`);
+      return;
+    }
+    
+    const totalSeconds = Math.floor(delayMs / 1000);
+    const endTime = Date.now() + delayMs;
+    
+    console.log(`⏰ Starting lobby countdown for session ${sessionId} (${totalSeconds} seconds)`);
+    
+    // Emit initial countdown state
+    io.to(sessionId).emit('lobby_countdown_started', { seconds: totalSeconds });
+    
+    // Start countdown interval
     const countdownInterval = setInterval(() => {
+      const remainingMs = endTime - Date.now();
+      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+      
+      // Check if we should still be running
+      const currentSession = getOrLoadSession(sessionId);
+      if (!currentSession || currentSession.gameState.isGameActive || currentSession.gameState.gameOver) {
+        console.log(`⏹️ Stopping timer - game state changed for session ${sessionId}`);
+        clearInterval(countdownInterval);
+        lobbySelectionTimers.delete(sessionId);
+        return;
+      }
+      
+      // Check if we have enough players
+      const connectedPlayers = Object.values(currentSession.players || {}).filter(p => p.isConnected);
+      if (connectedPlayers.length < REQUIRED_PLAYERS) {
+        console.log(`⏹️ Stopping timer - not enough players (${connectedPlayers.length}/${REQUIRED_PLAYERS})`);
+        clearInterval(countdownInterval);
+        lobbySelectionTimers.delete(sessionId);
+        io.to(sessionId).emit('lobby_countdown_cancelled', { 
+          reason: 'Not enough players',
+          currentPlayers: connectedPlayers.length,
+          requiredPlayers: REQUIRED_PLAYERS
+        });
+        return;
+      }
+      
+      // Emit countdown tick
       io.to(sessionId).emit('lobby_countdown_tick', { 
-        remaining: remainingSeconds,
-        total: totalSeconds,
-        message: `Auto-assigning spawn nodes in ${remainingSeconds}s...`
+        seconds: remainingSeconds,
+        total: totalSeconds
       });
       
-      remainingSeconds--;
-      
-      if (remainingSeconds < 0) {
+      // Check if timer expired
+      if (remainingSeconds <= 0) {
+        console.log(`⏰ Lobby timer expired for session ${sessionId}, starting game...`);
         clearInterval(countdownInterval);
         lobbySelectionTimers.delete(sessionId);
         
-        // Auto-assign and start game
+        // Auto-assign spawn nodes and start game
         assignRandomSpawnNodesAndStart(sessionId);
       }
     }, 1000);
     
     lobbySelectionTimers.set(sessionId, countdownInterval);
     
-    // Initial countdown emission
+    // Send initial state
     io.to(sessionId).emit('lobby_countdown_tick', { 
-      remaining: remainingSeconds,
-      total: totalSeconds,
-      message: `Auto-assigning spawn nodes in ${remainingSeconds}s...`
-    });
-    
-    // Also emit lobby_countdown for frontend compatibility
-    io.to(sessionId).emit('lobby_countdown', { 
       seconds: totalSeconds,
-      reason: 'spawn_selection'
+      total: totalSeconds
     });
     
-    console.log(`⏰ Started synchronized lobby countdown for session ${sessionId} (${totalSeconds}s)`);
+    // Also send lobby state with timer info
+    const lobbyState = buildLobbyState(session);
+    io.to(sessionId).emit('lobby_state_update', {
+      ...lobbyState,
+      countdown: {
+        active: true,
+        seconds: totalSeconds,
+        total: totalSeconds
+      }
+    });
+    
   } catch (e) {
-    console.error('scheduleLobbySelectionTimer error:', e);
+    console.error('❌ scheduleLobbySelectionTimer error:', e);
   }
 }
 
@@ -1117,6 +1159,10 @@ async function tryFormMatch(ioInstance) {
         }
       });
 
+      // Start the 10-second lobby countdown timer when match is formed
+      console.log(`🎯 Starting 10-second lobby timer for newly formed match ${sessionId}`);
+      scheduleLobbySelectionTimer(sessionId, 10000);
+      
       // After forming a match, continue to see if more groups can be formed
     }
 
@@ -1952,14 +1998,8 @@ io.on('connection', (socket) => {
       // Check connected player count
       const connectedCount = Array.from(session.players.values()).filter(p => !!p.socketId).length;
       
-      // Start lobby selection timer when first player joins (not when 4+ players)
-      // The timer will handle spawn assignment after 10s, then check if enough players to start
-      if (connectedCount === 1 && !session.gameState.isGameActive && !session.gameState.gameOver) {
-        if (!lobbySelectionTimers.has(sessionId)) {
-          console.log(`🎮 Starting lobby selection timer for session ${sessionId} with first player`);
-          scheduleLobbySelectionTimer(sessionId, 10000);
-        }
-      }
+      // Don't start timer here - it will start when match is formed
+      // Timer should only start when 4 players are matched from queue
       
       // Don't schedule auto-start if lobby selection timer is running
       // The lobby selection timer will handle game start after 10 seconds
