@@ -264,7 +264,10 @@ function cancelAutoStartIfScheduled(sessionId) {
 
 function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
   try {
-    if (lobbySelectionTimers.has(sessionId)) return; // already scheduled
+    if (lobbySelectionTimers.has(sessionId)) {
+      console.log(`⏰ Timer already running for session ${sessionId}`);
+      return; // already scheduled
+    }
 
     // Assign questions to edges and nodes immediately when timer starts
     (async () => {
@@ -304,6 +307,12 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
       remaining: remainingSeconds,
       total: totalSeconds,
       message: `Auto-assigning spawn nodes in ${remainingSeconds}s...`
+    });
+    
+    // Also emit lobby_countdown for frontend compatibility
+    io.to(sessionId).emit('lobby_countdown', { 
+      seconds: totalSeconds,
+      reason: 'spawn_selection'
     });
     
     console.log(`⏰ Started synchronized lobby countdown for session ${sessionId} (${totalSeconds}s)`);
@@ -833,6 +842,14 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
     // Check if we have enough players to start
     if (connectedPlayers.length < REQUIRED_PLAYERS) {
       console.log(`❌ Not enough players to start game: ${connectedPlayers.length}/${REQUIRED_PLAYERS}`);
+      // Still assign spawn nodes but don't start the game
+      await assignRandomSpawnNodes(sessionId);
+      
+      // Notify players that more players are needed
+      io.to(sessionId).emit('lobby_state_update', {
+        sessionId,
+        message: `Waiting for more players (${connectedPlayers.length}/${REQUIRED_PLAYERS})...`
+      });
       return;
     }
     
@@ -1932,17 +1949,21 @@ io.on('connection', (socket) => {
       // Join the room
       socket.join(sessionId);
       
-      // Only start timers if this is the first player joining
+      // Check connected player count
       const connectedCount = Array.from(session.players.values()).filter(p => !!p.socketId).length;
       
-      // Start lobby selection timer only once when first player joins
+      // Start lobby selection timer when first player joins (not when 4+ players)
+      // The timer will handle spawn assignment after 10s, then check if enough players to start
       if (connectedCount === 1 && !session.gameState.isGameActive && !session.gameState.gameOver) {
-        scheduleLobbySelectionTimer(sessionId, 10000);
+        if (!lobbySelectionTimers.has(sessionId)) {
+          console.log(`🎮 Starting lobby selection timer for session ${sessionId} with first player`);
+          scheduleLobbySelectionTimer(sessionId, 10000);
+        }
       }
       
-      // Try to auto-start if conditions are met (but don't cancel timer unless game actually starts)
+      // Don't schedule auto-start if lobby selection timer is running
+      // The lobby selection timer will handle game start after 10 seconds
       await maybeAutoStartBySelections(sessionId, session);
-      scheduleAutoStartIfReady(sessionId, session);
     } catch (error) {
       console.error('Error handling join_battle_royale:', error);
       socket.emit('error', { message: 'Failed to join game session' });
