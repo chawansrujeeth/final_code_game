@@ -266,17 +266,13 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
   try {
     if (lobbySelectionTimers.has(sessionId)) return; // already scheduled
 
-    // Assign questions to edges immediately when timer starts
+    // Assign questions to edges and nodes immediately when timer starts
     (async () => {
       const session = await getOrCreateSession(sessionId);
-      const edgeQuestions = await assignQuestionsToEdges(session);
+      await assignQuestionsToEdges(sessionId, session);
+      await assignQuestionsToNodes(sessionId, session);
       
-      // Convert Map to object for emission
-      const edgeQuestionsObject = Object.fromEntries(edgeQuestions);
-      io.to(sessionId).emit('edge_questions_assigned', {
-        edgeQuestions: edgeQuestionsObject,
-        message: 'Questions assigned to edges. You have 10 seconds to select spawn point.'
-      });
+      console.log(`✅ Questions assigned to edges and nodes for session ${sessionId}`);
     })();
 
     const totalSeconds = Math.round(delayMs / 1000);
@@ -515,6 +511,70 @@ async function assignQuestionsToEdges(sessionId, session) {
     
   } catch (error) {
     console.error('❌ Error assigning questions to edges:', error);
+  }
+}
+
+async function assignQuestionsToNodes(sessionId, session) {
+  try {
+    console.log(`🎯 Assigning questions to nodes for session ${sessionId}`);
+    
+    // Define all nodes in the game (excluding TARGET which doesn't need questions)
+    const allNodes = [
+      'R3_1', 'R3_2', 'R3_3', 'R3_4', 'R3_5', 'R3_6', 'R3_7', 'R3_8',
+      'R2_1', 'R2_2', 'R2_3', 'R2_4', 'R2_5', 'R2_6', 'R2_7', 'R2_8',
+      'R1_1', 'R1_2', 'R1_3', 'R1_4'
+    ];
+
+    console.log(`📝 Total nodes to assign: ${allNodes.length}`);
+
+    // Fetch questions from Supabase
+    const { data: questions, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*')
+      .limit(100);
+
+    if (error) {
+      console.error('❌ Error fetching questions for nodes:', error);
+      return;
+    }
+
+    if (!questions || questions.length === 0) {
+      console.error('❌ No questions found in database for nodes');
+      return;
+    }
+
+    console.log(`📚 Found ${questions.length} questions for nodes`);
+
+    // Initialize nodeQuestions map
+    session.nodeQuestions = new Map();
+
+    // Shuffle questions for variety
+    const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+
+    // Assign questions to each node
+    allNodes.forEach((nodeId, index) => {
+      // Use modulo to cycle through questions if we have fewer questions than nodes
+      const questionIndex = index % shuffledQuestions.length;
+      const question = shuffledQuestions[questionIndex];
+      
+      session.nodeQuestions.set(nodeId, {
+        que_id: question.que_id,
+        que_content: question.que_content,
+        testcase: question.testcase,
+        difficulty: question.difficulty,
+        nodeId: nodeId
+      });
+      
+      console.log(`✅ Assigned question ${question.que_id} to node ${nodeId}`);
+    });
+
+    console.log(`🎯 Successfully assigned ${session.nodeQuestions.size} questions to nodes`);
+    
+    // Save the session with assigned questions
+    await session.saveSession();
+    
+  } catch (error) {
+    console.error('❌ Error assigning questions to nodes:', error);
   }
 }
 
@@ -870,8 +930,9 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
     session.gameState.timeRemaining = GAME_DURATION_MS;
     startGameTimer(sessionId);
     
-    // Assign questions to all edges from Supabase
+    // Assign questions to all edges and nodes from Supabase
     await assignQuestionsToEdges(sessionId, session);
+    await assignQuestionsToNodes(sessionId, session);
 
     // Save session before emitting events
     await session.saveSession();
@@ -974,8 +1035,9 @@ async function startGameFromLobby(sessionId, session) {
     session.gameState.timeRemaining = GAME_DURATION_MS;
     startGameTimer(sessionId);
     
-    // Assign questions to all edges from Supabase
+    // Assign questions to all edges and nodes from Supabase
     await assignQuestionsToEdges(sessionId, session);
+    await assignQuestionsToNodes(sessionId, session);
 
     await session.saveSession();
 
@@ -1712,8 +1774,9 @@ async function maybeAutoStartBySelections(sessionId, session) {
     session.gameState.timeRemaining = GAME_DURATION_MS;
     startGameTimer(sessionId);
     
-    // Assign questions to all edges from Supabase
+    // Assign questions to all edges and nodes from Supabase
     await assignQuestionsToEdges(sessionId, session);
+    await assignQuestionsToNodes(sessionId, session);
 
     await session.saveSession();
 
