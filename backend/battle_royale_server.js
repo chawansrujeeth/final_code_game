@@ -274,7 +274,8 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
       lobbySelectionTimers.delete(sessionId);
     }
     
-    const session = getOrLoadSession(sessionId);
+    // Use cached session; it should already be loaded by getOrCreateSession during match formation
+    const session = sessionCache.get(sessionId);
     if (!session) {
       console.error(`❌ Session ${sessionId} not found for lobby timer`);
       return;
@@ -300,7 +301,7 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
       const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
       
       // Check if we should still be running
-      const currentSession = getOrLoadSession(sessionId);
+      const currentSession = sessionCache.get(sessionId);
       if (!currentSession || currentSession.gameState.isGameActive || currentSession.gameState.gameOver) {
         console.log(`⏹️ Stopping timer - game state changed for session ${sessionId}`);
         clearInterval(countdownInterval);
@@ -309,7 +310,7 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
       }
       
       // Check if we have enough players
-      const connectedPlayers = Object.values(currentSession.players || {}).filter(p => p.isConnected);
+      const connectedPlayers = Array.from(currentSession.players.values()).filter(p => !!p.socketId);
       if (connectedPlayers.length < REQUIRED_PLAYERS) {
         console.log(`⏹️ Stopping timer - not enough players (${connectedPlayers.length}/${REQUIRED_PLAYERS})`);
         clearInterval(countdownInterval);
@@ -347,10 +348,16 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
       total: totalSeconds
     });
     
-    // Also send lobby state with timer info
-    const lobbyState = buildLobbyState(session);
+    // Also send lobby state with timer info (assemble inline)
+    const allowedSpawnNodes = [...FULL_SPAWN_POOL];
+    const selections = session.getAllPlayers()
+      .filter(p => !!p.selectedSpawnNode)
+      .map(p => ({ playerId: p.playerId, playerName: p.playerName, nodeId: p.selectedSpawnNode, isConnected: !!p.socketId }));
     io.to(sessionId).emit('lobby_state_update', {
-      ...lobbyState,
+      sessionId,
+      availableNodes: allowedSpawnNodes,
+      selections,
+      players: session.getAllPlayers(),
       countdown: {
         active: true,
         seconds: totalSeconds,
@@ -1141,6 +1148,27 @@ async function tryFormMatch(ioInstance) {
         // Assign questions to edges immediately when lobby is created
         await assignQuestionsToEdges(sessionId, session);
         console.log(`✅ Questions pre-assigned for session ${sessionId}`);
+
+        // Pre-add matched players to session and join them to the lobby room
+        // so the countdown doesn't cancel due to zero connected players
+        for (const p of group) {
+          try {
+            session.addPlayer(p.playerId, {
+              playerId: p.playerId,
+              playerName: p.playerName,
+              socketId: p.socketId,
+              selectedSpawnNode: null,
+              isConnected: true
+            });
+            const sock = ioInstance.sockets.sockets.get(p.socketId);
+            if (sock) {
+              setPlayerSocket(p.socketId, sessionId, p.playerId);
+              sock.join(sessionId);
+            }
+          } catch (addErr) {
+            console.error(`❌ Failed to pre-add player ${p.playerId} to session ${sessionId}:`, addErr);
+          }
+        }
       } catch (error) {
         console.error(`❌ Error setting up session ${sessionId}:`, error);
       }
@@ -1562,6 +1590,7 @@ class PersistentGameSession {
     const assignedColor = playerData.color || palette[this.players.size % palette.length];
 
     const player = {
+      playerId: playerId,
       ...playerData,
       color: assignedColor,
       // Default to no position until game starts (avoids legacy PLAYER_* nodes)
@@ -1959,9 +1988,9 @@ io.on('connection', (socket) => {
           return;
         }
         
-        // Add player to session
+        // Add player to session (correct signature)
         const spawnNode = playerCount < 8 ? `SPAWN_${playerCount + 1}` : 'R3_1';
-        session.addPlayer(playerId, playerName, socket.id, spawnNode);
+        session.addPlayer(playerId, { playerId, playerName, socketId: socket.id, selectedSpawnNode: null });
         console.log(`✅ Player ${playerName} added to session ${sessionId} at ${spawnNode}`);
       }
       
