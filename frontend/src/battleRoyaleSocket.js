@@ -267,10 +267,84 @@ class BattleRoyaleSocket {
     return Promise.reject(new Error('Use server-authoritative attempt_move event'));
   }
 
-  // Deprecated - use server-authoritative events instead
-  submitAnswer(questionId, answer, targetNode) {
-    console.warn('submitAnswer is deprecated. Use submit_move_answer event instead.');
-    return Promise.reject(new Error('Use server-authoritative submit_move_answer event'));
+  // Submit answer for edge traversal (server-authoritative)
+  submitAnswer(payloadOrEdgeId, answerCode) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+
+    // Build payload from object or minimal args
+    let payload;
+    if (typeof payloadOrEdgeId === 'object' && payloadOrEdgeId !== null) {
+      const { sessionId, playerId, edgeId, answer, passed, testResults } = payloadOrEdgeId;
+      payload = {
+        sessionId: sessionId || this.sessionId,
+        playerId: playerId || this.playerId,
+        edgeId,
+        answer
+      };
+      if (typeof passed !== 'undefined') payload.passed = passed;
+      if (typeof testResults !== 'undefined') payload.testResults = testResults;
+    } else {
+      // Fallback: treat first arg as edgeId and second as answer
+      payload = {
+        sessionId: this.sessionId,
+        playerId: this.playerId,
+        edgeId: payloadOrEdgeId,
+        answer: answerCode
+      };
+      console.warn('submitAnswer: using fallback signature. Prefer passing an object payload.');
+    }
+
+    if (!payload.sessionId || !payload.playerId || !payload.edgeId || typeof payload.answer === 'undefined') {
+      throw new Error('Missing required fields for submit_move_answer');
+    }
+
+    this.lastEmit = 'submit_move_answer';
+
+    // Return a promise that resolves/rejects on server response
+    return new Promise((resolve, reject) => {
+      const timeoutMs = 20000;
+      let settled = false;
+
+      const onResult = (result) => {
+        if (settled) return;
+        settled = true;
+        this.socket.off('answer_error', onError);
+        resolve(result);
+      };
+
+      const onError = (err) => {
+        if (settled) return;
+        settled = true;
+        this.socket.off('answer_result', onResult);
+        reject(err);
+      };
+
+      // One-time listeners for this socket (responses are per-socket)
+      this.socket.once('answer_result', onResult);
+      this.socket.once('answer_error', onError);
+
+      // Emit after listeners are attached
+      this.socket.emit('submit_move_answer', payload);
+
+      // Safety timeout
+      const to = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.socket.off('answer_result', onResult);
+        this.socket.off('answer_error', onError);
+        reject({ message: 'Answer submission timed out' });
+      }, timeoutMs);
+
+      // Ensure cleanup if promise settles early
+      const cleanup = () => clearTimeout(to);
+      // Wrap resolve/reject to cleanup timeout
+      const origResolve = resolve;
+      const origReject = reject;
+      resolve = (v) => { cleanup(); origResolve(v); };
+      reject = (e) => { cleanup(); origReject(e); };
+    });
   }
 
   // Lobby: select a spawn node in the pre-game lobby

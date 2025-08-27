@@ -222,29 +222,29 @@ export default function BattleRoyaleGame() {
           setAccessibleEdges(data.edges || []);
         });
 
-        // Handle question for move from server
-        battleRoyaleSocket.socket.on('question_for_move', (data) => {
-          console.log('Received question for move:', data);
-          const questionToSet = {
-            ...data.question,
-            edgeId: data.edgeId,
-            targetNode: data.targetNode
-          };
-          setCurrentQuestion(questionToSet);
-          setSelectedEdgeId(data.edgeId);
-          setPlayerAnswer('');
-          setShowResult(false);
-        });
 
         // Handle edge question response
         battleRoyaleSocket.socket.on('edge_question', (data) => {
           console.log('✅ Edge question received:', data);
+          // Normalize payload to the shape expected by the viewer/editor
+          const questionToSet = {
+            questionId: data.question.id,
+            question: data.question.content,
+            difficulty: data.question.difficulty,
+            testCases: data.question.testcase || [],
+            edgeId: data.edgeId,
+            targetNode: data.targetNode
+          };
+          setCurrentQuestion(questionToSet);
+          // Keep for potential debugging/telemetry
           setCurrentEdgeQuestion({
             edgeId: data.edgeId,
             question: data.question,
             targetNode: data.targetNode
           });
           setSelectedEdgeId(data.edgeId);
+          setPlayerAnswer('');
+          setShowResult(false);
         });
 
         // Handle edge errors
@@ -525,8 +525,11 @@ export default function BattleRoyaleGame() {
     if (!battleRoyaleSocket) return;
     
     const handleAnswerResult = (result) => {
+      const movedNode = result.targetNode || result.newPosition;
+      const healthVal = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
+
       if (result.correct) {
-        setResultMessage(`✅ Correct! You moved to ${result.targetNode}`);
+        setResultMessage(movedNode ? `✅ Correct! You moved to ${movedNode}` : (result.message || '✅ Correct!'));
         setShowResult(true);
         setCurrentQuestion(null);
         
@@ -534,11 +537,13 @@ export default function BattleRoyaleGame() {
           setResultMessage('🎉 VICTORY! You reached the center!');
         }
       } else {
-        setResultMessage(`❌ Wrong answer! Health: ${result.health}/100`);
+        const baseMsg = result.message || 'Wrong answer!';
+        const healthMsg = (typeof healthVal !== 'undefined') ? ` Health: ${healthVal}/100` : '';
+        setResultMessage(`❌ ${baseMsg}${healthMsg}`);
         setShowResult(true);
         
         if (result.isEliminated) {
-          setResultMessage(`💀 You have been eliminated!`);
+          setResultMessage('💀 You have been eliminated!');
         }
       }
       
