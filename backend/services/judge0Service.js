@@ -6,7 +6,8 @@ const axios = require('axios');
 class Judge0Service {
   constructor() {
     this.baseUrl = 'https://judge0-ce.p.rapidapi.com';
-    this.apiKey = process.env.JUDGE0_API_KEY;
+    // Prefer JUDGE0_API_KEY (AWS EB) but fallback to JUDGE0_KEY for local dev
+    this.apiKey = process.env.JUDGE0_API_KEY || process.env.JUDGE0_KEY;
     this.apiHost = 'judge0-ce.p.rapidapi.com';
   }
 

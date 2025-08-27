@@ -460,29 +460,16 @@ export default function BattleRoyaleGame() {
     const edgeId = typeof edgeData === 'string' ? edgeData : edgeData.id;
     if (!isConnected || !sessionId || !playerId || !edgeId) return;
     
-    // Check if we have a pre-assigned question for this edge
-    if (edgeQuestions && edgeQuestions[edgeId]) {
-      console.log('📖 Showing pre-assigned question for edge:', edgeId);
-      const question = edgeQuestions[edgeId];
-      setCurrentQuestion({
-        ...question,
-        edgeId: edgeId
+    try {
+      battleRoyaleSocket.socket.emit('edge_clicked', {
+        sessionId,
+        playerId,
+        edgeId
       });
+      console.log('📍 Edge clicked, requesting question:', edgeId);
       setSelectedEdgeId(edgeId);
-      setPlayerAnswer('');
-      setShowResult(false);
-    } else {
-      // Fallback to requesting from server
-      try {
-        battleRoyaleSocket.socket.emit('edge_clicked', {
-          sessionId,
-          playerId,
-          edgeId
-        });
-        console.log('📍 Edge clicked, requesting question:', edgeId);
-      } catch (error) {
-        console.error('❌ Edge click error:', error);
-      }
+    } catch (error) {
+      console.error('❌ Edge click error:', error);
     }
   };
 
@@ -500,30 +487,67 @@ export default function BattleRoyaleGame() {
     }
   };
 
-  // Submit answer for edge traversal (server-authoritative)
-  const submitAnswer = async (code, passed = false, testResults = null) => {
-    if (!currentQuestion || !isConnected) return;
+  // Submit code answer with Judge0 execution
+  const submitCodeAnswer = async (code, language) => {
+    if (!currentQuestion || !isConnected || !selectedEdgeId) return;
     
     try {
-      const result = await battleRoyaleSocket.submitAnswer({
+      battleRoyaleSocket.socket.emit('submit_code_answer', {
         sessionId,
         playerId,
-        edgeId: currentQuestion.edgeId,
-        answer: code,
-        passed: passed,
-        testResults: testResults
+        questionId: currentQuestion.id,
+        code,
+        language,
+        edgeId: selectedEdgeId
       });
       
-      console.log('✅ Answer submitted:', result);
+      console.log('🔍 Code submitted for execution:', { questionId: currentQuestion.id, language });
     } catch (error) {
-      console.error('❌ Submit answer error:', error);
+      console.error('❌ Submit code error:', error);
     }
   };
 
-  // Handle server response for answer submission
+  // Handle server responses for questions and code execution
   React.useEffect(() => {
     if (!battleRoyaleSocket) return;
     
+    const handleQuestionReceived = (data) => {
+      console.log('📖 Question received:', data);
+      setCurrentQuestion({
+        id: data.question.id,
+        content: data.question.content,
+        difficulty: data.question.difficulty,
+        testCases: data.question.testCases,
+        supportedLanguages: data.question.supportedLanguages || [],
+        edgeId: data.edgeId,
+        targetNode: data.targetNode
+      });
+      setSelectedEdgeId(data.edgeId);
+      setShowResult(false);
+    };
+
+    const handleCodeResult = (result) => {
+      console.log('🔍 Code execution result:', result);
+      
+      if (result.success) {
+        setResultMessage(`✅ ${result.message}`);
+        setShowResult(true);
+        setCurrentQuestion(null);
+        setSelectedEdgeId(null);
+        
+        if (result.newPosition === 'TARGET') {
+          setResultMessage('🎉 VICTORY! You reached the center!');
+        }
+      } else {
+        setResultMessage(`❌ ${result.message}`);
+        setShowResult(true);
+        
+        if (result.executionDetails && result.executionDetails.results) {
+          console.log('Test case results:', result.executionDetails.results);
+        }
+      }
+    };
+
     const handleAnswerResult = (result) => {
       const movedNode = result.targetNode || result.newPosition;
       const healthVal = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
@@ -559,10 +583,14 @@ export default function BattleRoyaleGame() {
       setShowResult(true);
     };
     
+    battleRoyaleSocket.on('question_received', handleQuestionReceived);
+    battleRoyaleSocket.on('code_result', handleCodeResult);
     battleRoyaleSocket.on('answer_result', handleAnswerResult);
     battleRoyaleSocket.on('answer_error', handleAnswerError);
     
     return () => {
+      battleRoyaleSocket.off('question_received', handleQuestionReceived);
+      battleRoyaleSocket.off('code_result', handleCodeResult);
       battleRoyaleSocket.off('answer_result', handleAnswerResult);
       battleRoyaleSocket.off('answer_error', handleAnswerError);
     };
@@ -685,10 +713,124 @@ export default function BattleRoyaleGame() {
           {mapState.isMinimized ? (
             // Show Code Editor when map is minimized
             currentQuestion ? (
-              <LeetCodeCodeEditor 
-                question={currentQuestion}
-                onSubmitAnswer={submitAnswer}
-              />
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+              }}>
+                <div style={{
+                  backgroundColor: '#1a1a1a',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  width: '90%',
+                  maxWidth: '1200px',
+                  height: '90vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: '2px solid #00ff88',
+                  boxShadow: '0 0 30px rgba(0, 255, 136, 0.3)'
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: '20px',
+                    borderBottom: '1px solid #333',
+                    paddingBottom: '15px'
+                  }}>
+                    <h3 style={{ color: '#00ff88', margin: 0 }}>
+                      Path Traversal - {currentQuestion.difficulty?.toUpperCase()} Question
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setCurrentQuestion(null);
+                        setSelectedEdgeId(null);
+                        setShowResult(false);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: '#666',
+                        color: '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: '#2a2a2a', 
+                    padding: '20px', 
+                    borderRadius: '10px',
+                    marginBottom: '20px',
+                    color: '#ffffff',
+                    lineHeight: '1.6',
+                    maxHeight: '200px',
+                    overflow: 'auto'
+                  }}>
+                    <div dangerouslySetInnerHTML={{ 
+                      __html: (currentQuestion.content || currentQuestion.que_content || '').replace(/\n/g, '<br/>') 
+                    }} />
+                  </div>
+
+                  {/* Test Cases Display */}
+                  {currentQuestion.testCases && (
+                    <div style={{
+                      backgroundColor: '#2a2a2a',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      marginBottom: '20px',
+                      maxHeight: '150px',
+                      overflow: 'auto'
+                    }}>
+                      <h4 style={{ color: '#00ff88', margin: '0 0 10px 0', fontSize: '14px' }}>Test Cases:</h4>
+                      {Array.isArray(currentQuestion.testCases) ? (
+                        currentQuestion.testCases.map((testCase, index) => (
+                          <div key={index} style={{ marginBottom: '10px', fontSize: '12px', color: '#ccc' }}>
+                            <strong>Test {index + 1}:</strong><br/>
+                            Input: {JSON.stringify(testCase.input)}<br/>
+                            Expected: {JSON.stringify(testCase.output || testCase.expected_output)}
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#ccc' }}>
+                          <strong>Test Case:</strong><br/>
+                          Input: {JSON.stringify(currentQuestion.testCases.input)}<br/>
+                          Expected: {JSON.stringify(currentQuestion.testCases.output || currentQuestion.testCases.expected_output)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Code Editor */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <LeetCodeCodeEditor
+                      onSubmit={submitCodeAnswer}
+                      supportedLanguages={currentQuestion.supportedLanguages || [
+                        { id: 'javascript', name: 'JavaScript (Node.js)' },
+                        { id: 'python', name: 'Python 3' },
+                        { id: 'java', name: 'Java' },
+                        { id: 'cpp', name: 'C++' }
+                      ]}
+                      initialCode={{
+                        javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nconsole.log(solution());',
+                        python: '# Write your solution here\ndef solution():\n    # Your code here\n    return result\n\nprint(solution())',
+                        java: 'public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        System.out.println(solution());\n    }\n    \n    public static Object solution() {\n        // Your code here\n        return result;\n    }\n}',
+                        cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    cout << solution() << endl;\n    return 0;\n}\n\n// Your solution function\nint solution() {\n    // Your code here\n    return result;\n}'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             ) : (
               <div style={{
                 flex: 1,

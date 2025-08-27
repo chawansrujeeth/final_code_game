@@ -2175,37 +2175,31 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Submit answer
-  socket.on('submit_answer', async (data) => {
+  // Submit code answer with Judge0 execution
+  socket.on('submit_code_answer', async (data) => {
     try {
-      const { sessionId, playerId, questionId, answer, targetNode } = data;
+      const { sessionId, playerId, questionId, code, language, edgeId } = data;
       
-      if (!sessionId || !playerId || !questionId || answer === undefined || !targetNode) {
-        socket.emit('error', { message: 'Missing required fields' });
+      if (!sessionId || !playerId || !questionId || !code || !language) {
+        socket.emit('code_result', { 
+          success: false, 
+          message: 'Missing required data for code submission' 
+        });
         return;
       }
 
-      // Get session from cache or database
       const session = await getOrCreateSession(sessionId);
-      const player = session.getPlayerData(playerId);
-
+      const player = session.players.get(playerId);
+      
       if (!player) {
-        socket.emit('error', { message: 'Player not found in session' });
+        socket.emit('code_result', { 
+          success: false, 
+          message: 'Player not found' 
+        });
         return;
       }
 
-      // Check if player is alive and game is active
-      if (!player.isAlive) {
-        socket.emit('error', { message: 'Player is eliminated' });
-        return;
-      }
-
-      if (!session.gameState.isGameActive || session.gameState.gameOver) {
-        socket.emit('error', { message: 'Game is not active' });
-        return;
-      }
-
-      // Fetch question with testcase for validation
+      // Get the question from database
       const { data: questionData, error } = await supabase
         .from('battle_royale_questions')
         .select('*')
@@ -2213,343 +2207,120 @@ io.on('connection', (socket) => {
         .single();
 
       if (error || !questionData) {
-        socket.emit('error', { message: 'Question not found' });
+        console.error('❌ Error fetching question:', error);
+        socket.emit('code_result', { 
+          success: false, 
+          message: 'Question not found' 
+        });
         return;
       }
 
-      // Validate answer against testcase
-      const testcase = questionData.testcase;
-      let isCorrect = false;
-
-      // Handle different testcase formats
-      if (Array.isArray(testcase)) {
-        // Multiple test cases - check if answer matches any expected output
-        isCorrect = testcase.some(tc => 
-          tc.expected_output && tc.expected_output.toString().trim() === answer.toString().trim()
-        );
-      } else if (testcase.expected_output) {
-        // Single test case
-        isCorrect = testcase.expected_output.toString().trim() === answer.toString().trim();
+      console.log(`🔍 Executing code for question ${questionId} in ${language}`);
+      
+      // Execute code with Judge0 using test cases
+      let testCases = questionData.testcase;
+      if (!Array.isArray(testCases)) {
+        testCases = [testCases];
       }
-
-      // Update player based on answer
-      if (isCorrect) {
-        // Correct answer - move player
-        const updatedPlayer = {
+      
+      const executionResult = await judge0Service.runTestCases(code, language, testCases);
+      
+      // Determine target node from edge
+      const targetNode = getTargetNodeFromEdge(edgeId, player.currentNode);
+      
+      // Update player state based on execution result
+      if (executionResult.allPassed) {
+        // All test cases passed - move player
+        session.updatePlayer(playerId, {
           currentNode: targetNode,
           currentZone: getZoneFromNode(targetNode),
-          questionsAnswered: player.questionsAnswered + 1
-        };
-        
-        session.updatePlayer(playerId, updatedPlayer);
-
-        socket.emit('answer_result', {
-          correct: true,
-          message: 'Correct! Moving to next position.',
-          newPosition: targetNode,
-          newZone: getZoneFromNode(targetNode),
-          questionsAnswered: updatedPlayer.questionsAnswered
+          questionsAnswered: (player.questionsAnswered || 0) + 1
         });
-
-        // Check win condition
+        
+        // Mark question as used
+        session.usedQuestions.add(questionId);
+        
+        // Check for win condition
         if (targetNode === 'TARGET') {
-          session.gameState.gameOver = true;
           session.gameState.winner = playerId;
+          session.gameState.gameOver = true;
           session.gameState.isGameActive = false;
-          session.gameState.timeRemaining = 0;
           
-          // Stop game timer and zone loop
+          // Stop all timers
           stopGameTimer(sessionId);
           stopZoneLoop(sessionId);
           
-          await session.saveSession(); // Save final state
-          
-          io.to(sessionId).emit('game_over', {
-            winner: playerId,
-            winnerName: player.playerName,
-            message: `🎉 ${player.playerName} reached the center and won the Battle Royale!`,
-            finalStats: {
-              questionsAnswered: updatedPlayer.questionsAnswered,
-              finalHealth: player.health
-            }
+          io.to(sessionId).emit('game_ended', {
+            winner: {
+              playerId: player.playerId,
+              playerName: player.playerName
+            },
+            reason: 'reached_target'
           });
         }
-      } else {
-        // Wrong answer - lose health
-        const newHealth = Math.max(0, player.health - 10);
-        const isEliminated = newHealth <= 0;
         
+        socket.emit('code_result', {
+          success: true,
+          message: `All test cases passed! Moving to ${targetNode}`,
+          newPosition: targetNode,
+          questionsAnswered: (player.questionsAnswered || 0) + 1,
+          executionDetails: {
+            passedCount: executionResult.passedCount,
+            totalCount: executionResult.totalCount,
+            results: executionResult.results
+          }
+        });
+      } else {
+        // Some test cases failed - lose health
+        const newHealth = Math.max(0, (player.health || 100) - 10);
         session.updatePlayer(playerId, {
-          health: newHealth,
-          isAlive: !isEliminated
+          health: newHealth
         });
-
-        socket.emit('answer_result', {
-          correct: false,
-          message: `Wrong answer! Lost 10 health. ${isEliminated ? 'You are eliminated!' : ''}`,
-          healthLost: 10,
-          newHealth,
-          isEliminated,
-          correctAnswer: questionData.testcase.expected_output || 'N/A'
-        });
-
+        
         // Check if player is eliminated
-        if (isEliminated) {
-          io.to(sessionId).emit('player_eliminated', {
-            playerId: playerId,
-            playerName: player.playerName,
-            message: `${player.playerName} has been eliminated!`,
-            playersRemaining: session.gameState.playersAlive
+        if (newHealth <= 0) {
+          session.updatePlayer(playerId, {
+            isAlive: false,
+            isEliminated: true
           });
           
-          // Check if only one player remains
-          if (session.gameState.playersAlive === 1) {
-            const remainingPlayers = session.getAllPlayers().filter(p => p.isAlive);
-            if (remainingPlayers.length === 1) {
-              const winner = remainingPlayers[0];
-              session.gameState.gameOver = true;
-              session.gameState.winner = winner.playerId;
-              session.gameState.isGameActive = false;
-              session.gameState.gameEndTime = new Date();
-              
-              // Stop game timer and zone loop
-              stopGameTimer(sessionId);
-              stopZoneLoop(sessionId);
-              
-              await session.saveSession();
-              
-              io.to(sessionId).emit('game_over', {
-                winner: winner.playerId,
-                winnerName: winner.playerName,
-                message: `🏆 ${winner.playerName} is the last player standing!`,
-                winType: 'last_standing'
-              });
-            }
-          }
+          socket.emit('player_eliminated', {
+            playerId,
+            reason: 'health_depleted'
+          });
         }
+        
+        socket.emit('code_result', {
+          success: false,
+          message: `${executionResult.passedCount}/${executionResult.totalCount} test cases passed. Health: ${newHealth}/100`,
+          health: newHealth,
+          executionDetails: {
+            passedCount: executionResult.passedCount,
+            totalCount: executionResult.totalCount,
+            results: executionResult.results
+          }
+        });
       }
 
-      // Broadcast updated game state
-      const gameStateUpdate = {
-        players: session.getAllPlayers(),
-        gameState: session.gameState,
-        sessionId,
-        usedQuestionsCount: session.usedQuestions.size
-      };
-      
-      io.to(sessionId).emit('game_state_update', gameStateUpdate);
-
-      console.log(`Player ${playerId} answered question ${questionId}: ${isCorrect ? 'CORRECT' : 'WRONG'}`);
-    } catch (error) {
-      console.error('Error validating answer:', error);
-      socket.emit('error', { message: 'Failed to validate answer' });
-    }
-  });
-
-  // Server-authoritative movement attempt
-  socket.on('attempt_move', async (data) => {
-    try {
-      const { sessionId, playerId, edgeId } = data;
-      if (!sessionId || !playerId || !edgeId) {
-        socket.emit('move_error', { message: 'Missing required data' });
-        return;
-      }
-
-      const session = await getOrCreateSession(sessionId);
-      const result = session.attemptMove(playerId, edgeId);
-
-      if (!result.success) {
-        socket.emit('move_error', { message: result.error });
-        return;
-      }
-
-      // Send question to player
-      socket.emit('question_for_move', {
-        edgeId,
-        question: result.question,
-        edge: result.edge
-      });
-
-    } catch (error) {
-      console.error('Error attempting move:', error);
-      socket.emit('move_error', { message: 'Failed to process move' });
-    }
-  });
-
-  // Server-authoritative answer processing
-  socket.on('submit_move_answer', async (data) => {
-    try {
-      const { sessionId, playerId, edgeId, answer } = data;
-      if (!sessionId || !playerId || !edgeId || answer === undefined) {
-        socket.emit('answer_error', { message: 'Missing required data' });
-        return;
-      }
-
-      const session = await getOrCreateSession(sessionId);
-      const result = session.processAnswer(playerId, edgeId, answer);
-
-      if (!result.success) {
-        socket.emit('answer_error', { message: result.error });
-        return;
-      }
-
-      // Save session after answer processing
+      // Save session and broadcast updates
       await session.saveSession();
-
-      // Send result to player
-      socket.emit('answer_result', result);
-
-      // Broadcast updated game state to all players
-      const gameView = session.getPlayerView(playerId);
+      
       io.to(sessionId).emit('game_state_update', {
         players: session.getAllPlayers(),
         gameState: session.gameState,
         sessionId,
-        zoneState: session.zoneState
+        usedQuestionsCount: session.usedQuestions.size
       });
-
-      // If there's a winner, announce it
-      if (result.winner) {
-        io.to(sessionId).emit('game_over', {
-          winner: result.winner,
-          gameState: session.gameState,
-          players: session.getAllPlayers()
-        });
-      }
-
+      
     } catch (error) {
-      console.error('Error processing answer:', error);
-      socket.emit('answer_error', { message: 'Failed to process answer' });
-    }
-  });
-
-  // Get player's current game view
-  socket.on('get_game_view', async (data) => {
-    try {
-      const { sessionId, playerId } = data;
-      if (!sessionId || !playerId) {
-        socket.emit('view_error', { message: 'Missing required data' });
-        return;
-      }
-
-      const session = await getOrCreateSession(sessionId);
-      const view = session.getPlayerView(playerId);
-
-      if (!view) {
-        socket.emit('view_error', { message: 'Player not found' });
-        return;
-      }
-
-      socket.emit('game_view', view);
-
-    } catch (error) {
-      console.error('Error getting game view:', error);
-      socket.emit('view_error', { message: 'Failed to get game view' });
-    }
-  });
-
-  // Get accessible edges for a player
-  socket.on('get_accessible_edges', async (data) => {
-    try {
-      const { sessionId, playerId } = data;
-      if (!sessionId || !playerId) {
-        socket.emit('edges_error', { message: 'Missing required data' });
-        return;
-      }
-
-      const session = await getOrCreateSession(sessionId);
-      const accessibleEdges = session.getAccessibleEdges(playerId);
-      
-      socket.emit('accessible_edges', {
-        edges: accessibleEdges,
-        currentNode: session.players.get(playerId)?.currentNode
-      });
-
-    } catch (error) {
-      console.error('Error getting accessible edges:', error);
-      socket.emit('edges_error', { message: 'Failed to get accessible edges' });
-    }
-  });
-
-  // Handle edge click to get question
-  socket.on('edge_clicked', async (data) => {
-    try {
-      const { sessionId, playerId, edgeId } = data;
-      console.log('🎯 Edge clicked:', { sessionId, playerId, edgeId });
-      
-      if (!sessionId || !playerId || !edgeId) {
-        console.log('❌ Missing required data for edge click');
-        socket.emit('edge_error', { message: 'Missing required data' });
-        return;
-      }
-
-      const session = await getOrCreateSession(sessionId);
-      console.log('📋 Session found, checking edge accessibility...');
-      
-      // Check if edge is accessible
-      if (!session.isEdgeAccessible(playerId, edgeId)) {
-        console.log('❌ Edge not accessible:', edgeId, 'for player:', playerId);
-        socket.emit('edge_error', { message: 'Edge not accessible from your current position' });
-        return;
-      }
-      
-      console.log('✅ Edge is accessible, getting question...');
-
-      // Get the question for this edge
-      const questionData = session.edgeQuestions?.get(edgeId);
-      console.log('🔍 Question data for edge:', edgeId, questionData);
-      console.log('📚 Available edges with questions:', Array.from(session.edgeQuestions?.keys() || []));
-      
-      if (!questionData) {
-        console.log('❌ No question assigned to edge:', edgeId);
-        socket.emit('edge_error', { message: 'No question assigned to this edge' });
-        return;
-      }
-
-      // Extract question ID from the stored data
-      const questionId = questionData.questionId || questionData.que_id;
-      if (!questionId) {
-        socket.emit('edge_error', { message: 'Invalid question data for this edge' });
-        return;
-      }
-
-      // Use the stored question data if available, otherwise fetch from database
-      let question;
-      if (questionData.questionContent || questionData.que_content) {
-        question = {
-          que_id: questionId,
-          que_content: questionData.questionContent || questionData.que_content,
-          difficulty: questionData.difficulty,
-          testcase: questionData.testcase
-        };
-      } else {
-        question = await getQuestionById(questionId);
-        if (!question) {
-          socket.emit('edge_error', { message: 'Question not found' });
-          return;
+      console.error('❌ Error executing code:', error);
+      socket.emit('code_result', { 
+        success: false, 
+        message: `Code execution failed: ${error.message}`,
+        executionDetails: {
+          error: error.message
         }
-      }
-
-      console.log('✅ Sending edge question to client:', {
-        edgeId,
-        questionId: question.que_id,
-        difficulty: question.difficulty
       });
-
-      socket.emit('edge_question', {
-        edgeId,
-        question: {
-          id: question.que_id,
-          content: question.que_content,
-          difficulty: question.difficulty,
-          testcase: question.testcase
-        },
-        targetNode: session.getTargetNode(edgeId, session.players.get(playerId)?.currentNode)
-      });
-
-    } catch (error) {
-      console.error('Error handling edge click:', error);
-      socket.emit('edge_error', { message: 'Failed to get edge question' });
     }
   });
 
@@ -2708,6 +2479,21 @@ function getZoneFromNode(nodeName) {
   if (nodeName.startsWith('R2_')) return 'ring2';
   if (nodeName.startsWith('R3_')) return 'ring3';
   return 'unknown';
+}
+
+// Helper function to get target node from edge and current position
+function getTargetNodeFromEdge(edgeId, currentNode) {
+  const [source, target] = edgeId.split('-');
+  
+  // Return the node that is NOT the current node
+  if (source === currentNode) {
+    return target;
+  } else if (target === currentNode) {
+    return source;
+  }
+  
+  // Fallback - return target if current node doesn't match either
+  return target;
 }
 
 // API endpoint to get session info
