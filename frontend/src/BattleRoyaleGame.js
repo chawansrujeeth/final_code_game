@@ -997,7 +997,7 @@ export default function BattleRoyaleGame() {
           padding: '40px',
           borderRadius: '20px',
           boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
-          zIndex: 2000,
+          zIndex: 4000,
           textAlign: 'center',
           minWidth: '300px'
         }}>
@@ -1149,16 +1149,16 @@ export default function BattleRoyaleGame() {
         </div>
       </div>
 
-      {/* Overlay for modals */}
-      {(currentQuestion || gameState.winner) && (
+      {/* Overlay only for Game Over modal (ensure it's behind the modal and doesn't affect question view) */}
+      {gameState.winner && (
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0,0,0,0.7)',
-          zIndex: 2500
+          background: 'rgba(0,0,0,0.6)',
+          zIndex: 3500
         }} />
       )}
     </>
