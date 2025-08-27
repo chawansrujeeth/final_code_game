@@ -461,7 +461,7 @@ export default function BattleRoyaleGame() {
     if (!isConnected || !sessionId || !playerId || !edgeId) return;
     
     try {
-      battleRoyaleSocket.socket.emit('edge_clicked', {
+      battleRoyaleSocket.socket.emit('request_question', {
         sessionId,
         playerId,
         edgeId
