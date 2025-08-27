@@ -228,10 +228,10 @@ export default function BattleRoyaleGame() {
           console.log('✅ Edge question received:', data);
           // Normalize payload to the shape expected by the viewer/editor
           const questionToSet = {
-            questionId: data.question.id,
-            question: data.question.content,
+            id: data.question.id || data.question.que_id,
+            content: data.question.content || data.question.que_content,
             difficulty: data.question.difficulty,
-            testCases: data.question.testcase || [],
+            testCases: data.question.testcase || data.question.testCases || [],
             edgeId: data.edgeId,
             targetNode: data.targetNode
           };
@@ -243,31 +243,17 @@ export default function BattleRoyaleGame() {
             targetNode: data.targetNode
           });
           setSelectedEdgeId(data.edgeId);
+          setEdgeQuestions(prev => ({ ...prev, [data.edgeId]: questionToSet }));
           setPlayerAnswer('');
           setShowResult(false);
+          setConnectionError(null);
+          setMapState(prev => ({ ...prev, isMinimized: true }));
         });
 
         // Handle edge errors
         battleRoyaleSocket.socket.on('edge_error', (error) => {
           console.log('❌ Edge error:', error);
           setConnectionError(error.message || 'Edge interaction failed');
-        });
-
-        // Handle question received from backend
-        battleRoyaleSocket.socket.on('question_received', (data) => {
-          console.log('✅ Question received:', data);
-          
-          const questionToSet = {
-            questionId: data.questionId,
-            question: data.question,
-            difficulty: data.difficulty,
-            edgeId: data.edgeId,
-            testCases: data.testCases || [],
-            playerId: data.playerId
-          };
-          
-          setCurrentQuestion(questionToSet);
-          setConnectionError(null);
         });
 
         // Handle errors from backend
@@ -408,14 +394,19 @@ export default function BattleRoyaleGame() {
     // Handle question for move from server
     const handleQuestionForMove = (data) => {
       console.log('Received question for move:', data);
+      const testCases = data.question?.testCases || data.question?.testcase || [];
       setCurrentQuestion({
         edgeId: data.edgeId,
-        question: data.question.content,
-        questionId: data.question.id,
-        difficulty: data.question.difficulty
+        content: data.question.content || data.question.que_content,
+        id: data.question.id || data.question.que_id,
+        difficulty: data.question.difficulty,
+        testCases
       });
+      setSelectedEdgeId(data.edgeId);
       setPlayerAnswer('');
       setShowResult(false);
+      setConnectionError(null);
+      setMapState(prev => ({ ...prev, isMinimized: true }));
     };
     
     // Handle move errors
@@ -513,17 +504,32 @@ export default function BattleRoyaleGame() {
     
     const handleQuestionReceived = (data) => {
       console.log('📖 Question received:', data);
-      setCurrentQuestion({
-        id: data.question.id,
-        content: data.question.content,
-        difficulty: data.question.difficulty,
-        testCases: data.question.testCases,
-        supportedLanguages: data.question.supportedLanguages || [],
+      // Ignore if this question is not for this player (defensive)
+      if (data.playerId && data.playerId !== playerId) return;
+
+      const normalized = {
+        id: data.questionId || data.question?.id || data.question?.que_id,
+        content: data.question?.content || data.question?.que_content || data.question,
+        difficulty: data.difficulty || data.question?.difficulty,
+        testCases: data.testCases || data.testcase || data.question?.testCases || data.question?.testcase || [],
         edgeId: data.edgeId,
-        targetNode: data.targetNode
-      });
-      setSelectedEdgeId(data.edgeId);
+        playerId: data.playerId
+      };
+
+      // Avoid redundant state updates if same question already active
+      if (currentQuestion?.id === normalized.id && selectedEdgeId === normalized.edgeId) {
+        setMapState(prev => ({ ...prev, isMinimized: true }));
+        setConnectionError(null);
+        return;
+      }
+
+      setCurrentQuestion(normalized);
+      setSelectedEdgeId(normalized.edgeId);
+      setPlayerAnswer('');
       setShowResult(false);
+      setConnectionError(null);
+      setEdgeQuestions(prev => ({ ...prev, [normalized.edgeId]: normalized }));
+      setMapState(prev => ({ ...prev, isMinimized: true }));
     };
 
     const handleCodeResult = (result) => {
@@ -534,6 +540,30 @@ export default function BattleRoyaleGame() {
         setShowResult(true);
         setCurrentQuestion(null);
         setSelectedEdgeId(null);
+        setConnectionError(null);
+
+        // Optimistically update player state if provided
+        const newHealth = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
+        if (typeof newHealth !== 'undefined') {
+          setPlayers(prev => ({
+            ...prev,
+            [playerId]: {
+              ...(prev[playerId] || {}),
+              health: newHealth
+            }
+          }));
+        }
+        if (result.newPosition) {
+          setPlayers(prev => ({
+            ...prev,
+            [playerId]: {
+              ...(prev[playerId] || {}),
+              currentNode: result.newPosition
+            }
+          }));
+          // Request updated accessible edges after movement
+          requestAccessibleEdges();
+        }
         
         if (result.newPosition === 'TARGET') {
           setResultMessage('🎉 VICTORY! You reached the center!');
@@ -545,7 +575,25 @@ export default function BattleRoyaleGame() {
         if (result.executionDetails && result.executionDetails.results) {
           console.log('Test case results:', result.executionDetails.results);
         }
+        
+        // Update health on failure if provided
+        const newHealth = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
+        if (typeof newHealth !== 'undefined') {
+          setPlayers(prev => ({
+            ...prev,
+            [playerId]: {
+              ...(prev[playerId] || {}),
+              health: newHealth
+            }
+          }));
+        }
       }
+
+      // Auto-dismiss result after 3 seconds
+      setTimeout(() => {
+        setShowResult(false);
+        setResultMessage('');
+      }, 3000);
     };
 
     const handleAnswerResult = (result) => {
