@@ -36,8 +36,6 @@ export default function BattleRoyaleGame() {
   
   const [selectedPlayer, setSelectedPlayer] = useState(null); // Will be set to this client's playerId
   const [accessibleEdges, setAccessibleEdges] = useState([]);
-  // Cache of questions already assigned per edgeId
-  const [edgeQuestions, setEdgeQuestions] = useState({});
   
   // Socket and session management
   const [sessionId, setSessionId] = useState(() => {
@@ -206,55 +204,7 @@ export default function BattleRoyaleGame() {
           }));
         });
 
-        // Handle edge questions assignment during lobby
-        battleRoyaleSocket.socket.on('edge_questions_assigned', (data) => {
-          console.log('✅ Edge questions assigned:', data);
-          setEdgeQuestions(data.edgeQuestions || {});
-          // Store questions for quick access when edges are clicked
-          if (data.message) {
-            console.log('📢', data.message);
-          }
-        });
-
-        // Handle accessible edges update
-        battleRoyaleSocket.socket.on('accessible_edges', (data) => {
-          console.log('✅ Accessible edges:', data);
-          setAccessibleEdges(data.edges || []);
-        });
-
-
-        // Handle edge question response
-        battleRoyaleSocket.socket.on('edge_question', (data) => {
-          console.log('✅ Edge question received:', data);
-          // Normalize payload to the shape expected by the viewer/editor
-          const questionToSet = {
-            id: data.question.id || data.question.que_id,
-            content: data.question.content || data.question.que_content,
-            difficulty: data.question.difficulty,
-            testCases: data.question.testcase || data.question.testCases || [],
-            edgeId: data.edgeId,
-            targetNode: data.targetNode
-          };
-          setCurrentQuestion(questionToSet);
-          // Keep for potential debugging/telemetry
-          setCurrentEdgeQuestion({
-            edgeId: data.edgeId,
-            question: data.question,
-            targetNode: data.targetNode
-          });
-          setSelectedEdgeId(data.edgeId);
-          setEdgeQuestions(prev => ({ ...prev, [data.edgeId]: questionToSet }));
-          setPlayerAnswer('');
-          setShowResult(false);
-          setConnectionError(null);
-          setMapState(prev => ({ ...prev, isMinimized: true }));
-        });
-
-        // Handle edge errors
-        battleRoyaleSocket.socket.on('edge_error', (error) => {
-          console.log('❌ Edge error:', error);
-          setConnectionError(error.message || 'Edge interaction failed');
-        });
+        
 
         // Handle errors from backend
         battleRoyaleSocket.socket.on('error', (data) => {
@@ -362,22 +312,21 @@ export default function BattleRoyaleGame() {
     }
   }, [playerId, selectedPlayer]);
   
-  // Request game view from server when player changes
+  // Compute accessible edges locally whenever player position or game activity changes
   useEffect(() => {
-    if (selectedPlayer && sessionId && gameState.isGameActive) {
-      battleRoyaleSocket.emit('get_game_view', {
-        sessionId,
-        playerId: selectedPlayer
-      });
+    if (!gameState.isGameActive) {
+      setAccessibleEdges([]);
+      return;
     }
-  }, [selectedPlayer, players, sessionId, gameState.isGameActive]);
+    const node = players[playerId]?.currentNode;
+    if (node) {
+      setAccessibleEdges(getAccessibleEdges(node));
+    } else {
+      setAccessibleEdges([]);
+    }
+  }, [gameState.isGameActive, playerId, players]);
 
-  // Request accessible edges when game starts or player position changes
-  useEffect(() => {
-    if (gameState.isGameActive && playerId && sessionId) {
-      requestAccessibleEdges();
-    }
-  }, [gameState.isGameActive, players[playerId]?.currentNode]);
+  
   
   // Handle node clicks (safe points - no questions, just information)
   const handleNodeClick = (nodeData) => {
@@ -387,64 +336,7 @@ export default function BattleRoyaleGame() {
     console.log(`Clicked safe point: ${nodeData.id}`, nodeData);
   };
   
-  // Socket event listeners for server-authoritative game logic
-  React.useEffect(() => {
-    if (!battleRoyaleSocket) return;
-    
-    // Handle question for move from server
-    const handleQuestionForMove = (data) => {
-      console.log('Received question for move:', data);
-      const testCases = data.question?.testCases || data.question?.testcase || [];
-      setCurrentQuestion({
-        edgeId: data.edgeId,
-        content: data.question.content || data.question.que_content,
-        id: data.question.id || data.question.que_id,
-        difficulty: data.question.difficulty,
-        testCases
-      });
-      setSelectedEdgeId(data.edgeId);
-      setPlayerAnswer('');
-      setShowResult(false);
-      setConnectionError(null);
-      setMapState(prev => ({ ...prev, isMinimized: true }));
-    };
-    
-    // Handle move errors
-    const handleMoveError = (error) => {
-      console.error('Move error:', error);
-      setConnectionError(error.message);
-      setResultMessage(`❌ ${error.message}`);
-      setShowResult(true);
-      setTimeout(() => {
-        setShowResult(false);
-      }, 3000);
-    };
-    
-    // Handle game view updates
-    const handleGameView = (view) => {
-      console.log('Received game view:', view);
-      if (view.accessibleEdges) {
-        setAccessibleEdges(view.accessibleEdges);
-      }
-    };
-    
-    // Handle view errors
-    const handleViewError = (error) => {
-      console.error('View error:', error);
-    };
-    
-    battleRoyaleSocket.on('question_for_move', handleQuestionForMove);
-    battleRoyaleSocket.on('move_error', handleMoveError);
-    battleRoyaleSocket.on('game_view', handleGameView);
-    battleRoyaleSocket.on('view_error', handleViewError);
-    
-    return () => {
-      battleRoyaleSocket.off('question_for_move', handleQuestionForMove);
-      battleRoyaleSocket.off('move_error', handleMoveError);
-      battleRoyaleSocket.off('game_view', handleGameView);
-      battleRoyaleSocket.off('view_error', handleViewError);
-    };
-  }, [battleRoyaleSocket]);
+  // Removed deprecated client-side listeners: 'question_for_move', 'move_error', 'game_view', 'view_error'
   
   // Handle edge click to get question
   const handleEdgeClick = async (edgeData) => {
@@ -464,19 +356,7 @@ export default function BattleRoyaleGame() {
     }
   };
 
-  // Request accessible edges from backend
-  const requestAccessibleEdges = async () => {
-    if (!isConnected || !sessionId || !playerId) return;
-    
-    try {
-      battleRoyaleSocket.socket.emit('get_accessible_edges', {
-        sessionId,
-        playerId
-      });
-    } catch (error) {
-      console.error('❌ Request edges error:', error);
-    }
-  };
+  
 
   // Submit code answer with Judge0 execution
   const submitCodeAnswer = async (code, language) => {
@@ -528,7 +408,6 @@ export default function BattleRoyaleGame() {
       setPlayerAnswer('');
       setShowResult(false);
       setConnectionError(null);
-      setEdgeQuestions(prev => ({ ...prev, [normalized.edgeId]: normalized }));
       setMapState(prev => ({ ...prev, isMinimized: true }));
     };
 
@@ -561,8 +440,11 @@ export default function BattleRoyaleGame() {
               currentNode: result.newPosition
             }
           }));
-          // Request updated accessible edges after movement
-          requestAccessibleEdges();
+          // Update accessible edges locally after movement
+          const nextNode = result.newPosition;
+          if (nextNode) {
+            setAccessibleEdges(getAccessibleEdges(nextNode));
+          }
         }
         
         if (result.newPosition === 'TARGET') {
@@ -595,52 +477,14 @@ export default function BattleRoyaleGame() {
         setResultMessage('');
       }, 3000);
     };
-
-    const handleAnswerResult = (result) => {
-      const movedNode = result.targetNode || result.newPosition;
-      const healthVal = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
-
-      if (result.correct) {
-        setResultMessage(movedNode ? `✅ Correct! You moved to ${movedNode}` : (result.message || '✅ Correct!'));
-        setShowResult(true);
-        setCurrentQuestion(null);
-        
-        if (result.winner) {
-          setResultMessage('🎉 VICTORY! You reached the center!');
-        }
-      } else {
-        const baseMsg = result.message || 'Wrong answer!';
-        const healthMsg = (typeof healthVal !== 'undefined') ? ` Health: ${healthVal}/100` : '';
-        setResultMessage(`❌ ${baseMsg}${healthMsg}`);
-        setShowResult(true);
-        
-        if (result.isEliminated) {
-          setResultMessage('💀 You have been eliminated!');
-        }
-      }
-      
-      // Hide result after 3 seconds
-      setTimeout(() => {
-        setShowResult(false);
-        setResultMessage('');
-      }, 3000);
-    };
     
-    const handleAnswerError = (error) => {
-      setResultMessage(`❌ Error: ${error.message}`);
-      setShowResult(true);
-    };
     
     battleRoyaleSocket.on('question_received', handleQuestionReceived);
     battleRoyaleSocket.on('code_result', handleCodeResult);
-    battleRoyaleSocket.on('answer_result', handleAnswerResult);
-    battleRoyaleSocket.on('answer_error', handleAnswerError);
     
     return () => {
       battleRoyaleSocket.off('question_received', handleQuestionReceived);
       battleRoyaleSocket.off('code_result', handleCodeResult);
-      battleRoyaleSocket.off('answer_result', handleAnswerResult);
-      battleRoyaleSocket.off('answer_error', handleAnswerError);
     };
   }, [battleRoyaleSocket]);
   
