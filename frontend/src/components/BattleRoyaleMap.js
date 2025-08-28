@@ -434,25 +434,45 @@ useEffect(() => {
 
   // Initialize Cytoscape network
   useEffect(() => {
-    if (cyRef.current) cyRef.current.destroy();
-    
-    // Choose map based on mapType
-    const { nodes, edges } = mapType === 2 ? createErangelNetwork() : createRadialNetwork();
-    
-    // Store coordinates
-    nodes.forEach(n => nodeCoordsRef.current[n.data.id] = n.position);
+    if (cyRef.current) {
+      cyRef.current.destroy();
+    }
 
-    // === Viewport constraints ===
+    // Build elements for selected map type
+    const net = mapType === 2 ? createErangelNetwork() : createRadialNetwork();
+    const nodes = net.nodes;
+    const edges = net.edges;
+
+    // Cache node coordinates for player markers
+    nodeCoordsRef.current = {};
+    nodes.forEach(n => {
+      if (n && n.data && n.data.id && n.position) {
+        nodeCoordsRef.current[n.data.id] = { x: n.position.x, y: n.position.y };
+      }
+    });
+
     const containerEl = document.getElementById('battle-royale-map');
-    const calcMinZoom = () => Math.min(containerEl.clientWidth, containerEl.clientHeight) / (MAP_BOUNDARY * 2);
+
+    // Compute the minimum zoom so the boundary fits the viewport
+    const calcMinZoom = () => {
+      if (!containerEl) return 0.1;
+      const pad = 40; // small padding
+      const w = Math.max(1, containerEl.clientWidth - pad);
+      const h = Math.max(1, containerEl.clientHeight - pad);
+      const boundary = mapType === 2 ? 400 : MAP_BOUNDARY; // tighter boundary for Erangel
+      const totalW = boundary * 2;
+      const totalH = boundary * 2;
+      const kx = w / totalW;
+      const ky = h / totalH;
+      return Math.min(1, Math.min(kx, ky));
+    };
+
     let initialMinZoom = calcMinZoom();
-    
-    // Initialize Cytoscape
+
     cyRef.current = cytoscape({
       container: containerEl,
       elements: [...nodes, ...edges],
-      style: mapType === 2 ? [
-        // Map 2 (BGMI Erangel) - Uniform styling
+      style: (mapType === 2 ? [
         {
           selector: 'node',
           style: {
@@ -479,7 +499,7 @@ useEffect(() => {
           }
         },
       ] : [
-        // Map 1 (Original Radial) - Original styling
+        // Map 1 (Original Radial)
         {
           selector: 'node[id="TARGET"]',
           style: {
@@ -519,7 +539,7 @@ useEffect(() => {
             'opacity': 0.8
           }
         }
-      ].concat([
+      ]).concat([
         {
           selector: 'node[spawnAvailable]',
           style: {
@@ -546,11 +566,27 @@ useEffect(() => {
         {
           selector: 'edge[accessible]',
           style: {
-            'width': 5,
-            'line-color': '#003d8a',
+            'width': 6,
+            'line-color': '#00ff88',
             'line-style': 'solid',
             'opacity': 1,
-            'z-index': 999
+            'z-index': 999,
+            'shadow-blur': 15,
+            'shadow-color': '#00ff88',
+            'shadow-opacity': 0.8
+          }
+        },
+        {
+          selector: 'edge[currentPlayerEdge]',
+          style: {
+            'width': 8,
+            'line-color': '#ff6b35',
+            'line-style': 'solid',
+            'opacity': 1,
+            'z-index': 1000,
+            'shadow-blur': 20,
+            'shadow-color': '#ff6b35',
+            'shadow-opacity': 1
           }
         },
         {
@@ -558,6 +594,15 @@ useEffect(() => {
           style: {
             'border-width': 4,
             'border-color': '#00ff88'
+          }
+        },
+        {
+          selector: 'node[currentPlayer]',
+          style: {
+            'border-width': 5,
+            'border-color': '#ff6b35',
+            'box-shadow': '0 0 20px #ff6b35',
+            'background-color': '#ff6b35'
           }
         },
         {
@@ -603,8 +648,6 @@ useEffect(() => {
       cyRef.current.zoom(initialMinZoom);
     }
 
-    // === Canvas draw uses Cytoscape viewport transform ===
-
     // Recalculate minZoom on window resize
     const handleResizeCy = () => {
       initialMinZoom = calcMinZoom();
@@ -614,9 +657,7 @@ useEffect(() => {
       }
     };
     window.addEventListener('resize', handleResizeCy);
-    
 
-    
     // Add interaction handlers
     cyRef.current.on('tap', 'node', (e) => {
       const id = e.target.id();
@@ -628,7 +669,7 @@ useEffect(() => {
       const payload = { id, ...data };
       onNodeClick(payload);
     });
-    
+
     cyRef.current.on('tap', 'edge', (e) => {
       onEdgeClick(e.target.data());
     });
@@ -644,7 +685,19 @@ useEffect(() => {
         setMarkerMode(false);
       }
     });
-    
+
+    // Dynamic panning when zoomed in (expanded map only)
+    let onZoomHandler = null;
+    if (!isMinimized) {
+      const applyPanning = () => {
+        const z = cyRef.current.zoom();
+        cyRef.current.userPanningEnabled(enablePan && z > 1.05);
+      };
+      applyPanning();
+      onZoomHandler = () => applyPanning();
+      cyRef.current.on('zoom', onZoomHandler);
+    }
+
     // Auto-fit for different view modes
     setTimeout(() => {
       if (isMinimized) {
@@ -681,18 +734,14 @@ useEffect(() => {
       setMarkers([]);
       setMarkerMode(false);
     }
+
     return () => {
       window.removeEventListener('resize', handleResizeCy);
-      if (cyRef.current) cyRef.current.destroy();
+      if (cyRef.current) {
+        if (onZoomHandler) cyRef.current.removeListener('zoom', onZoomHandler);
+        cyRef.current.destroy();
+      }
     };
-    // Dynamic panning when zoomed in (expanded map only)
-    if (!isMinimized) {
-      cyRef.current.userPanningEnabled(false);
-      cyRef.current.on('zoom', () => {
-        const z = cyRef.current.zoom();
-        cyRef.current.userPanningEnabled(z > 1.05);
-      });
-    }
   }, [enableZoom, enablePan, isMinimized, mapType]);
 
   // Update accessible edges highlighting
@@ -700,30 +749,63 @@ useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
 
-    // Clear all accessible flags first
+    // Clear all accessible and current player flags first
     cy.edges().forEach(e => {
       if (e.data('accessible')) {
         e.removeData('accessible');
       }
+      if (e.data('currentPlayerEdge')) {
+        e.removeData('currentPlayerEdge');
+      }
     });
 
-    // Mark accessible edges
+    // Mark accessible edges with glow effect
     if (accessibleEdges && accessibleEdges.length > 0) {
       accessibleEdges.forEach(edge => {
-        const edgeId = edge.id || `${edge.source}-${edge.target}`;
-        const cyEdge = cy.$(`#${edgeId}`);
+        const edgeId = edge.edgeId || edge.id || `${edge.fromNode || edge.source}-${edge.toNode || edge.target}`;
+        const cyEdge = cy.$(`edge[id="${edgeId}"]`);
         if (cyEdge.length > 0) {
           cyEdge.data('accessible', true);
+          // Add special highlighting for current player's edges
+          if (edge.fromNode && players[selfPlayerId] && players[selfPlayerId].currentNode === edge.fromNode) {
+            cyEdge.data('currentPlayerEdge', true);
+          }
         }
+        
         // Also check reverse edge for undirected graph
-        const reverseId = `${edge.target}-${edge.source}`;
-        const reverseEdge = cy.$(`#${reverseId}`);
+        const reverseId = `${edge.toNode || edge.target}-${edge.fromNode || edge.source}`;
+        const reverseEdge = cy.$(`edge[id="${reverseId}"]`);
         if (reverseEdge.length > 0) {
           reverseEdge.data('accessible', true);
+          if (edge.fromNode && players[selfPlayerId] && players[selfPlayerId].currentNode === edge.fromNode) {
+            reverseEdge.data('currentPlayerEdge', true);
+          }
         }
       });
     }
-  }, [accessibleEdges]);
+  }, [accessibleEdges, players, selfPlayerId]);
+
+  // Update current player node highlighting
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    // Clear all current player node flags first
+    cy.nodes().forEach(n => {
+      if (n.data('currentPlayer')) {
+        n.removeData('currentPlayer');
+      }
+    });
+
+    // Highlight current player's node
+    if (selfPlayerId && players[selfPlayerId] && players[selfPlayerId].currentNode) {
+      const currentNode = players[selfPlayerId].currentNode;
+      const cyNode = cy.$(`node[id="${currentNode}"]`);
+      if (cyNode.length > 0) {
+        cyNode.data('currentPlayer', true);
+      }
+    }
+  }, [players, selfPlayerId]);
 
   // Update lobby selection highlights on nodes
   useEffect(() => {
@@ -855,7 +937,7 @@ useEffect(() => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             ⏱️{' '}
             <span style={{ animation: 'timerPulse 1s ease-in-out infinite alternate', display: 'inline-block' }}>
-              {Math.floor(gameTimer / 60)}:{(gameTimer % 60).toString().padStart(2, '0')}
+              {Math.floor(gameTimer / 60)}:{Math.floor(gameTimer % 60).toString().padStart(2, '0')}
             </span>
           </div>
           <div style={{ color: phase === 'moving' ? '#4444ff' : '#ff4444' }}>
@@ -863,7 +945,7 @@ useEffect(() => {
           </div>
           {/* Phase countdown with progress bar */}
           <div style={{ width: '140px' }}>
-            <div style={{ fontSize: '11px' }}>⚠️ Phase: {Math.max(0, phaseTotal - phaseTimer)}s</div>
+            <div style={{ fontSize: '11px' }}>⚠️ Phase: {Math.floor(Math.max(0, phaseTotal - phaseTimer))}s</div>
             <div style={{ width: '100%', height: '4px', background: '#222', borderRadius: '2px', overflow: 'hidden', marginTop: '2px' }}>
               <div style={{ width: `${(1 - Math.min(phaseTimer / phaseTotal, 1)) * 100}%`, height: '100%', background: phase === 'moving' ? '#4444ff' : '#ff4444', transition: 'width 1s linear' }} />
             </div>

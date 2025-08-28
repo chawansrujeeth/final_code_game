@@ -312,19 +312,39 @@ export default function BattleRoyaleGame() {
     }
   }, [playerId, selectedPlayer]);
   
-  // Compute accessible edges locally whenever player position or game activity changes
+  // Fetch accessible edges from backend user service
   useEffect(() => {
-    if (!gameState.isGameActive) {
-      setAccessibleEdges([]);
-      return;
-    }
-    const node = players[playerId]?.currentNode;
-    if (node) {
-      setAccessibleEdges(getAccessibleEdges(node));
-    } else {
-      setAccessibleEdges([]);
-    }
-  }, [gameState.isGameActive, playerId, players]);
+    const fetchAccessibleEdges = async () => {
+      if (!gameState.isGameActive || !sessionId || !playerId) {
+        setAccessibleEdges([]);
+        return;
+      }
+
+      try {
+        const backendUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
+        const response = await fetch(`${backendUrl}/api/battle-royale/user/${sessionId}/${playerId}/accessible-edges`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAccessibleEdges(data.accessibleEdges || []);
+        } else {
+          console.error('Failed to fetch accessible edges:', response.status);
+          setAccessibleEdges([]);
+        }
+      } catch (error) {
+        console.error('Error fetching accessible edges:', error);
+        // Fallback to local computation if backend fails
+        const node = players[playerId]?.currentNode;
+        if (node) {
+          setAccessibleEdges(getAccessibleEdges(node));
+        } else {
+          setAccessibleEdges([]);
+        }
+      }
+    };
+
+    fetchAccessibleEdges();
+  }, [gameState.isGameActive, playerId, players, sessionId]);
 
   
   

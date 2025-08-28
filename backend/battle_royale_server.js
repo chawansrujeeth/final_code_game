@@ -8,6 +8,7 @@ const cors = require('cors');
 const { supabase } = require('./supabaseClient');
 const judge0Service = require('./services/judge0Service');
 const questionAssignmentService = require('./services/questionAssignmentService');
+const { userManager } = require('./services/battleRoyaleUserService');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +31,104 @@ app.use(cors());
 app.get('/', (_req, res) => res.status(200).send('OK'));
 app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 app.use(express.json());
+
+// User state API endpoints
+app.get('/api/battle-royale/user/:sessionId/:playerId', async (req, res) => {
+  try {
+    const { sessionId, playerId } = req.params;
+    const user = userManager.getUser(sessionId, playerId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user.getState());
+  } catch (error) {
+    console.error('Error getting user state:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/battle-royale/session/:sessionId/users', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const users = userManager.getSessionUsers(sessionId);
+    const stats = userManager.getSessionStats(sessionId);
+    
+    res.json({
+      users: users.map(user => user.getState()),
+      stats
+    });
+  } catch (error) {
+    console.error('Error getting session users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/battle-royale/user/:sessionId/:playerId/move', async (req, res) => {
+  try {
+    const { sessionId, playerId } = req.params;
+    const { targetNode } = req.body;
+    
+    const user = userManager.getUser(sessionId, playerId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const moveResult = user.moveToNode(targetNode);
+    await userManager.saveUserState(sessionId, playerId);
+    
+    res.json({
+      success: true,
+      moveResult,
+      userState: user.getState()
+    });
+  } catch (error) {
+    console.error('Error moving user:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/battle-royale/user/:sessionId/:playerId/health', async (req, res) => {
+  try {
+    const { sessionId, playerId } = req.params;
+    const { amount, reason } = req.body;
+    
+    const user = userManager.getUser(sessionId, playerId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const healthResult = user.updateHealth(amount, reason);
+    await userManager.saveUserState(sessionId, playerId);
+    
+    res.json({
+      success: true,
+      healthResult,
+      userState: user.getState()
+    });
+  } catch (error) {
+    console.error('Error updating health:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/battle-royale/user/:sessionId/:playerId/accessible-edges', async (req, res) => {
+  try {
+    const { sessionId, playerId } = req.params;
+    const user = userManager.getUser(sessionId, playerId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessibleEdges = user.getAccessibleEdges();
+    res.json({ accessibleEdges });
+  } catch (error) {
+    console.error('Error getting accessible edges:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // In-memory cache for active sessions (cleared on Render sleep)
 const sessionCache = new Map();
@@ -1792,6 +1891,19 @@ io.on('connection', (socket) => {
           lastSeen: Date.now(),
           disconnectedAt: null
         });
+        
+        // Reconnect user in user service
+        const user = userManager.getUser(sessionId, playerId);
+        if (user) {
+          user.reconnect(socket.id);
+        } else {
+          // Try to load from database if not in memory
+          await userManager.loadUserState(sessionId, playerId);
+          const loadedUser = userManager.getUser(sessionId, playerId);
+          if (loadedUser) {
+            loadedUser.reconnect(socket.id);
+          }
+        }
       } else {
         // New player joining
         const playerCount = session.players.size;
@@ -1803,6 +1915,11 @@ io.on('connection', (socket) => {
         // Add player to session (correct signature)
         const spawnNode = playerCount < 8 ? `SPAWN_${playerCount + 1}` : 'R3_1';
         session.addPlayer(playerId, { playerId, playerName, socketId: socket.id, selectedSpawnNode: null });
+        
+        // Create user state in the new user service
+        const user = userManager.createUser(sessionId, playerId, playerName, spawnNode);
+        userManager.setUserSocket(sessionId, playerId, socket.id);
+        
         console.log(`✅ Player ${playerName} added to session ${sessionId} at ${spawnNode}`);
       }
       
@@ -2159,6 +2276,9 @@ io.on('connection', (socket) => {
             disconnectedAt: new Date().toISOString()
           });
           
+          // Update user service
+          userManager.removeUserSocket(socket.id);
+          
           // Initialize session timeout map if not exists
           if (!disconnectTimeouts.has(sessionId)) {
             disconnectTimeouts.set(sessionId, new Map());
@@ -2175,6 +2295,9 @@ io.on('connection', (socket) => {
               if (currentPlayer && !currentPlayer.socketId) {
                 console.log(`🗑️ Removing disconnected player ${player.playerName} after timeout`);
                 currentSession.removePlayer(playerId);
+                
+                // Remove from user service
+                userManager.removeUser(sessionId, playerId);
                 
                 // Notify remaining players
                 io.to(sessionId).emit('player_removed', {
