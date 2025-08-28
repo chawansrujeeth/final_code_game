@@ -7,7 +7,6 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const { supabase } = require('./supabaseClient');
 const judge0Service = require('./services/judge0Service');
-const questionAssignmentService = require('./services/questionAssignmentService');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +52,37 @@ function buildSpawnPool() {
 
 const FULL_SPAWN_POOL = buildSpawnPool();
 
+const ADJ = {
+  // Ring-3
+  R3_1: ['R3_2', 'R3_8', 'R2_1'],
+  R3_2: ['R3_1', 'R3_3', 'R2_1'],
+  R3_3: ['R3_2', 'R3_4', 'R2_2'],
+  R3_4: ['R3_3', 'R3_5', 'R2_2'],
+  R3_5: ['R3_4', 'R3_6', 'R2_3'],
+  R3_6: ['R3_5', 'R3_7', 'R2_3'],
+  R3_7: ['R3_6', 'R3_8', 'R2_4'],
+  R3_8: ['R3_7', 'R3_1', 'R2_4'],
+
+  // Ring-2
+  R2_1: ['R2_2', 'R2_8', 'R3_1', 'R3_2', 'R1_1'],
+  R2_2: ['R2_1', 'R2_3', 'R3_3', 'R3_4', 'R1_1'],
+  R2_3: ['R2_2', 'R2_4', 'R3_5', 'R3_6', 'R1_2'],
+  R2_4: ['R2_3', 'R2_5', 'R3_7', 'R3_8', 'R1_2'],
+  R2_5: ['R2_4', 'R2_6', 'R1_3'],
+  R2_6: ['R2_5', 'R2_7', 'R1_3'],
+  R2_7: ['R2_6', 'R2_8', 'R1_4'],
+  R2_8: ['R2_7', 'R2_1', 'R1_4'],
+
+  // Ring-1
+  R1_1: ['R1_2', 'R1_4', 'R2_1', 'R2_2', 'TARGET'],
+  R1_2: ['R1_1', 'R1_3', 'R2_3', 'R2_4', 'TARGET'],
+  R1_3: ['R1_2', 'R1_4', 'R2_5', 'R2_6', 'TARGET'],
+  R1_4: ['R1_3', 'R1_1', 'R2_7', 'R2_8', 'TARGET'],
+
+  // Centre
+  TARGET: ['R1_1', 'R1_2', 'R1_3', 'R1_4'] // remove this target nodes also
+};
+
 function emitQueueUpdate(ioInstance) {
   try {
     ioInstance.to(BR_QUEUE_ROOM).emit('queue_update', {
@@ -69,22 +99,78 @@ function emitQueueUpdate(ioInstance) {
 
 // Note: autoStartTimers and zoneLoops are declared later with other timers
 
+// Function to assign questions to all edges in the map
+async function assignQuestionsToEdges(session) {
+  try {
+    console.log('🎯 Assigning questions to edges...');
+    const edgeQuestions = new Map();
+    const usedQuestions = new Set();
+    
+    // Fetch questions from Supabase
+    const { data: allQuestions, error } = await supabase.from('battle_royale_questions').select('*');
+    
+    if (error || !allQuestions?.length) {
+      console.error('❌ Error or no questions found');
+      return new Map();
+    }
+    
+    // Helper function to compute edge difficulty based on nodes
+    function getEdgeDifficulty(u, v) {
+      if (u === 'TARGET' || v === 'TARGET') {
+        return 'hard';
+      }
+      const ringU = parseInt(u.split('_')[0].substring(1));
+      const ringV = parseInt(v.split('_')[0].substring(1));
+      if (ringU === ringV) {
+        if (ringU === 3) return 'easy';
+        if (ringU === 2) return 'medium';
+        if (ringU === 1) return 'hard';
+      } else if (Math.abs(ringU - ringV) === 1) {
+        if ((ringU === 3 && ringV === 2) || (ringU === 2 && ringV === 3)) return 'easy';
+        if ((ringU === 2 && ringV === 1) || (ringU === 1 && ringV === 2)) return 'medium';
+      }
+      return 'medium'; // Default for any unexpected cases
+    }
 
-// ---- Zone constants (keep in sync with frontend) ----
-const MAP_BOUNDARY = 480;
-const SHRINK_SECONDS = 30;
-const WAIT_SECONDS = 30;
-
-// ---- Game Timer constants ----
-const GAME_DURATION_MS = 32 * 60 * 1000; // 32 minutes in milliseconds
-const TIMER_BROADCAST_INTERVAL = 1000; // Broadcast time every second
-
-const lobbySelectionTimers = new Map(); // sessionId -> timeoutId
-const gameTimers = new Map(); // sessionId -> { startTime, endTime, intervalId }
-const disconnectTimeouts = new Map(); // sessionId -> Map(playerId -> timeoutId)
-const socketToPlayer = new Map(); // socketId -> { sessionId, playerId }
-const autoStartTimers = new Map(); // sessionId -> timeout ID
-const zoneLoops = new Map(); // sessionId -> interval ID
+    // Build unique undirected edge list from ADJ with difficulties
+    const edges = [];
+    const addedEdges = new Set();
+    Object.entries(ADJ).forEach(([u, nbrs]) => {
+      nbrs.forEach(v => {
+        const edgeId = u < v ? `${u}-${v}` : `${v}-${u}`; // Ensure consistent undirected edge ID
+        if (!addedEdges.has(edgeId)) {
+          addedEdges.add(edgeId);
+          const difficulty = getEdgeDifficulty(u, v);
+          edges.push({ id: edgeId, difficulty });
+        }
+      });
+    });
+    
+    // Shuffle questions for random assignment
+    const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+    
+    // Assign questions to edges, cycling through available questions
+    edges.forEach((edge, index) => {
+      const question = shuffledQuestions[index % shuffledQuestions.length];
+      edgeQuestions.set(edge.id, {
+        questionId: question.que_id,
+        questionContent: question.que_content,
+        testcase: question.testcase,
+        difficulty: edge.difficulty // Use computed edge difficulty
+      });
+      usedQuestions.add(question.que_id);
+    });
+    
+    session.edgeQuestions = edgeQuestions;
+    session.usedQuestions = usedQuestions;
+    await session.saveSession();
+    console.log(`✅ Assigned questions to ${edges.length} edges`);
+    return edgeQuestions;
+  } catch (error) {
+    console.error('Error assigning questions to edges:', error);
+    return new Map();
+  }
+}
 
 // Helper function to track socket-player mapping
 function setPlayerSocket(socketId, sessionId, playerId) {
@@ -167,14 +253,6 @@ function scheduleLobbySelectionTimer(sessionId, delayMs = 10000) {
     const endTime = Date.now() + delayMs;
     
     console.log(`⏰ Starting lobby countdown for session ${sessionId} (${totalSeconds} seconds)`);
-    
-    // Assign questions to edges when lobby timer starts
-    console.log(`🎯 Assigning questions to edges for lobby session ${sessionId}`);
-    assignQuestionsToEdges(sessionId, session).then(() => {
-      console.log(`✅ Questions assigned for session ${sessionId} during lobby phase`);
-    }).catch(error => {
-      console.error(`❌ Failed to assign questions during lobby for session ${sessionId}:`, error);
-    });
     
     // Emit initial countdown state
     io.to(sessionId).emit('lobby_countdown_started', { seconds: totalSeconds });
@@ -357,30 +435,89 @@ function cancelLobbySelectionTimer(sessionId) {
 }
 
 // ---- Edge Question Assignment Functions ----
-// Updated to use questionAssignmentService
 async function assignQuestionsToEdges(sessionId, session) {
   try {
-    console.log(`🎯 Using questionAssignmentService for session ${sessionId}`);
+    console.log(`🎯 Assigning questions to edges for session ${sessionId}`);
     
-    // Use the dedicated service for question assignment
-    const edgeQuestions = await questionAssignmentService.assignQuestionsToEdges(sessionId);
-    
-    // Update session with assignments from service
-    session.edgeQuestions = edgeQuestions;
-    session.usedQuestions = new Set();
-    
-    // Extract used question IDs for compatibility
-    edgeQuestions.forEach(assignment => {
-      session.usedQuestions.add(assignment.questionId);
+    // Define ALL edges in the game - including bidirectional edges
+    const allEdges = [
+      // R3 circular edges (bidirectional)
+      'R3_1-R3_2', 'R3_2-R3_1', 'R3_2-R3_3', 'R3_3-R3_2', 'R3_3-R3_4', 'R3_4-R3_3', 
+      'R3_4-R3_5', 'R3_5-R3_4', 'R3_5-R3_6', 'R3_6-R3_5', 'R3_6-R3_7', 'R3_7-R3_6', 
+      'R3_7-R3_8', 'R3_8-R3_7', 'R3_8-R3_1', 'R3_1-R3_8',
+      
+      // R3 to R2 edges (bidirectional)
+      'R3_1-R2_1', 'R2_1-R3_1', 'R3_2-R2_1', 'R2_1-R3_2', 'R3_3-R2_2', 'R2_2-R3_3', 
+      'R3_4-R2_2', 'R2_2-R3_4', 'R3_5-R2_3', 'R2_3-R3_5', 'R3_6-R2_3', 'R2_3-R3_6', 
+      'R3_7-R2_4', 'R2_4-R3_7', 'R3_8-R2_4', 'R2_4-R3_8',
+      
+      // R2 circular edges (bidirectional) - FIXED: Added missing R2_5, R2_6, R2_7, R2_8
+      'R2_1-R2_2', 'R2_2-R2_1', 'R2_2-R2_3', 'R2_3-R2_2', 'R2_3-R2_4', 'R2_4-R2_3', 
+      'R2_4-R2_5', 'R2_5-R2_4', 'R2_5-R2_6', 'R2_6-R2_5', 'R2_6-R2_7', 'R2_7-R2_6',
+      'R2_7-R2_8', 'R2_8-R2_7', 'R2_8-R2_1', 'R2_1-R2_8',
+      
+      // R2 to R1 edges (bidirectional)
+      'R2_1-R1_1', 'R1_1-R2_1', 'R2_2-R1_1', 'R1_1-R2_2', 'R2_3-R1_2', 'R1_2-R2_3', 
+      'R2_4-R1_2', 'R1_2-R2_4', 'R2_5-R1_3', 'R1_3-R2_5', 'R2_6-R1_3', 'R1_3-R2_6',
+      'R2_7-R1_4', 'R1_4-R2_7', 'R2_8-R1_4', 'R1_4-R2_8',
+      
+      // R1 circular edges (bidirectional)
+      'R1_1-R1_2', 'R1_2-R1_1', 'R1_2-R1_3', 'R1_3-R1_2', 'R1_3-R1_4', 'R1_4-R1_3', 
+      'R1_4-R1_1', 'R1_1-R1_4',
+      
+      // R1 to TARGET edges (bidirectional)
+      'R1_1-TARGET', 'TARGET-R1_1', 'R1_2-TARGET', 'TARGET-R1_2', 
+      'R1_3-TARGET', 'TARGET-R1_3', 'R1_4-TARGET', 'TARGET-R1_4'
+    ];
+
+    console.log(`📝 Total edges to assign: ${allEdges.length}`);
+
+    // Fetch ALL questions from Supabase (ignore difficulty for now)
+    const { data: questions, error } = await supabase
+      .from('battle_royale_questions')
+      .select('*')
+      .limit(100); // Get up to 100 questions
+
+    if (error) {
+      console.error('❌ Error fetching questions:', error);
+      console.error('Supabase error details:', error);
+      return;
+    }
+
+    if (!questions || questions.length === 0) {
+      console.error('❌ No questions found in database for edges');
+      return;
+    }
+
+    console.log(`📚 Found ${questions.length} questions for edges`);
+
+    // Initialize edgeQuestions map
+    session.edgeQuestions = new Map();
+
+    // Assign random questions to each edge
+    allEdges.forEach((edgeId, index) => {
+      // Use modulo to cycle through questions if we have fewer questions than edges
+      const questionIndex = index % questions.length;
+      const question = questions[questionIndex];
+      
+      session.edgeQuestions.set(edgeId, {
+        que_id: question.que_id,
+        que_content: question.que_content,
+        testcase: question.testcase,
+        difficulty: question.difficulty,
+        edgeId: edgeId
+      });
+      
+      console.log(`✅ Assigned question ${question.que_id} to edge ${edgeId}`);
     });
+
+    console.log(`🎯 Successfully assigned ${session.edgeQuestions.size} questions to edges`);
     
+    // Save the session with assigned questions
     await session.saveSession();
     
-    console.log(`✅ Successfully assigned ${edgeQuestions.size} questions to edges using service`);
-    return edgeQuestions;
   } catch (error) {
     console.error('❌ Error assigning questions to edges:', error);
-    return new Map();
   }
 }
 
@@ -1176,7 +1313,7 @@ class PersistentGameSession {
   // Define all edges in the game (moved from frontend)
   getAllEdgeDefinitions() {
     return [
-      // R3 circular edges
+      // Ring 3 circular edges
       { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
@@ -1186,7 +1323,7 @@ class PersistentGameSession {
       { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
       
-      // R3 to R2 edges
+      // Ring 3 to Ring 2 edges
       { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
       { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
       { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
@@ -1196,13 +1333,13 @@ class PersistentGameSession {
       { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
       { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
       
-      // R2 circular edges
+      // Ring 2 circular edges
       { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
       { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
       { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
       { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
       
-      // R2 to R1 edges
+      // Ring 2 to Ring 1 edges
       { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
       { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
       { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
@@ -1212,7 +1349,7 @@ class PersistentGameSession {
       { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
       { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
       
-      // R1 circular edges
+      // Ring 1 circular edges
       { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
@@ -1220,7 +1357,7 @@ class PersistentGameSession {
       { id: 'R1_5-R1_6', source: 'R1_5', target: 'R1_6', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_6-R1_1', source: 'R1_6', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
       
-      // R1 to TARGET edges
+      // Ring 1 to TARGET edges
       { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
       { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
       { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
