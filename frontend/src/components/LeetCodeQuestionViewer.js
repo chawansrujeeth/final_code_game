@@ -102,7 +102,7 @@ const LeetCodeQuestionViewer = ({ question, onClose }) => {
               marginBottom: '20px',
               whiteSpace: 'pre-wrap'
             }}>
-              {question.question || question.description}
+              {question.content || question.question || question.description || question.que_content}
             </div>
           </div>
         )}

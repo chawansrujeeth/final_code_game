@@ -605,122 +605,53 @@ export default function BattleRoyaleGame() {
           {mapState.isMinimized ? (
             // Show Code Editor when map is minimized
             currentQuestion ? (
-              <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000
-              }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div style={{
-                  backgroundColor: '#1a1a1a',
-                  padding: '20px',
-                  borderRadius: '15px',
-                  width: '90%',
-                  maxWidth: '1200px',
-                  height: '90vh',
                   display: 'flex',
-                  flexDirection: 'column',
-                  border: '2px solid #00ff88',
-                  boxShadow: '0 0 30px rgba(0, 255, 136, 0.3)'
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  borderBottom: '1px solid #333',
+                  backgroundColor: '#252526'
                 }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    marginBottom: '20px',
-                    borderBottom: '1px solid #333',
-                    paddingBottom: '15px'
-                  }}>
-                    <h3 style={{ color: '#00ff88', margin: 0 }}>
-                      Path Traversal - {currentQuestion.difficulty?.toUpperCase()} Question
-                    </h3>
-                    <button
-                      onClick={() => {
-                        setCurrentQuestion(null);
-                        setSelectedEdgeId(null);
-                        setShowResult(false);
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: '#666',
-                        color: '#ffffff',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ✕ Close
-                    </button>
-                  </div>
-                  
-                  <div style={{ 
-                    backgroundColor: '#2a2a2a', 
-                    padding: '20px', 
-                    borderRadius: '10px',
-                    marginBottom: '20px',
-                    color: '#ffffff',
-                    lineHeight: '1.6',
-                    maxHeight: '200px',
-                    overflow: 'auto'
-                  }}>
-                    <div dangerouslySetInnerHTML={{ 
-                      __html: (currentQuestion.content || currentQuestion.que_content || '').replace(/\n/g, '<br/>') 
-                    }} />
-                  </div>
-
-                  {/* Test Cases Display */}
-                  {currentQuestion.testCases && (
-                    <div style={{
-                      backgroundColor: '#2a2a2a',
-                      padding: '15px',
-                      borderRadius: '8px',
-                      marginBottom: '20px',
-                      maxHeight: '150px',
-                      overflow: 'auto'
-                    }}>
-                      <h4 style={{ color: '#00ff88', margin: '0 0 10px 0', fontSize: '14px' }}>Test Cases:</h4>
-                      {Array.isArray(currentQuestion.testCases) ? (
-                        currentQuestion.testCases.map((testCase, index) => (
-                          <div key={index} style={{ marginBottom: '10px', fontSize: '12px', color: '#ccc' }}>
-                            <strong>Test {index + 1}:</strong><br/>
-                            Input: {JSON.stringify(testCase.input)}<br/>
-                            Expected: {JSON.stringify(testCase.output || testCase.expected_output)}
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#ccc' }}>
-                          <strong>Test Case:</strong><br/>
-                          Input: {JSON.stringify(currentQuestion.testCases.input)}<br/>
-                          Expected: {JSON.stringify(currentQuestion.testCases.output || currentQuestion.testCases.expected_output)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Code Editor */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <LeetCodeCodeEditor
-                      onSubmit={submitCodeAnswer}
-                      supportedLanguages={currentQuestion.supportedLanguages || [
-                        { id: 'javascript', name: 'JavaScript (Node.js)' },
-                        { id: 'python', name: 'Python 3' },
-                        { id: 'java', name: 'Java' },
-                        { id: 'cpp', name: 'C++' }
-                      ]}
-                      initialCode={{
-                        javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nconsole.log(solution());',
-                        python: '# Write your solution here\ndef solution():\n    # Your code here\n    return result\n\nprint(solution())',
-                        java: 'public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        System.out.println(solution());\n    }\n    \n    public static Object solution() {\n        // Your code here\n        return result;\n    }\n}',
-                        cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    cout << solution() << endl;\n    return 0;\n}\n\n// Your solution function\nint solution() {\n    // Your code here\n    return result;\n}'
-                      }}
-                    />
-                  </div>
+                  <h3 style={{ color: '#00ff88', margin: 0, fontSize: '14px' }}>
+                    Code Editor - {currentQuestion.difficulty?.toUpperCase()} Question
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setCurrentQuestion(null);
+                      setSelectedEdgeId(null);
+                      setShowResult(false);
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#666',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <LeetCodeCodeEditor
+                    onSubmit={submitCodeAnswer}
+                    supportedLanguages={currentQuestion.supportedLanguages || [
+                      { id: 'javascript', name: 'JavaScript (Node.js)' },
+                      { id: 'python', name: 'Python 3' },
+                      { id: 'java', name: 'Java' },
+                      { id: 'cpp', name: 'C++' }
+                    ]}
+                    initialCode={{
+                      javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nconsole.log(solution());',
+                      python: '# Write your solution here\ndef solution():\n    # Your code here\n    return result\n\nprint(solution())',
+                      java: 'public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        System.out.println(solution());\n    }\n    \n    public static Object solution() {\n        // Your code here\n        return result;\n    }\n}',
+                      cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    cout << solution() << endl;\n    return 0;\n}\n\n// Your solution function\nint solution() {\n    // Your code here\n    return result;\n}'
+                    }}
+                  />
                 </div>
               </div>
             ) : (
