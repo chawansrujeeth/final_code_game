@@ -1956,30 +1956,33 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Get pre-assigned question for this edge
-      const assignedQuestion = session.edgeQuestions?.get(edgeId);
+      // Get question for this specific edge using questionAssignmentService
+      const assignedQuestion = questionAssignmentService.getQuestionForEdge(sessionId, edgeId);
       console.log('🎯 Looking for question for edge:', edgeId, 'Found:', !!assignedQuestion);
       
       if (!assignedQuestion) {
         console.log('❌ No question assigned to edge:', edgeId);
-        console.log('Available edges:', Array.from(session.edgeQuestions?.keys() || []));
+        // Try to get session assignments to debug
+        const sessionAssignments = questionAssignmentService.getSessionAssignments(sessionId);
+        console.log('Available edges in service:', sessionAssignments ? Array.from(sessionAssignments.keys()) : 'No assignments');
         socket.emit('error', { 
           message: `No question assigned to edge ${edgeId}. Please try again.` 
         });
         return;
       }
 
-      // Send question to player
+      // Send question to player using the service data structure
       socket.emit('question_received', {
-        question: assignedQuestion.que_content,
+        question: assignedQuestion.questionContent,
         testCases: assignedQuestion.testcase,
         difficulty: assignedQuestion.difficulty,
-        questionId: assignedQuestion.que_id,
+        questionId: assignedQuestion.questionId,
         edgeId: edgeId,
+        edgeType: assignedQuestion.edgeType,
         playerId: playerId
       });
 
-      console.log(`✅ Pre-assigned question sent to player ${playerId} for edge ${edgeId}: ${assignedQuestion.que_content.substring(0, 50)}...`);
+      console.log(`✅ Question sent to player ${playerId} for edge ${edgeId} (${assignedQuestion.edgeType}): ${assignedQuestion.questionContent.substring(0, 50)}...`);
       
     } catch (error) {
       console.error('Error handling request_question:', error);
