@@ -166,8 +166,8 @@ int main() {
 
   const submitSolution = async () => {
     if (!question?.testCases || question.testCases.length === 0) {
-      // If no test cases, submit directly
-      onSubmitAnswer(code);
+      // If no test cases, submit directly with language
+      onSubmitAnswer(code, language);
       return;
     }
 
@@ -187,12 +187,12 @@ int main() {
       const results = await backendJudge0Service.runTestCases(code, language, question.testCases);
       
       if (results.allPassed) {
-        onSubmitAnswer(code, true, results);
+        onSubmitAnswer(code, language, true, results);
       } else {
-        onSubmitAnswer(code, false, results);
+        onSubmitAnswer(code, language, false, results);
       }
     } catch (error) {
-      onSubmitAnswer(code, false, { error: error.message });
+      onSubmitAnswer(code, language, false, { error: error.message });
     } finally {
       setIsSubmitting(false);
     }

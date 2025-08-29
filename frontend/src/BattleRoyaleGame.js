@@ -300,39 +300,22 @@ export default function BattleRoyaleGame() {
     }
   }, [playerId, selectedPlayer]);
   
-  // Fetch accessible edges from backend user service
+  // Update accessible edges when game becomes active or player position changes
   useEffect(() => {
-    const fetchAccessibleEdges = async () => {
-      if (!gameState.isGameActive || !sessionId || !playerId) {
-        setAccessibleEdges([]);
-        return;
-      }
+    if (!gameState.isGameActive || !playerId) {
+      setAccessibleEdges([]);
+      return;
+    }
 
-      try {
-        const backendUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
-        const response = await fetch(`${backendUrl}/api/battle-royale/user/${sessionId}/${playerId}/accessible-edges`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAccessibleEdges(data.accessibleEdges || []);
-        } else {
-          console.error('Failed to fetch accessible edges:', response.status);
-          setAccessibleEdges([]);
-        }
-      } catch (error) {
-        console.error('Error fetching accessible edges:', error);
-        // Fallback to local computation if backend fails
-        const node = players[playerId]?.currentNode;
-        if (node) {
-          setAccessibleEdges(getAccessibleEdges(node));
-        } else {
-          setAccessibleEdges([]);
-        }
-      }
-    };
-
-    fetchAccessibleEdges();
-  }, [gameState.isGameActive, playerId, players, sessionId]);
+    const currentNode = players[playerId]?.currentNode;
+    if (currentNode) {
+      const edges = getAccessibleEdges(currentNode);
+      setAccessibleEdges(edges);
+      console.log(`🔓 Updated accessible edges for ${currentNode}:`, edges.map(e => e.id));
+    } else {
+      setAccessibleEdges([]);
+    }
+  }, [gameState.isGameActive, playerId, players]);
 
   
   
@@ -341,6 +324,7 @@ export default function BattleRoyaleGame() {
     if (!gameState || !gameState.isGameActive) return;
     
     // Show node information (safe point details)
+    console.log('Node clicked:', nodeData);
   };
   
   // Removed deprecated client-side listeners: 'question_for_move', 'move_error', 'game_view', 'view_error'
@@ -443,10 +427,16 @@ export default function BattleRoyaleGame() {
               currentNode: result.newPosition
             }
           }));
-          // Update accessible edges locally after movement
-          const nextNode = result.newPosition;
-          if (nextNode) {
-            setAccessibleEdges(getAccessibleEdges(nextNode));
+          // Update accessible edges from backend response (preferred) or local computation (fallback)
+          if (result.accessibleEdges && Array.isArray(result.accessibleEdges)) {
+            setAccessibleEdges(result.accessibleEdges);
+            console.log(`🔓 Edges unlocked after moving to ${result.newPosition}:`, result.accessibleEdges.map(e => e.id));
+          } else {
+            // Fallback to local computation
+            const nextNode = result.newPosition;
+            if (nextNode) {
+              setAccessibleEdges(getAccessibleEdges(nextNode));
+            }
           }
         }
         
@@ -640,7 +630,11 @@ export default function BattleRoyaleGame() {
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <LeetCodeCodeEditor
-                    onSubmit={submitCodeAnswer}
+                    question={currentQuestion}
+                    onSubmitAnswer={(code, language, passed, results) => {
+                      // Use the Battle Royale specific submission logic with proper language
+                      submitCodeAnswer(code, language || 'javascript');
+                    }}
                     supportedLanguages={currentQuestion.supportedLanguages || [
                       { id: 'javascript', name: 'JavaScript (Node.js)' },
                       { id: 'python', name: 'Python 3' },
@@ -755,10 +749,10 @@ export default function BattleRoyaleGame() {
       {mapState.isMinimized && (
             <div style={{
               position: 'absolute',
-              top: '20px',
+              top: '80px',
               right: '20px',
-              width: '320px',
-              height: '320px',
+              width: '280px',
+              height: '280px',
               zIndex: 1500,
               border: '3px solid #00ff88',
               borderRadius: '15px',

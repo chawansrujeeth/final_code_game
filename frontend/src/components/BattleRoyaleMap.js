@@ -16,7 +16,7 @@ if (typeof document !== 'undefined' && !document.getElementById('br-map-anim-sty
   style.innerHTML = `
     @keyframes timerPulse {
       0%   { transform: scale(1); color: #ffffff; }
-      50%  { transform: scale(1.08); color: #00ff88; }
+      50%  { transform: scale(1.02); color: #b2ffd9; }
       100% { transform: scale(1); color: #ffffff; }
     }
   `;
@@ -926,17 +926,17 @@ useEffect(() => {
           zIndex: 1000,
           background: 'rgba(0, 0, 0, 0.9)',
           color: 'white',
-          padding: '12px',
+          padding: '8px',
           borderRadius: '8px',
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '11px',
           border: '1px solid #444'
         }}>
-          <div style={{ marginBottom: '8px', color: '#00ff88', fontWeight: 'bold' }}>🎯 BATTLE ROYALE</div>
-          {/* Animated match timer */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            ⏱️{' '}
-            <span style={{ animation: 'timerPulse 1s ease-in-out infinite alternate', display: 'inline-block' }}>
+          <div style={{ marginBottom: '8px', color: '#00ff88', fontWeight: 'bold', fontSize: '10px' }}>🎯 BATTLE ROYALE</div>
+          {/* Compact match timer (pill) */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.06)', border: '1px solid #333', borderRadius: '999px', padding: '2px 8px', lineHeight: 1 }}>
+            <span style={{ opacity: 0.9 }}>⏱️</span>
+            <span style={{ display: 'inline-block', animation: 'timerPulse 2s ease-in-out infinite', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px', fontWeight: 700 }}>
               {Math.floor(gameTimer / 60)}:{Math.floor(gameTimer % 60).toString().padStart(2, '0')}
             </span>
           </div>
@@ -944,8 +944,8 @@ useEffect(() => {
             🔵 Zone: {phase === 'moving' ? 'SHRINKING' : 'SAFE'}
           </div>
           {/* Phase countdown with progress bar */}
-          <div style={{ width: '140px' }}>
-            <div style={{ fontSize: '11px' }}>⚠️ Phase: {Math.floor(Math.max(0, phaseTotal - phaseTimer))}s</div>
+          <div style={{ width: '120px' }}>
+            <div style={{ fontSize: '10px' }}>⚠️ Phase: {Math.floor(Math.max(0, phaseTotal - phaseTimer))}s</div>
             <div style={{ width: '100%', height: '4px', background: '#222', borderRadius: '2px', overflow: 'hidden', marginTop: '2px' }}>
               <div style={{ width: `${(1 - Math.min(phaseTimer / phaseTotal, 1)) * 100}%`, height: '100%', background: phase === 'moving' ? '#4444ff' : '#ff4444', transition: 'width 1s linear' }} />
             </div>

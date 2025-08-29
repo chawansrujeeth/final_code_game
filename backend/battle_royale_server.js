@@ -1,6 +1,8 @@
 // backend/battle_royale_server.js
 // Optimized for Render free tier with Supabase session persistence
 
+// Load environment variables from .env in local/dev; safe to ignore if unavailable in prod
+try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -27,9 +29,9 @@ const io = socketIo(server, {
 
 app.use(cors());
 
-// Basic health endpoint for Elastic Beanstalk load-balancer health checks
+// Basic health endpoint for platform health checks (separate from detailed /health)
 app.get('/', (_req, res) => res.status(200).send('OK'));
-app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/healthz', (_req, res) => res.status(200).json({ status: 'ok' }));
 app.use(express.json());
 
 // User state API endpoints
@@ -413,6 +415,9 @@ function startZoneLoop(sessionId, session) {
         zs.phaseTimer = 0;
       }
 
+      // Apply zone damage to players outside safe zone
+      await applyZoneDamage(sessionId, session, zs);
+
       // Persist occasionally (every 10s)
       if (zs.phaseTimer % 10 === 0) {
         await session.saveSession();
@@ -443,6 +448,105 @@ function stopZoneLoop(sessionId) {
     zoneLoops.delete(sessionId);
     console.log(`🛑 Stopped zone loop for session ${sessionId}`);
   }
+}
+
+// Apply zone damage to players outside the safe zone
+async function applyZoneDamage(sessionId, session, zoneState) {
+  if (!session.gameState.isGameActive || session.gameState.gameOver) return;
+  
+  const ZONE_DAMAGE_PER_SECOND = 5; // Health damage per second outside zone
+  const safeRadius = zoneState.blueRadius; // Current blue zone radius
+  
+  // Get node positions (simplified mapping for zone damage calculation)
+  const nodePositions = getNodePositions();
+  
+  let playersAffected = 0;
+  
+  for (const [playerId, player] of session.players) {
+    if (!player.isAlive || player.health <= 0) continue;
+    
+    const playerPos = nodePositions[player.currentNode];
+    if (!playerPos) continue;
+    
+    // Calculate distance from center (0,0)
+    const distanceFromCenter = Math.sqrt(playerPos.x * playerPos.x + playerPos.y * playerPos.y);
+    
+    // If player is outside the safe zone, apply damage
+    if (distanceFromCenter > safeRadius) {
+      const newHealth = Math.max(0, player.health - ZONE_DAMAGE_PER_SECOND);
+      
+      session.updatePlayer(playerId, {
+        health: newHealth
+      });
+      
+      playersAffected++;
+      
+      // Check if player is eliminated
+      if (newHealth <= 0) {
+        session.updatePlayer(playerId, {
+          isAlive: false,
+          isEliminated: true
+        });
+        
+        // Emit elimination event
+        io.to(sessionId).emit('player_eliminated', {
+          playerId,
+          playerName: player.playerName,
+          reason: 'zone_damage',
+          finalHealth: 0
+        });
+        
+        console.log(`💀 Player ${playerId} eliminated by zone damage`);
+      } else {
+        console.log(`🔥 Zone damage: Player ${playerId} health: ${player.health} → ${newHealth}`);
+      }
+    }
+  }
+  
+  if (playersAffected > 0) {
+    console.log(`⚡ Zone damage applied to ${playersAffected} players outside safe zone (radius: ${safeRadius})`);
+  }
+}
+
+// Get simplified node positions for zone damage calculation
+function getNodePositions() {
+  // Simplified radial positioning based on ring structure
+  const positions = {};
+  
+  // Ring 3 (outer) - radius ~300-350
+  const r3Radius = 320;
+  for (let i = 1; i <= 8; i++) {
+    const angle = ((i - 1) / 8) * 2 * Math.PI;
+    positions[`R3_${i}`] = {
+      x: Math.cos(angle) * r3Radius,
+      y: Math.sin(angle) * r3Radius
+    };
+  }
+  
+  // Ring 2 (middle) - radius ~200-250
+  const r2Radius = 220;
+  for (let i = 1; i <= 4; i++) {
+    const angle = ((i - 1) / 4) * 2 * Math.PI;
+    positions[`R2_${i}`] = {
+      x: Math.cos(angle) * r2Radius,
+      y: Math.sin(angle) * r2Radius
+    };
+  }
+  
+  // Ring 1 (inner) - radius ~100-150
+  const r1Radius = 120;
+  for (let i = 1; i <= 4; i++) {
+    const angle = ((i - 1) / 4) * 2 * Math.PI;
+    positions[`R1_${i}`] = {
+      x: Math.cos(angle) * r1Radius,
+      y: Math.sin(angle) * r1Radius
+    };
+  }
+  
+  // TARGET (center)
+  positions['TARGET'] = { x: 0, y: 0 };
+  
+  return positions;
 }
 
 function cancelLobbySelectionTimer(sessionId) {
@@ -2172,8 +2276,8 @@ io.on('connection', (socket) => {
       
       // Update player state based on execution result
       if (executionResult.allPassed) {
-        // All test cases passed - move player
-        session.updatePlayer(playerId, {
+        // All test cases passed - move player and unlock adjacent edges
+        const updatedPlayer = session.updatePlayer(playerId, {
           currentNode: targetNode,
           currentZone: getZoneFromNode(targetNode),
           questionsAnswered: (player.questionsAnswered || 0) + 1
@@ -2181,6 +2285,11 @@ io.on('connection', (socket) => {
         
         // Mark question as used
         session.usedQuestions.add(questionId);
+        
+        // Get accessible edges from the new position for edge unlocking
+        const accessibleEdges = getAccessibleEdgesForNode(targetNode);
+        
+        console.log(`✅ Player ${playerId} moved to ${targetNode}. Accessible edges:`, accessibleEdges.map(e => e.id));
         
         // Check for win condition
         if (targetNode === 'TARGET') {
@@ -2206,6 +2315,7 @@ io.on('connection', (socket) => {
           message: `All test cases passed! Moving to ${targetNode}`,
           newPosition: targetNode,
           questionsAnswered: (player.questionsAnswered || 0) + 1,
+          accessibleEdges: accessibleEdges,
           executionDetails: {
             passedCount: executionResult.passedCount,
             totalCount: executionResult.totalCount,
@@ -2442,6 +2552,67 @@ function getTargetNodeFromEdge(edgeId, currentNode) {
   
   // Fallback - return target if current node doesn't match either
   return target;
+}
+
+// Helper function to get all accessible edges from a given node
+function getAccessibleEdgesForNode(currentNode) {
+  if (!currentNode) return [];
+  
+  // Define all edges in the battle royale map (bidirectional)
+  const allEdges = [
+    // R3 circular edges
+    { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_4-R3_5', source: 'R3_4', target: 'R3_5', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_5-R3_6', source: 'R3_5', target: 'R3_6', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_6-R3_7', source: 'R3_6', target: 'R3_7', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
+    { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
+    
+    // R3 to R2 edges
+    { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_4-R2_2', source: 'R3_4', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_5-R2_3', source: 'R3_5', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_6-R2_3', source: 'R3_6', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+    
+    // R2 circular edges
+    { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
+    
+    // R2 to R1 edges
+    { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_2-R1_3', source: 'R2_2', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_3-R1_3', source: 'R2_3', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_3-R1_4', source: 'R2_3', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+    
+    // R1 circular edges
+    { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_4-R1_1', source: 'R1_4', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
+    
+    // R1 to TARGET edges
+    { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    { id: 'R1_4-TARGET', source: 'R1_4', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+  ];
+  
+  // Filter edges that are connected to the current node (bidirectional)
+  return allEdges.filter(edge => 
+    edge.source === currentNode || edge.target === currentNode
+  );
 }
 
 // API endpoint to get session info

@@ -6,8 +6,16 @@ const axios = require('axios');
 class Judge0Service {
   constructor() {
     this.baseUrl = 'https://judge0-ce.p.rapidapi.com';
-    // Prefer JUDGE0_API_KEY (AWS EB) but fallback to JUDGE0_KEY for local dev
-    this.apiKey = process.env.JUDGE0_API_KEY || process.env.JUDGE0_KEY;
+    // Support multiple keys with rotation. Prefer numbered keys, then single vars.
+    this.apiKeys = [
+      process.env.JUDGE0_KEY_1,
+      process.env.JUDGE0_KEY_2,
+      process.env.JUDGE0_KEY_3,
+      process.env.JUDGE0_API_KEY,
+      process.env.JUDGE0_KEY
+    ].filter(Boolean);
+    // Backward compatibility for code referencing this.apiKey
+    this.apiKey = this.apiKeys[0] || null;
     this.apiHost = 'judge0-ce.p.rapidapi.com';
   }
 
@@ -29,41 +37,58 @@ class Judge0Service {
 
   // Submit code for execution
   async submitCode(code, language, input = '') {
-    try {
-      if (!this.apiKey) {
-        throw new Error('Judge0 API key not configured');
-      }
+    if (!this.apiKeys || this.apiKeys.length === 0) {
+      throw new Error('Judge0 API key not configured');
+    }
 
-      const response = await axios.post(
-        `${this.baseUrl}/submissions?base64_encoded=false&wait=true`,
-        {
-          source_code: code,
-          language_id: this.getLanguageId(language),
-          stdin: input,
-          expected_output: null
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-RapidAPI-Key': this.apiKey,
-            'X-RapidAPI-Host': this.apiHost
+    let lastError = null;
+
+    for (let i = 0; i < this.apiKeys.length; i++) {
+      const key = this.apiKeys[i];
+      try {
+        const response = await axios.post(
+          `${this.baseUrl}/submissions?base64_encoded=false&wait=true`,
+          {
+            source_code: code,
+            language_id: this.getLanguageId(language),
+            stdin: input,
+            expected_output: null
           },
-          timeout: 30000 // 30 second timeout
-        }
-      );
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-RapidAPI-Key': key,
+              'X-RapidAPI-Host': this.apiHost
+            },
+            timeout: 30000 // 30 second timeout
+          }
+        );
 
-      return this.formatResult(response.data);
-    } catch (error) {
-      console.error('Judge0 submission error:', error.message);
-      
-      if (error.response) {
-        throw new Error(`Judge0 API error: ${error.response.status} - ${error.response.data?.message || 'Unknown error'}`);
-      } else if (error.code === 'ECONNABORTED') {
-        throw new Error('Code execution timeout - please try again');
-      } else {
-        throw new Error(`Code execution failed: ${error.message}`);
+        return this.formatResult(response.data);
+      } catch (error) {
+        // For rate limit/forbidden/server errors, try the next key
+        if (error.response && (error.response.status === 429 || error.response.status === 403 || error.response.status === 500)) {
+          lastError = error;
+          continue;
+        }
+        // Timeout: bubble up a friendly message
+        if (error.code === 'ECONNABORTED') {
+          lastError = new Error('Code execution timeout - please try again');
+          break;
+        }
+        // Other errors: stop and report
+        lastError = error;
+        break;
       }
     }
+
+    if (lastError) {
+      if (lastError.response) {
+        throw new Error(`Judge0 API error: ${lastError.response.status} - ${lastError.response.data?.message || 'Unknown error'}`);
+      }
+      throw new Error(`Code execution failed: ${lastError.message}`);
+    }
+    throw new Error('Code execution failed: Unknown error');
   }
 
   // Run code with test cases
@@ -162,7 +187,7 @@ class Judge0Service {
 
   // Check if API key is configured
   isConfigured() {
-    return !!this.apiKey;
+    return Array.isArray(this.apiKeys) && this.apiKeys.length > 0;
   }
 }
 
