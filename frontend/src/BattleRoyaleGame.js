@@ -127,7 +127,6 @@ export default function BattleRoyaleGame() {
       try {
         // Connect to battle royale server (Render backend)
         const serverUrl = process.env.REACT_APP_BATTLE_ROYALE_SERVER_URL || 'http://localhost:5003';
-        console.log('Connecting to battle royale server:', serverUrl);
         battleRoyaleSocket.connect(serverUrl);
         
         // Set up event listeners EARLY (before join) to avoid missing early emissions
@@ -136,7 +135,6 @@ export default function BattleRoyaleGame() {
           });
           
           battleRoyaleSocket.onGameStateUpdate((data) => {
-          console.log('Game state update:', data);
           // Update game state and players from server data
           if (data.gameState) {
             setGameState(prev => ({ ...prev, ...data.gameState }));
@@ -152,8 +150,6 @@ export default function BattleRoyaleGame() {
                 isAlive: player.health > 0
               };
             });
-            console.log('🎮 Updated players state:', updatedPlayers);
-            console.log('🎯 Current player data:', updatedPlayers[playerId]);
             setPlayers(updatedPlayers);
             if (!selectedPlayer || !updatedPlayers[selectedPlayer]) {
               setSelectedPlayer(playerId);
@@ -163,7 +159,6 @@ export default function BattleRoyaleGame() {
 
         // Handle auto-start event when 4 players join
         battleRoyaleSocket.onGameStarted((data) => {
-          console.log('Game started:', data);
           if (data.gameState) {
             setGameState(prev => ({ ...prev, ...data.gameState, isGameActive: true }));
           } else {
@@ -189,14 +184,12 @@ export default function BattleRoyaleGame() {
 
         // Helpful connection success handler to prime UI state
         battleRoyaleSocket.onConnectionSuccess((data) => {
-          console.log('Connection success:', data);
           if (data && data.gameState) {
             setGameState(prev => ({ ...prev, ...data.gameState }));
           }
         });
         
         battleRoyaleSocket.onGameOver((data) => {
-          console.log('Game over:', data);
           setGameState(prev => ({
             ...prev,
             isGameActive: false,
@@ -208,12 +201,10 @@ export default function BattleRoyaleGame() {
 
         // Handle errors from backend
         battleRoyaleSocket.socket.on('error', (data) => {
-          console.log('❌ Backend error:', data);
           setConnectionError(data.message || 'Unknown error occurred');
         });
 
         battleRoyaleSocket.onPlayerEliminated((data) => {
-          console.log('Player eliminated:', data);
           setPlayers(prev => ({
             ...prev,
             [data.playerId]: {
@@ -225,7 +216,6 @@ export default function BattleRoyaleGame() {
 
         // Handle synchronized timer updates
         battleRoyaleSocket.socket.on('game_timer_update', (data) => {
-          console.log('Timer update:', data);
           setTimerState({
             timeRemaining: data.timeRemaining,
             totalDuration: data.totalDuration,
@@ -243,7 +233,6 @@ export default function BattleRoyaleGame() {
 
         // Handle game ended by timeout
         battleRoyaleSocket.socket.on('game_ended', (data) => {
-          console.log('Game ended:', data);
           setGameState(prev => ({
             ...prev,
             isGameActive: false,
@@ -275,7 +264,6 @@ export default function BattleRoyaleGame() {
             clearTimeout(timeout);
             setIsConnected(true);
             setConnectionError(null);
-            console.log('Connected to battle royale server');
             resolve();
           });
           
@@ -353,7 +341,6 @@ export default function BattleRoyaleGame() {
     if (!gameState || !gameState.isGameActive) return;
     
     // Show node information (safe point details)
-    console.log(`Clicked safe point: ${nodeData.id}`, nodeData);
   };
   
   // Removed deprecated client-side listeners: 'question_for_move', 'move_error', 'game_view', 'view_error'
@@ -369,7 +356,6 @@ export default function BattleRoyaleGame() {
         playerId,
         edgeId
       });
-      console.log('📍 Edge clicked, requesting question:', edgeId);
       setSelectedEdgeId(edgeId);
     } catch (error) {
       console.error('❌ Edge click error:', error);
@@ -392,7 +378,6 @@ export default function BattleRoyaleGame() {
         edgeId: selectedEdgeId
       });
       
-      console.log('🔍 Code submitted for execution:', { questionId: currentQuestion.id, language });
     } catch (error) {
       console.error('❌ Submit code error:', error);
     }
@@ -403,7 +388,6 @@ export default function BattleRoyaleGame() {
     if (!battleRoyaleSocket) return;
     
     const handleQuestionReceived = (data) => {
-      console.log('📖 Question received:', data);
       // Ignore if this question is not for this player (defensive)
       if (data.playerId && data.playerId !== playerId) return;
 
@@ -432,7 +416,6 @@ export default function BattleRoyaleGame() {
     };
 
     const handleCodeResult = (result) => {
-      console.log('🔍 Code execution result:', result);
       
       if (result.success) {
         setResultMessage(`✅ ${result.message}`);
@@ -475,7 +458,6 @@ export default function BattleRoyaleGame() {
         setShowResult(true);
         
         if (result.executionDetails && result.executionDetails.results) {
-          console.log('Test case results:', result.executionDetails.results);
         }
         
         // Update health on failure if provided
@@ -666,7 +648,7 @@ export default function BattleRoyaleGame() {
                       { id: 'cpp', name: 'C++' }
                     ]}
                     initialCode={{
-                      javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nconsole.log(solution());',
+                      javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nsolution();',
                       python: '# Write your solution here\ndef solution():\n    # Your code here\n    return result\n\nprint(solution())',
                       java: 'public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        System.out.println(solution());\n    }\n    \n    public static Object solution() {\n        // Your code here\n        return result;\n    }\n}',
                       cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    cout << solution() << endl;\n    return 0;\n}\n\n// Your solution function\nint solution() {\n    // Your code here\n    return result;\n}'
@@ -918,36 +900,54 @@ export default function BattleRoyaleGame() {
           fontSize: '12px',
           zIndex: 1000
         }}>
-          <div><strong>Debug Info:</strong></div>
-          <div>Session: {sessionId || 'None'}</div>
-          <div>Player: {playerId || 'None'}</div>
-          <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
-          <div>Current Node: {players[playerId]?.currentNode || 'None'}</div>
-          <div>Game Active: {gameState.isGameActive ? 'Yes' : 'No'}</div>
-          <button 
-            onClick={() => {
-              console.log('🔍 Debug State Check:');
-              console.log('- sessionId:', sessionId);
-              console.log('- playerId:', playerId);
-              console.log('- isConnected:', isConnected);
-              console.log('- players:', players);
-              console.log('- gameState:', gameState);
-              console.log('- currentQuestion:', currentQuestion);
-            }}
-            style={{
-              marginTop: '5px',
-              padding: '2px 8px',
-              fontSize: '10px',
-              background: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '3px',
-              cursor: 'pointer'
-            }}
-          >
-            Log Debug Info
-          </button>
+          <div><strong>Connection Status:</strong></div>
+          <div>Connected: {isConnected ? '✅' : '❌'}</div>
+          <div>Game: {gameState.isGameActive ? '🎮 Active' : '⏸️ Waiting'}</div>
         </div>
+
+        {/* Game Timer Display */}
+        {gameState.isGameActive && timerState.timeRemaining !== null && (
+          <div style={{
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)',
+            color: 'white',
+            padding: '15px 25px',
+            borderRadius: '15px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            boxShadow: '0 8px 25px rgba(255,107,107,0.4)',
+            zIndex: 2000,
+            minWidth: '200px',
+            border: '2px solid rgba(255,255,255,0.2)'
+          }}>
+            <div style={{ fontSize: '14px', marginBottom: '5px', opacity: 0.9 }}>
+              ⏱️ TIME REMAINING
+            </div>
+            <div style={{ fontSize: '32px', letterSpacing: '2px' }}>
+              {Math.floor(timerState.timeRemaining / 60000)}:{String(Math.floor((timerState.timeRemaining % 60000) / 1000)).padStart(2, '0')}
+            </div>
+            <div style={{ 
+              width: '100%', 
+              height: '4px', 
+              background: 'rgba(255,255,255,0.3)', 
+              borderRadius: '2px', 
+              marginTop: '10px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${((timerState.timeRemaining || 0) / (timerState.totalDuration || 1)) * 100}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #fff, #f1c40f)',
+                borderRadius: '2px',
+                transition: 'width 1s ease-in-out'
+              }} />
+            </div>
+          </div>
+        )}
 
               {/* Minimap Label */}
               <div style={{
@@ -1080,29 +1080,6 @@ export default function BattleRoyaleGame() {
         <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
         <div>Current Node: {players[playerId]?.currentNode || 'None'}</div>
         <div>Game Active: {gameState.isGameActive ? 'Yes' : 'No'}</div>
-        <button 
-          onClick={() => {
-            console.log('🔍 Debug State Check:');
-            console.log('- sessionId:', sessionId);
-            console.log('- playerId:', playerId);
-            console.log('- isConnected:', isConnected);
-            console.log('- players:', players);
-            console.log('- gameState:', gameState);
-            console.log('- currentQuestion:', currentQuestion);
-          }}
-          style={{
-            marginTop: '5px',
-            padding: '2px 8px',
-            fontSize: '10px',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '3px',
-            cursor: 'pointer'
-          }}
-        >
-          Log Debug Info
-        </button>
       </div>
 
       {/* Player Health Bar */}

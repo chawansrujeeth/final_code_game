@@ -48,7 +48,6 @@ class BattleRoyaleSocket {
       this.disconnect();
     }
 
-    console.log('Connecting to Battle Royale server:', serverUrl);
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       // Match backend settings for Render free tier
@@ -94,7 +93,6 @@ class BattleRoyaleSocket {
 
   setupSocketEvents() {
     this.socket.on('connect', () => {
-      console.log('✅ Connected to Battle Royale server:', this.socket.id);
       this.isConnected = true;
       const wasReconnecting = this.isReconnecting;
       this.isReconnecting = false;
@@ -105,7 +103,6 @@ class BattleRoyaleSocket {
       
       // Auto-rejoin session if we were in one
       if (this.sessionId && this.playerId && this.playerName) {
-        console.log('🔄 Auto-rejoining session after reconnection...');
         // Add small delay to ensure server is ready
         setTimeout(() => {
           this.joinSession(this.sessionId, this.playerId, this.playerName, true);
@@ -116,7 +113,6 @@ class BattleRoyaleSocket {
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('❌ Disconnected from Battle Royale server:', reason);
       this.isConnected = false;
       
       // Stop heartbeat on disconnect
@@ -135,16 +131,13 @@ class BattleRoyaleSocket {
     // Handle heartbeat acknowledgment
     this.socket.on('heartbeat_ack', (data) => {
       // Server acknowledged our heartbeat
-      console.log('💓 Heartbeat acknowledged:', data);
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log(`🔄 Reconnected after ${attemptNumber} attempts`);
       this.isReconnecting = true;
     });
 
     this.socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 Reconnection attempt ${attemptNumber}/${this.maxReconnectAttempts}`);
       this.reconnectAttempts = attemptNumber;
       this.emit('connection_status', { 
         connected: false, 
@@ -155,7 +148,6 @@ class BattleRoyaleSocket {
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.log('❌ Failed to reconnect after maximum attempts');
       this.emit('connection_status', { connected: false, reconnectFailed: true });
     });
 
@@ -167,17 +159,14 @@ class BattleRoyaleSocket {
 
     // Handle new backend events
     this.socket.on('connection_success', (data) => {
-      console.log('✅ Connection success:', data.message);
       this.emit('connection_success', data);
     });
 
     this.socket.on('player_disconnected', (data) => {
-      console.log('👋 Player disconnected:', data.message);
       this.emit('player_disconnected', data);
     });
 
     this.socket.on('player_left', (data) => {
-      console.log('🚪 Player left:', data.message);
       this.emit('player_left', data);
     });
 
@@ -199,7 +188,6 @@ class BattleRoyaleSocket {
     ];
     forwardEvents.forEach(evt => {
       this.socket.on(evt, (payload) => {
-        console.log(`📡 ${evt}:`, payload);
         this.emit(evt, payload);
       });
     });
@@ -222,7 +210,6 @@ class BattleRoyaleSocket {
 
     // Wait for connection if not connected yet
     if (!this.isConnected) {
-      console.log('⏳ Waiting for connection before joining...');
       this.socket.once('connect', () => {
         this.joinSession(sessionId, playerId, playerName, isReconnection);
       });
@@ -233,7 +220,6 @@ class BattleRoyaleSocket {
     this.playerId = playerId;
     this.playerName = playerName;
 
-    console.log(`🎮 ${isReconnection ? 'Rejoining' : 'Joining'} session ${sessionId} as ${playerName} (${playerId})`);
     this.lastEmit = 'join_battle_royale';
     this.socket.emit('join_battle_royale', {
       sessionId,
@@ -248,7 +234,6 @@ class BattleRoyaleSocket {
       return;
     }
 
-    console.log(`🚪 Leaving game session ${this.sessionId}`);
     this.lastEmit = 'leave_game';
     this.socket.emit('leave_game', {
       sessionId: this.sessionId,
@@ -382,7 +367,6 @@ class BattleRoyaleSocket {
   // Force reconnection
   forceReconnect() {
     if (this.socket) {
-      console.log('🔄 Forcing reconnection...');
       this.socket.disconnect();
       this.socket.connect();
     }

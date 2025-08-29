@@ -591,13 +591,18 @@ function startGameTimer(sessionId) {
         session.gameState.gameEndTime = endTime;
         await session.saveSession();
         
-        // Broadcast time update to all players
-        io.to(sessionId).emit('game_timer_update', {
+        // Broadcast synchronized time update to all players
+        const timerData = {
           timeRemaining,
           totalDuration: GAME_DURATION_MS,
           timeElapsed: GAME_DURATION_MS - timeRemaining,
-          formattedTime: formatTime(timeRemaining)
-        });
+          formattedTime: formatTime(timeRemaining),
+          serverTimestamp: currentTime,
+          gameStartTime: session.gameState.gameStartTime,
+          gameEndTime: endTime
+        };
+        
+        io.to(sessionId).emit('game_timer_update', timerData);
         
         // End game when time runs out
         if (timeRemaining <= 0) {
@@ -713,13 +718,18 @@ function restoreGameTimer(sessionId, session) {
         session.gameState.timeRemaining = timeRemaining;
         await session.saveSession();
         
-        // Broadcast time update to all players
-        io.to(sessionId).emit('game_timer_update', {
+        // Broadcast synchronized time update to all players
+        const timerData = {
           timeRemaining,
           totalDuration: GAME_DURATION_MS,
           timeElapsed: GAME_DURATION_MS - timeRemaining,
-          formattedTime: formatTime(timeRemaining)
-        });
+          formattedTime: formatTime(timeRemaining),
+          serverTimestamp: currentTime,
+          gameStartTime: session.gameState.gameStartTime,
+          gameEndTime: endTime
+        };
+        
+        io.to(sessionId).emit('game_timer_update', timerData);
         
         // End game when time runs out
         if (timeRemaining <= 0) {
