@@ -903,43 +903,22 @@ export default function BattleRoyaleGame() {
         {gameState.isGameActive && timerState.timeRemaining !== null && (
           <div style={{
             position: 'absolute',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)',
-            color: 'white',
-            padding: '15px 25px',
-            borderRadius: '15px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            boxShadow: '0 8px 25px rgba(255,107,107,0.4)',
+            top: '12px',
+            right: '12px',
+            background: 'rgba(0, 0, 0, 0.85)',
+            color: '#00ff88',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            fontWeight: 700,
+            lineHeight: 1,
             zIndex: 2000,
-            minWidth: '200px',
-            border: '2px solid rgba(255,255,255,0.2)'
+            border: '1px solid #00ff88',
+            letterSpacing: '0.5px',
+            animation: 'timerPulse 2s ease-in-out infinite'
           }}>
-            <div style={{ fontSize: '14px', marginBottom: '5px', opacity: 0.9 }}>
-              ⏱️ TIME REMAINING
-            </div>
-            <div style={{ fontSize: '32px', letterSpacing: '2px' }}>
-              {Math.floor(timerState.timeRemaining / 60000)}:{String(Math.floor((timerState.timeRemaining % 60000) / 1000)).padStart(2, '0')}
-            </div>
-            <div style={{ 
-              width: '100%', 
-              height: '4px', 
-              background: 'rgba(255,255,255,0.3)', 
-              borderRadius: '2px', 
-              marginTop: '10px',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                width: `${((timerState.timeRemaining || 0) / (timerState.totalDuration || 1)) * 100}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #fff, #f1c40f)',
-                borderRadius: '2px',
-                transition: 'width 1s ease-in-out'
-              }} />
-            </div>
+            ⏱️ {Math.floor(timerState.timeRemaining / 60000)}:{String(Math.floor((timerState.timeRemaining % 60000) / 1000)).padStart(2, '0')}
           </div>
         )}
 

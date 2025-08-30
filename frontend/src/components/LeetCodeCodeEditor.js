@@ -1,18 +1,97 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
-import backendJudge0Service from '../services/backendJudge0Service';
 
-const LeetCodeCodeEditor = ({ question, onSubmitAnswer }) => {
+/**
+ * Simplified code editor component.
+ * Shows language selector, Monaco editor, and a Submit button.
+ * Props:
+ *   onSubmitAnswer(code: string, language: string): void
+ */
+const LeetCodeCodeEditor = ({ onSubmitAnswer }) => {
+  const [language, setLanguage] = useState('javascript');
+  const [code, setCode] = useState('');
+  const editorRef = useRef(null);
+
+  // Basic templates per language for convenience
+  const templates = {
+    javascript: `// Write your solution here\nfunction solution(input) {\n  // TODO\n  return null;\n}\n\n// Example usage:\n// console.log(solution('your input'));`,
+    python: `# Write your solution here\ndef solution(input):\n    # TODO\n    return None\n\n# Example usage:\n# print(solution('your input'))`,
+    java: `public class Solution {\n  public static void main(String[] args) {\n    // TODO\n  }\n\n  static Object solution(Object input) {\n    // TODO\n    return null;\n  }\n}`,
+    cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // TODO\n  return 0;\n}`
+  };
+
+  useEffect(() => {
+    setCode(templates[language] || templates.javascript);
+  }, [language]);
+
+  const handleSubmit = () => {
+    if (typeof onSubmitAnswer === 'function') {
+      onSubmitAnswer(code, language);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#1e1e1e' }}>
+      {/* Header */}
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #333' }}>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          style={{ background: '#3c3c3c', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 12 }}
+        >
+          <option value="javascript">JavaScript (Node.js)</option>
+          <option value="python">Python 3</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+        </select>
+      </div>
+
+      {/* Editor */}
+      <div style={{ flex: 1 }}>
+        <Editor
+          path={`file.${language}`}
+          language={language}
+          value={code}
+          onChange={(val) => setCode(val || '')}
+          onMount={(editor) => (editorRef.current = editor)}
+          theme="vs-dark"
+          options={{
+            fontSize: 14,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            automaticLayout: true
+          }}
+        />
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '8px 12px', borderTop: '1px solid #333', textAlign: 'right' }}>
+        <button
+          onClick={handleSubmit}
+          style={{ background: '#ff6b35', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default LeetCodeCodeEditor;
+import Editor from '@monaco-editor/react';
+
+const LeetCodeCodeEditor = ({ onSubmitAnswer }) => {
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
-  const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [testResults, setTestResults] = useState(null);
-  const [activeTab, setActiveTab] = useState('code');
-  const [customInput, setCustomInput] = useState('');
-  const [customOutput, setCustomOutput] = useState('');
-  const [supportedLanguages, setSupportedLanguages] = useState([]);
-  const [backendStatus, setBackendStatus] = useState({ connected: false, judge0Configured: false });
+  const [supportedLanguages, setSupportedLanguages] = useState([
+    { id: 'javascript', name: 'JavaScript (Node.js)' },
+    { id: 'python', name: 'Python 3' },
+    { id: 'java', name: 'Java' },
+    { id: 'cpp', name: 'C++' },
+    { id: 'c', name: 'C' }
+  ]);
   const editorRef = useRef(null);
 
   // Language templates
@@ -60,12 +139,9 @@ int main() {
     return templates[lang] || templates.javascript;
   };
 
-  useEffect(() => {
     setCode(getTemplate(language));
   }, [language]);
 
-  // Load supported languages and check backend status
-  useEffect(() => {
     const loadLanguagesAndStatus = async () => {
       try {
         const [languages, status] = await Promise.all([
@@ -105,7 +181,6 @@ int main() {
     });
   };
 
-  const runCode = async () => {
     if (!backendStatus.connected) {
       alert('Backend server not connected. Please check your connection.');
       return;
@@ -129,7 +204,6 @@ int main() {
     }
   };
 
-  const runTestCases = async () => {
     if (!backendStatus.connected) {
       alert('Backend server not connected. Please check your connection.');
       return;
@@ -164,7 +238,13 @@ int main() {
     }
   };
 
-  const submitSolution = async () => {
+  const handleSubmit = () => {
+    if (typeof onSubmitAnswer === 'function') {
+      onSubmitAnswer(code, language);
+    }
+  };
+    onSubmitAnswer(code, language);
+  };
     if (!question?.testCases || question.testCases.length === 0) {
       // If no test cases, submit directly with language
       onSubmitAnswer(code, language);
@@ -208,7 +288,7 @@ int main() {
       flexDirection: 'column',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      {/* Header */}
+      {/* Editor Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -234,9 +314,7 @@ int main() {
               <option key={lang.id} value={lang.id}>{lang.name}</option>
             ))}
           </select>
-        </div>
         
-        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={runCode}
             disabled={isRunning}
@@ -288,17 +366,14 @@ int main() {
           >
             {isSubmitting ? 'Submitting...' : '📤 Submit'}
           </button>
-        </div>
       </div>
 
-      {/* Tab Navigation */}
       <div style={{
         display: 'flex',
         borderBottom: '1px solid #333',
         background: '#252526'
       }}>
-        {['code', 'output', 'testcases'].map(tab => (
-          <button
+                  <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
@@ -317,9 +392,7 @@ int main() {
         ))}
       </div>
 
-      {/* Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {activeTab === 'code' && (
           <Editor
             height="100%"
             language={language}
@@ -338,10 +411,8 @@ int main() {
               automaticLayout: true
             }}
           />
-        )}
 
-        {activeTab === 'output' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{
               padding: '8px 16px',
               borderBottom: '1px solid #333',
@@ -350,8 +421,7 @@ int main() {
               fontWeight: 'bold'
             }}>
               Custom Input:
-            </div>
-            <textarea
+                <textarea
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
               placeholder="Enter custom input here..."
@@ -375,8 +445,7 @@ int main() {
               fontWeight: 'bold'
             }}>
               Output:
-            </div>
-            <div style={{
+                <div style={{
               flex: 1,
               background: '#2d2d30',
               padding: '8px',
@@ -386,12 +455,8 @@ int main() {
               overflowY: 'auto'
             }}>
               {customOutput || 'Click "Run" to see output here...'}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'testcases' && (
-          <div style={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
+      
+                  <div style={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
             {testResults ? (
               <div>
                 <div style={{
@@ -403,12 +468,9 @@ int main() {
                 }}>
                   <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
                     {testResults.allPassed ? '✅ All Tests Passed!' : '❌ Some Tests Failed'}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#cccccc' }}>
+                            <div style={{ fontSize: '12px', color: '#cccccc' }}>
                     {testResults.passedCount} / {testResults.totalCount} test cases passed
-                  </div>
-                </div>
-
+                  
                 {testResults.results?.map((result, index) => (
                   <div key={index} style={{
                     marginBottom: '12px',
@@ -431,23 +493,19 @@ int main() {
                         <span style={{ marginLeft: 'auto', color: '#999' }}>
                           {result.executionTime}s
                         </span>
-                      )}
-                    </div>
-                    
+                                              
                     <div style={{ fontSize: '11px', marginBottom: '4px' }}>
                       <span style={{ color: '#9cdcfe' }}>Input: </span>
                       <code style={{ background: '#1e1e1e', padding: '2px 4px', borderRadius: '2px' }}>
                         {result.input}
                       </code>
-                    </div>
-                    
+                                
                     <div style={{ fontSize: '11px', marginBottom: '4px' }}>
                       <span style={{ color: '#9cdcfe' }}>Expected: </span>
                       <code style={{ background: '#1e1e1e', padding: '2px 4px', borderRadius: '2px' }}>
                         {result.expectedOutput}
                       </code>
-                    </div>
-                    
+                                
                     <div style={{ fontSize: '11px' }}>
                       <span style={{ color: '#9cdcfe' }}>Actual: </span>
                       <code style={{ 
@@ -458,8 +516,7 @@ int main() {
                       }}>
                         {result.actualOutput || 'No output'}
                       </code>
-                    </div>
-                    
+                                
                     {result.error && (
                       <div style={{ 
                         fontSize: '11px', 
@@ -468,12 +525,8 @@ int main() {
                         fontStyle: 'italic'
                       }}>
                         Error: {result.error}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
+                                                    ))}
+                  ) : (
               <div style={{ 
                 textAlign: 'center', 
                 color: '#999', 
@@ -481,10 +534,24 @@ int main() {
                 fontSize: '14px'
               }}>
                 Click "Test" to run test cases and see results here...
-              </div>
-            )}
-          </div>
-        )}
+                  </div>
+          {/* Submit Button */}
+      <div style={{ padding: '10px', borderTop: '1px solid #333', background: '#252526', textAlign: 'right' }}>
+        <button
+          onClick={handleSubmit}
+          style={{
+            background: '#ff6b35',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          Submit
+        </button>
       </div>
     </div>
   );

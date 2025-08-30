@@ -7,13 +7,18 @@ class Judge0Service {
   constructor() {
     this.baseUrl = 'https://judge0-ce.p.rapidapi.com';
     // Support multiple keys with rotation. Prefer numbered keys, then single vars.
+    // Collect any env vars that start with "JUDGE0_" and contain a value
+    const dynamicKeys = Object.entries(process.env)
+      .filter(([key, val]) => key.startsWith('JUDGE0_') && Boolean(val))
+      .map(([, val]) => val);
+
     this.apiKeys = [
       process.env.JUDGE0_KEY_1,
       process.env.JUDGE0_KEY_2,
       process.env.JUDGE0_KEY_3,
       process.env.JUDGE0_API_KEY,
       process.env.JUDGE0_KEY
-    ].filter(Boolean);
+    ].filter(Boolean).concat(dynamicKeys);
     // Backward compatibility for code referencing this.apiKey
     this.apiKey = this.apiKeys[0] || null;
     this.apiHost = 'judge0-ce.p.rapidapi.com';
