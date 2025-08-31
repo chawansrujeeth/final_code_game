@@ -1,6 +1,77 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 
+// Minimal Monaco code editor with language selector and Submit button.
+// Pass an `onSubmitAnswer(code, language)` prop to receive the code on submit.
+const LeetCodeCodeEditor = ({ onSubmitAnswer }) => {
+  const [language, setLanguage] = useState('javascript');
+  const [code, setCode] = useState('');
+  const editorRef = useRef(null);
+
+  // Simple starter templates per language
+  const templates = {
+    javascript: `// Write your solution here\nfunction solution(input) {\n  // TODO\n  return null;\n}\n\n// console.log(solution('your input'));`,
+    python: `# Write your solution here\ndef solution(input):\n    # TODO\n    return None\n\n# print(solution('your input'))`,
+    java: `public class Solution {\n  public static void main(String[] args) {\n    // TODO\n  }\n\n  static Object solution(Object input) {\n    // TODO\n    return null;\n  }\n}`,
+    cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // TODO\n  return 0;\n}`
+  };
+
+  // Load template whenever language changes
+  useEffect(() => {
+    setCode(templates[language] || '');
+  }, [language]);
+
+  const handleSubmit = () => {
+    if (typeof onSubmitAnswer === 'function') {
+      onSubmitAnswer(code, language);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e' }}>
+      {/* Language selector */}
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #333' }}>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          style={{ background: '#3c3c3c', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 12 }}
+        >
+          <option value="javascript">JavaScript (Node.js)</option>
+          <option value="python">Python 3</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+        </select>
+      </div>
+
+      {/* Monaco editor */}
+      <div style={{ flex: 1 }}>
+        <Editor
+          path={`file.${language}`}
+          language={language}
+          value={code}
+          onChange={(val) => setCode(val || '')}
+          onMount={(editor) => (editorRef.current = editor)}
+          theme="vs-dark"
+          options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on', automaticLayout: true }}
+        />
+      </div>
+
+      {/* Submit */}
+      <div style={{ padding: '8px 12px', borderTop: '1px solid #333', textAlign: 'right' }}>
+        <button
+          onClick={handleSubmit}
+          style={{ background: '#ff6b35', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default LeetCodeCodeEditor;
+import Editor from '@monaco-editor/react';
+
 /**
  * Simplified code editor component.
  * Shows language selector, Monaco editor, and a Submit button.
@@ -79,9 +150,6 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer }) => {
 };
 
 export default LeetCodeCodeEditor;
-import Editor from '@monaco-editor/react';
-
-const LeetCodeCodeEditor = ({ onSubmitAnswer }) => {
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [isSubmitting, setIsSubmitting] = useState(false);

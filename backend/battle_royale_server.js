@@ -1,8 +1,15 @@
 // backend/battle_royale_server.js
 // Optimized for Render free tier with Supabase session persistence
 
+const path = require('path');
 // Load environment variables from .env in local/dev; safe to ignore if unavailable in prod
-try { require('dotenv').config(); } catch (e) {}
+try {
+  const dotenv = require('dotenv');
+  // Load from root .env if present
+  dotenv.config();
+  // Also attempt to load backend/.env when running from project root or Docker
+  dotenv.config({ path: path.join(__dirname, '.env') });
+} catch (e) {}
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
