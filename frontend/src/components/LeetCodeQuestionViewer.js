@@ -109,7 +109,25 @@ const LeetCodeQuestionViewer = ({ question, onClose }) => {
 
         {activeTab === 'examples' && (
           <div>
-            <h4 style={{ color: '#ffffff', marginBottom: '16px' }}>Examples:</h4>
+            <div style={{
+              background: '#2d2d30',
+              padding: '12px',
+              borderRadius: '6px',
+              border: '1px solid #4ec9b0',
+              marginBottom: '16px'
+            }}>
+              <div style={{ color: '#4ec9b0', fontWeight: 'bold', marginBottom: '8px' }}>
+                💡 How to Structure Your Code:
+              </div>
+              <div style={{ fontSize: '13px', color: '#cccccc', lineHeight: '1.5' }}>
+                • Read the input format from the examples below<br/>
+                • Your code should process the input and return the expected output<br/>
+                • Use console.log() or print() to output your result<br/>
+                • Test your solution with the provided examples
+              </div>
+            </div>
+
+            <h4 style={{ color: '#ffffff', marginBottom: '16px' }}>Input/Output Examples:</h4>
             {question.testCases && question.testCases.length > 0 ? (
               question.testCases.map((testCase, index) => (
                 <div key={index} style={{
@@ -119,43 +137,77 @@ const LeetCodeQuestionViewer = ({ question, onClose }) => {
                   borderRadius: '6px',
                   border: '1px solid #3e3e42'
                 }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#4ec9b0' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '12px', color: '#4ec9b0' }}>
                     Example {index + 1}:
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ color: '#9cdcfe' }}>Input: </span>
+                  
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
+                      📥 Input:
+                    </div>
                     <code style={{
+                      display: 'block',
                       background: '#1e1e1e',
-                      padding: '2px 6px',
-                      borderRadius: '3px',
-                      fontFamily: 'Monaco, Consolas, monospace'
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      fontFamily: 'Monaco, Consolas, monospace',
+                      fontSize: '13px',
+                      border: '1px solid #444',
+                      color: '#d4d4d4'
                     }}>
-                      {typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input)}
+                      {typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input, null, 2)}
                     </code>
                   </div>
+                  
                   {testCase.output !== undefined && (
-                    <div>
-                      <span style={{ color: '#9cdcfe' }}>Output: </span>
+                    <div style={{ marginBottom: '10px' }}>
+                      <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
+                        📤 Expected Output:
+                      </div>
                       <code style={{
+                        display: 'block',
                         background: '#1e1e1e',
-                        padding: '2px 6px',
-                        borderRadius: '3px',
-                        fontFamily: 'Monaco, Consolas, monospace'
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        fontFamily: 'Monaco, Consolas, monospace',
+                        fontSize: '13px',
+                        border: '1px solid #444',
+                        color: '#4fc1ff'
                       }}>
-                        {typeof testCase.output === 'string' ? testCase.output : JSON.stringify(testCase.output)}
+                        {typeof testCase.output === 'string' ? testCase.output : JSON.stringify(testCase.output, null, 2)}
                       </code>
                     </div>
                   )}
+                  
                   {testCase.explanation && (
-                    <div style={{ marginTop: '8px', color: '#cccccc', fontSize: '13px' }}>
-                      <strong>Explanation:</strong> {testCase.explanation}
+                    <div style={{ 
+                      marginTop: '12px', 
+                      padding: '8px 12px',
+                      background: '#1a1a1a',
+                      borderRadius: '4px',
+                      border: '1px solid #444'
+                    }}>
+                      <div style={{ color: '#f0db4f', fontWeight: 'bold', marginBottom: '4px' }}>
+                        💭 Explanation:
+                      </div>
+                      <div style={{ color: '#cccccc', fontSize: '13px', lineHeight: '1.4' }}>
+                        {testCase.explanation}
+                      </div>
                     </div>
                   )}
                 </div>
               ))
             ) : (
-              <div style={{ color: '#999', fontStyle: 'italic' }}>
-                No examples available
+              <div style={{ 
+                color: '#999', 
+                fontStyle: 'italic',
+                textAlign: 'center',
+                padding: '20px',
+                background: '#2d2d30',
+                borderRadius: '6px',
+                border: '1px solid #3e3e42'
+              }}>
+                No examples available for this question
               </div>
             )}
           </div>

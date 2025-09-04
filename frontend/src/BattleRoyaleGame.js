@@ -375,11 +375,27 @@ export default function BattleRoyaleGame() {
       // Ignore if this question is not for this player (defensive)
       if (data.playerId && data.playerId !== playerId) return;
 
+      // Parse testCases if they come as a string
+      let testCases = data.testCases || data.testcase || data.question?.testCases || data.question?.testcase || [];
+      if (typeof testCases === 'string') {
+        try {
+          testCases = JSON.parse(testCases);
+        } catch (error) {
+          console.warn('Failed to parse testCases:', error);
+          testCases = [];
+        }
+      }
+
+      // Ensure testCases is always an array
+      if (testCases && !Array.isArray(testCases)) {
+        testCases = [testCases];
+      }
+
       const normalized = {
         id: data.questionId || data.question?.id || data.question?.que_id,
         content: data.question?.content || data.question?.que_content || data.question,
         difficulty: data.difficulty || data.question?.difficulty,
-        testCases: data.testCases || data.testcase || data.question?.testCases || data.question?.testcase || [],
+        testCases: testCases,
         edgeId: data.edgeId,
         playerId: data.playerId
       };
@@ -597,14 +613,21 @@ export default function BattleRoyaleGame() {
           {mapState.isMinimized ? (
             // Show Code Editor when map is minimized
             currentQuestion ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column',
+                position: 'relative',
+                zIndex: 1
+              }}>
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '10px 12px',
                   borderBottom: '1px solid #333',
-                  backgroundColor: '#252526'
+                  backgroundColor: '#252526',
+                  zIndex: 2
                 }}>
                   <h3 style={{ color: '#00ff88', margin: 0, fontSize: '14px' }}>
                     Code Editor - {currentQuestion.difficulty?.toUpperCase()} Question
@@ -622,13 +645,20 @@ export default function BattleRoyaleGame() {
                       backgroundColor: '#666',
                       color: '#ffffff',
                       cursor: 'pointer',
-                      fontSize: '12px'
+                      fontSize: '12px',
+                      zIndex: 3
                     }}
                   >
                     ✕ Close
                   </button>
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  position: 'relative',
+                  zIndex: 1
+                }}>
                   <LeetCodeCodeEditor
                     question={currentQuestion}
                     onSubmitAnswer={(code, language, passed, results) => {
@@ -753,7 +783,7 @@ export default function BattleRoyaleGame() {
               right: '20px',
               width: '280px',
               height: '280px',
-              zIndex: 1500,
+              zIndex: 100,
               border: '3px solid #00ff88',
               borderRadius: '15px',
               overflow: 'hidden',
@@ -761,7 +791,8 @@ export default function BattleRoyaleGame() {
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
               backdropFilter: 'blur(10px)',
-              animation: 'minimapPulse 3s ease-in-out infinite'
+              animation: 'minimapPulse 3s ease-in-out infinite',
+              pointerEvents: 'auto'
             }}>
               <BattleRoyaleMap 
                 gameState={gameState}
@@ -913,7 +944,7 @@ export default function BattleRoyaleGame() {
             fontSize: '12px',
             fontWeight: 700,
             lineHeight: 1,
-            zIndex: 2000,
+            zIndex: 50,
             border: '1px solid #00ff88',
             letterSpacing: '0.5px',
             animation: 'timerPulse 2s ease-in-out infinite'
@@ -1045,7 +1076,7 @@ export default function BattleRoyaleGame() {
         padding: '10px',
         borderRadius: '5px',
         fontSize: '12px',
-        zIndex: 1000
+        zIndex: 50
       }}>
         <div><strong>Debug Info:</strong></div>
         <div>Session: {sessionId || 'None'}</div>
@@ -1068,7 +1099,7 @@ export default function BattleRoyaleGame() {
         padding: '8px 12px',
         textAlign: 'center',
         color: '#ffffff',
-        zIndex: 1000,
+        zIndex: 50,
         backdropFilter: 'blur(4px)'
       }}>
         <div style={{ marginBottom: '4px', fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.5px' }}>

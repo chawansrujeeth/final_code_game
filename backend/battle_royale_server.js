@@ -2209,10 +2209,26 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Parse testcase JSON if it's a string
+      let parsedTestCases = assignedQuestion.testcase;
+      if (typeof assignedQuestion.testcase === 'string') {
+        try {
+          parsedTestCases = JSON.parse(assignedQuestion.testcase);
+        } catch (error) {
+          console.warn('⚠️ Failed to parse testcase JSON:', error);
+          parsedTestCases = assignedQuestion.testcase;
+        }
+      }
+
+      // Ensure testCases is an array for consistent frontend handling
+      if (parsedTestCases && !Array.isArray(parsedTestCases)) {
+        parsedTestCases = [parsedTestCases];
+      }
+
       // Send question to player using the service data structure
       socket.emit('question_received', {
         question: assignedQuestion.questionContent,
-        testCases: assignedQuestion.testcase,
+        testCases: parsedTestCases,
         difficulty: assignedQuestion.difficulty,
         questionId: assignedQuestion.questionId,
         edgeId: edgeId,

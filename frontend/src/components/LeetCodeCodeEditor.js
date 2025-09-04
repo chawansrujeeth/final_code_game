@@ -41,13 +41,34 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100%', 
+      background: '#1e1e1e',
+      position: 'relative',
+      zIndex: 1
+    }}>
       {/* Language selector */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #333' }}>
+      <div style={{ 
+        padding: '8px 12px', 
+        borderBottom: '1px solid #333',
+        position: 'relative',
+        zIndex: 2
+      }}>
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          style={{ background: '#3c3c3c', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 12 }}
+          style={{ 
+            background: '#3c3c3c', 
+            color: '#fff', 
+            border: '1px solid #555', 
+            borderRadius: 4, 
+            padding: '4px 8px', 
+            fontSize: 12,
+            position: 'relative',
+            zIndex: 3
+          }}
         >
           {computedLanguages.map((lang) => (
             <option key={lang.id} value={lang.id}>{lang.name}</option>
@@ -56,23 +77,60 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
       </div>
 
       {/* Monaco editor */}
-      <div style={{ flex: 1 }}>
+      <div style={{ 
+        flex: 1,
+        position: 'relative',
+        zIndex: 1
+      }}>
         <Editor
           path={`file.${language}`}
           language={language}
           value={code}
           onChange={(val) => setCode(val || '')}
-          onMount={(editor) => (editorRef.current = editor)}
+          onMount={(editor) => {
+            editorRef.current = editor;
+            // Ensure editor can receive focus
+            setTimeout(() => {
+              editor.focus();
+            }, 100);
+          }}
           theme="vs-dark"
-          options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on', automaticLayout: true }}
+          options={{ 
+            fontSize: 14, 
+            minimap: { enabled: false }, 
+            scrollBeyondLastLine: false, 
+            wordWrap: 'on', 
+            automaticLayout: true,
+            selectOnLineNumbers: true,
+            roundedSelection: false,
+            readOnly: false,
+            cursorStyle: 'line',
+            automaticLayout: true
+          }}
         />
       </div>
 
       {/* Submit */}
-      <div style={{ padding: '8px 12px', borderTop: '1px solid #333', textAlign: 'right' }}>
+      <div style={{ 
+        padding: '8px 12px', 
+        borderTop: '1px solid #333', 
+        textAlign: 'right',
+        position: 'relative',
+        zIndex: 2
+      }}>
         <button
           onClick={handleSubmit}
-          style={{ background: '#ff6b35', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ 
+            background: '#ff6b35', 
+            color: '#fff', 
+            border: 'none', 
+            borderRadius: 4, 
+            padding: '6px 16px', 
+            fontWeight: 'bold', 
+            cursor: 'pointer',
+            position: 'relative',
+            zIndex: 3
+          }}
         >
           Submit
         </button>
