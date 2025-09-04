@@ -2196,34 +2196,21 @@ io.on('connection', (socket) => {
 
       // Get question for this specific edge using questionAssignmentService
       const assignedQuestion = questionAssignmentService.getQuestionForEdge(sessionId, edgeId);
-      console.log('🎯 Looking for question for edge:', edgeId, 'Found:', !!assignedQuestion);
       
       if (!assignedQuestion) {
-        console.log('❌ No question assigned to edge:', edgeId);
-        // Try to get session assignments to debug
-        const sessionAssignments = questionAssignmentService.getSessionAssignments(sessionId);
-        console.log('Available edges in service:', sessionAssignments ? Array.from(sessionAssignments.keys()) : 'No assignments');
-        socket.emit('error', { 
+          socket.emit('error', { 
           message: `No question assigned to edge ${edgeId}. Please try again.` 
         });
         return;
       }
 
-      // Debug: Log the raw assigned question
-      console.log('🔍 Raw assignedQuestion:', {
-        questionId: assignedQuestion.questionId,
-        testcase: assignedQuestion.testcase,
-        testcaseType: typeof assignedQuestion.testcase
-      });
 
       // Parse testcase JSON if it's a string
       let parsedTestCases = assignedQuestion.testcase;
       if (typeof assignedQuestion.testcase === 'string') {
         try {
           parsedTestCases = JSON.parse(assignedQuestion.testcase);
-          console.log('✅ Successfully parsed testcase JSON:', parsedTestCases);
         } catch (error) {
-          console.warn('⚠️ Failed to parse testcase JSON:', error);
           parsedTestCases = assignedQuestion.testcase;
         }
       }
@@ -2231,7 +2218,6 @@ io.on('connection', (socket) => {
       // Ensure testCases is an array for consistent frontend handling
       if (parsedTestCases && !Array.isArray(parsedTestCases)) {
         parsedTestCases = [parsedTestCases];
-        console.log('🔄 Converted testCases to array:', parsedTestCases);
       }
 
       const questionPayload = {
@@ -2244,17 +2230,8 @@ io.on('connection', (socket) => {
         playerId: playerId
       };
 
-      console.log('📤 Sending question payload to frontend:', {
-        questionId: questionPayload.questionId,
-        testCases: questionPayload.testCases,
-        testCasesType: typeof questionPayload.testCases,
-        testCasesLength: questionPayload.testCases?.length
-      });
-
       // Send question to player using the service data structure
       socket.emit('question_received', questionPayload);
-
-      console.log(`✅ Question sent to player ${playerId} for edge ${edgeId} (${assignedQuestion.edgeType}): ${assignedQuestion.questionContent.substring(0, 50)}...`);
       
     } catch (error) {
       console.error('Error handling request_question:', error);
@@ -2263,7 +2240,7 @@ io.on('connection', (socket) => {
   });
 
   // Submit code answer with Judge0 execution
-  socket.on('submit_code_answer', async (data) => {
+  socket.on('submit_answer', async (data) => {
     try {
       const { sessionId, playerId, questionId, code, language, edgeId } = data;
       
@@ -2294,7 +2271,6 @@ io.on('connection', (socket) => {
         .single();
 
       if (error || !questionData) {
-        console.error('❌ Error fetching question:', error);
         socket.emit('code_result', { 
           success: false, 
           message: 'Question not found' 
@@ -2302,7 +2278,6 @@ io.on('connection', (socket) => {
         return;
       }
 
-      console.log(`🔍 Executing code for question ${questionId} in ${language}`);
       
       // Execute code with Judge0 using test cases
       let testCases = questionData.testcase;

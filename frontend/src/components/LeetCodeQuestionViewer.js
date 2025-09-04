@@ -5,10 +5,6 @@ const LeetCodeQuestionViewer = ({ question, onClose }) => {
 
   if (!question) return null;
 
-  // Debug logging
-  console.log('🎯 LeetCodeQuestionViewer received question:', question);
-  console.log('🧪 Question testCases:', question.testCases, 'Type:', typeof question.testCases, 'Length:', question.testCases?.length);
-
   return (
     <div style={{
       width: '100%',

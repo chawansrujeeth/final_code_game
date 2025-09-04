@@ -367,6 +367,26 @@ export default function BattleRoyaleGame() {
     }
   };
 
+  const handleSubmitAnswer = async (code, language) => {
+    if (!currentQuestion) {
+      return;
+    }
+
+    try {
+      // Emit code submission to backend
+      battleRoyaleSocket.emit('submit_answer', {
+        sessionId: sessionId,
+        playerId: playerId,
+        questionId: currentQuestion.id,
+        code: code,
+        language: language,
+        edgeId: selectedEdgeId
+      });
+    } catch (error) {
+      setConnectionError('Failed to submit answer. Please try again.');
+    }
+  };
+
   // Handle server responses for questions and code execution
   React.useEffect(() => {
     if (!battleRoyaleSocket) return;
@@ -375,18 +395,13 @@ export default function BattleRoyaleGame() {
       // Ignore if this question is not for this player (defensive)
       if (data.playerId && data.playerId !== playerId) return;
 
-      console.log('🔍 Raw question data received:', data);
-
       // Parse testCases if they come as a string
       let testCases = data.testCases || data.testcase || data.question?.testCases || data.question?.testcase || [];
-      console.log('🧪 Raw testCases:', testCases, 'Type:', typeof testCases);
       
       if (typeof testCases === 'string') {
         try {
           testCases = JSON.parse(testCases);
-          console.log('✅ Parsed testCases from string:', testCases);
         } catch (error) {
-          console.warn('Failed to parse testCases:', error);
           testCases = [];
         }
       }
@@ -394,7 +409,6 @@ export default function BattleRoyaleGame() {
       // Ensure testCases is always an array
       if (testCases && !Array.isArray(testCases)) {
         testCases = [testCases];
-        console.log('🔄 Converted testCases to array:', testCases);
       }
 
       const normalized = {
@@ -405,9 +419,6 @@ export default function BattleRoyaleGame() {
         edgeId: data.edgeId,
         playerId: data.playerId
       };
-
-      console.log('📝 Normalized question data:', normalized);
-      console.log('🧪 Final testCases:', normalized.testCases, 'Length:', normalized.testCases?.length);
 
       // Avoid redundant state updates if same question already active
       if (currentQuestion?.id === normalized.id && selectedEdgeId === normalized.edgeId) {
@@ -424,16 +435,14 @@ export default function BattleRoyaleGame() {
       setMapState(prev => ({ ...prev, isMinimized: true }));
     };
 
-    const handleCodeResult = (result) => {
+    const handleCodeResult = (data) => {
       
-      if (result.success) {
-        setResultMessage(`✅ ${result.message}`);
-        setShowResult(true);
+      if (data.success) {
+        // Handle successful code execution
+        setPlayerAnswer('');
         setCurrentQuestion(null);
         setSelectedEdgeId(null);
-        setConnectionError(null);
-
-        // Optimistically update player state if provided
+        setMapState(prev => ({ ...prev, isMinimized: false }));
         const newHealth = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
         if (typeof newHealth !== 'undefined') {
           setPlayers(prev => ({

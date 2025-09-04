@@ -29,20 +29,10 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
     [initialCode]
   );
 
-  // Load template only when language changes and code is empty or matches old template
+  // Initialize code when component mounts or language changes
   useEffect(() => {
-    // Only set template if code is empty or we're switching languages
-    if (!code || code === templates[language]) {
-      setCode(templates[language] || '');
-    }
-  }, [language]); // Removed templates dependency to prevent resets
-
-  // Initialize code on first mount
-  useEffect(() => {
-    if (!code) {
-      setCode(templates[language] || '');
-    }
-  }, []); // Run only once on mount
+    setCode(templates[language] || '');
+  }, [language, templates]);
 
   const handleSubmit = () => {
     if (typeof onSubmitAnswer === 'function') {
@@ -93,13 +83,13 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
         zIndex: 1
       }}>
         <Editor
+          key={language}
           path={`file.${language}`}
           language={language}
           value={code}
           onChange={(val) => setCode(val || '')}
           onMount={(editor) => {
             editorRef.current = editor;
-            // Ensure editor can receive focus
             setTimeout(() => {
               editor.focus();
             }, 100);
