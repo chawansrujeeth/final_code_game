@@ -29,10 +29,20 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
     [initialCode]
   );
 
-  // Load template whenever language changes
+  // Load template only when language changes and code is empty or matches old template
   useEffect(() => {
-    setCode(templates[language] || '');
-  }, [language, templates]);
+    // Only set template if code is empty or we're switching languages
+    if (!code || code === templates[language]) {
+      setCode(templates[language] || '');
+    }
+  }, [language]); // Removed templates dependency to prevent resets
+
+  // Initialize code on first mount
+  useEffect(() => {
+    if (!code) {
+      setCode(templates[language] || '');
+    }
+  }, []); // Run only once on mount
 
   const handleSubmit = () => {
     if (typeof onSubmitAnswer === 'function') {

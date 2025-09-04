@@ -133,74 +133,90 @@ const LeetCodeQuestionViewer = ({ question, onClose }) => {
 
             <h4 style={{ color: '#ffffff', marginBottom: '16px' }}>Input/Output Examples:</h4>
             {question.testCases && question.testCases.length > 0 ? (
-              question.testCases.map((testCase, index) => (
-                <div key={index} style={{
-                  marginBottom: '16px',
-                  padding: '12px',
-                  background: '#2d2d30',
-                  borderRadius: '6px',
-                  border: '1px solid #3e3e42'
-                }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '12px', color: '#4ec9b0' }}>
-                    Example {index + 1}:
-                  </div>
-                  
-                  <div style={{ marginBottom: '10px' }}>
-                    <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
-                      📥 Input:
+              question.testCases.map((testCase, index) => {
+                // Handle both old format (input/output) and new format (inputs/outputs arrays)
+                const inputs = testCase.inputs || (testCase.input ? [testCase.input] : []);
+                const outputs = testCase.outputs || (testCase.output ? [testCase.output] : []);
+                
+                return (
+                  <div key={index} style={{
+                    marginBottom: '16px',
+                    padding: '12px',
+                    background: '#2d2d30',
+                    borderRadius: '6px',
+                    border: '1px solid #3e3e42'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '12px', color: '#4ec9b0' }}>
+                      Test Case {index + 1}:
                     </div>
-                    <code style={{
-                      display: 'block',
-                      background: '#1e1e1e',
-                      padding: '8px 12px',
-                      borderRadius: '4px',
-                      fontFamily: 'Monaco, Consolas, monospace',
-                      fontSize: '13px',
-                      border: '1px solid #444',
-                      color: '#d4d4d4'
-                    }}>
-                      {typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input, null, 2)}
-                    </code>
-                  </div>
-                  
-                  {testCase.output !== undefined && (
-                    <div style={{ marginBottom: '10px' }}>
-                      <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
-                        📤 Expected Output:
+                    
+                    {/* Display all inputs */}
+                    {inputs.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
+                          📥 Input{inputs.length > 1 ? 's' : ''}:
+                        </div>
+                        {inputs.map((input, inputIndex) => (
+                          <code key={inputIndex} style={{
+                            display: 'block',
+                            background: '#1e1e1e',
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            fontFamily: 'Monaco, Consolas, monospace',
+                            fontSize: '13px',
+                            border: '1px solid #444',
+                            color: '#d4d4d4',
+                            marginBottom: inputIndex < inputs.length - 1 ? '4px' : '0'
+                          }}>
+                            {typeof input === 'string' ? input : JSON.stringify(input, null, 2)}
+                          </code>
+                        ))}
                       </div>
-                      <code style={{
-                        display: 'block',
-                        background: '#1e1e1e',
+                    )}
+                    
+                    {/* Display all outputs */}
+                    {outputs.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <div style={{ color: '#9cdcfe', fontWeight: 'bold', marginBottom: '4px' }}>
+                          📤 Expected Output{outputs.length > 1 ? 's' : ''}:
+                        </div>
+                        {outputs.map((output, outputIndex) => (
+                          <code key={outputIndex} style={{
+                            display: 'block',
+                            background: '#1e1e1e',
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            fontFamily: 'Monaco, Consolas, monospace',
+                            fontSize: '13px',
+                            border: '1px solid #444',
+                            color: '#4fc1ff',
+                            marginBottom: outputIndex < outputs.length - 1 ? '4px' : '0'
+                          }}>
+                            {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+                          </code>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {testCase.explanation && (
+                      <div style={{ 
+                        marginTop: '12px', 
                         padding: '8px 12px',
+                        background: '#1a1a1a',
                         borderRadius: '4px',
-                        fontFamily: 'Monaco, Consolas, monospace',
-                        fontSize: '13px',
-                        border: '1px solid #444',
-                        color: '#4fc1ff'
+                        border: '1px solid #444'
                       }}>
-                        {typeof testCase.output === 'string' ? testCase.output : JSON.stringify(testCase.output, null, 2)}
-                      </code>
-                    </div>
-                  )}
-                  
-                  {testCase.explanation && (
-                    <div style={{ 
-                      marginTop: '12px', 
-                      padding: '8px 12px',
-                      background: '#1a1a1a',
-                      borderRadius: '4px',
-                      border: '1px solid #444'
-                    }}>
-                      <div style={{ color: '#f0db4f', fontWeight: 'bold', marginBottom: '4px' }}>
-                        💭 Explanation:
+                        <div style={{ color: '#f0db4f', fontWeight: 'bold', marginBottom: '4px' }}>
+                          💭 Explanation:
+                        </div>
+                        <div style={{ color: '#cccccc', fontSize: '13px', lineHeight: '1.4' }}>
+                          {testCase.explanation}
+                        </div>
                       </div>
-                      <div style={{ color: '#cccccc', fontSize: '13px', lineHeight: '1.4' }}>
-                        {testCase.explanation}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <div style={{ 
                 color: '#999', 
