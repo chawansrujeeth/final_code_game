@@ -263,6 +263,13 @@ class QuestionAssignmentService {
           assignedAt: new Date().toISOString()
         };
 
+        // Debug: Log testcase data
+        console.log(`🧪 Question ${question.que_id} testcase:`, {
+          testcase: question.testcase,
+          testcaseType: typeof question.testcase,
+          testcaseLength: question.testcase?.length
+        });
+
         edgeQuestions.set(edge.id, assignment);
         usedQuestions.add(question.que_id);
 

@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 
 const LeetCodeQuestionViewer = ({ question, onClose }) => {
-  const [activeTab, setActiveTab] = useState('description');
+  const [activeTab, setActiveTab] = useState('examples');
 
   if (!question) return null;
+
+  // Debug logging
+  console.log('🎯 LeetCodeQuestionViewer received question:', question);
+  console.log('🧪 Question testCases:', question.testCases, 'Type:', typeof question.testCases, 'Length:', question.testCases?.length);
 
   return (
     <div style={{

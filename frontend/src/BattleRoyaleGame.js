@@ -375,11 +375,16 @@ export default function BattleRoyaleGame() {
       // Ignore if this question is not for this player (defensive)
       if (data.playerId && data.playerId !== playerId) return;
 
+      console.log('🔍 Raw question data received:', data);
+
       // Parse testCases if they come as a string
       let testCases = data.testCases || data.testcase || data.question?.testCases || data.question?.testcase || [];
+      console.log('🧪 Raw testCases:', testCases, 'Type:', typeof testCases);
+      
       if (typeof testCases === 'string') {
         try {
           testCases = JSON.parse(testCases);
+          console.log('✅ Parsed testCases from string:', testCases);
         } catch (error) {
           console.warn('Failed to parse testCases:', error);
           testCases = [];
@@ -389,6 +394,7 @@ export default function BattleRoyaleGame() {
       // Ensure testCases is always an array
       if (testCases && !Array.isArray(testCases)) {
         testCases = [testCases];
+        console.log('🔄 Converted testCases to array:', testCases);
       }
 
       const normalized = {
@@ -399,6 +405,9 @@ export default function BattleRoyaleGame() {
         edgeId: data.edgeId,
         playerId: data.playerId
       };
+
+      console.log('📝 Normalized question data:', normalized);
+      console.log('🧪 Final testCases:', normalized.testCases, 'Length:', normalized.testCases?.length);
 
       // Avoid redundant state updates if same question already active
       if (currentQuestion?.id === normalized.id && selectedEdgeId === normalized.edgeId) {

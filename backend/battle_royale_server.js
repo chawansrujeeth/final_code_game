@@ -2209,11 +2209,19 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Debug: Log the raw assigned question
+      console.log('🔍 Raw assignedQuestion:', {
+        questionId: assignedQuestion.questionId,
+        testcase: assignedQuestion.testcase,
+        testcaseType: typeof assignedQuestion.testcase
+      });
+
       // Parse testcase JSON if it's a string
       let parsedTestCases = assignedQuestion.testcase;
       if (typeof assignedQuestion.testcase === 'string') {
         try {
           parsedTestCases = JSON.parse(assignedQuestion.testcase);
+          console.log('✅ Successfully parsed testcase JSON:', parsedTestCases);
         } catch (error) {
           console.warn('⚠️ Failed to parse testcase JSON:', error);
           parsedTestCases = assignedQuestion.testcase;
@@ -2223,10 +2231,10 @@ io.on('connection', (socket) => {
       // Ensure testCases is an array for consistent frontend handling
       if (parsedTestCases && !Array.isArray(parsedTestCases)) {
         parsedTestCases = [parsedTestCases];
+        console.log('🔄 Converted testCases to array:', parsedTestCases);
       }
 
-      // Send question to player using the service data structure
-      socket.emit('question_received', {
+      const questionPayload = {
         question: assignedQuestion.questionContent,
         testCases: parsedTestCases,
         difficulty: assignedQuestion.difficulty,
@@ -2234,7 +2242,17 @@ io.on('connection', (socket) => {
         edgeId: edgeId,
         edgeType: assignedQuestion.edgeType,
         playerId: playerId
+      };
+
+      console.log('📤 Sending question payload to frontend:', {
+        questionId: questionPayload.questionId,
+        testCases: questionPayload.testCases,
+        testCasesType: typeof questionPayload.testCases,
+        testCasesLength: questionPayload.testCases?.length
       });
+
+      // Send question to player using the service data structure
+      socket.emit('question_received', questionPayload);
 
       console.log(`✅ Question sent to player ${playerId} for edge ${edgeId} (${assignedQuestion.edgeType}): ${assignedQuestion.questionContent.substring(0, 50)}...`);
       
