@@ -436,14 +436,13 @@ export default function BattleRoyaleGame() {
     };
 
     const handleCodeResult = (data) => {
-      
       if (data.success) {
         // Handle successful code execution
         setPlayerAnswer('');
         setCurrentQuestion(null);
         setSelectedEdgeId(null);
         setMapState(prev => ({ ...prev, isMinimized: false }));
-        const newHealth = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
+        const newHealth = (typeof data.health !== 'undefined') ? data.health : data.newHealth;
         if (typeof newHealth !== 'undefined') {
           setPlayers(prev => ({
             ...prev,
@@ -453,39 +452,38 @@ export default function BattleRoyaleGame() {
             }
           }));
         }
-        if (result.newPosition) {
+        if (data.newPosition) {
           setPlayers(prev => ({
             ...prev,
             [playerId]: {
               ...(prev[playerId] || {}),
-              currentNode: result.newPosition
+              currentNode: data.newPosition
             }
           }));
           // Update accessible edges from backend response (preferred) or local computation (fallback)
-          if (result.accessibleEdges && Array.isArray(result.accessibleEdges)) {
-            setAccessibleEdges(result.accessibleEdges);
-            console.log(`🔓 Edges unlocked after moving to ${result.newPosition}:`, result.accessibleEdges.map(e => e.id));
+          if (data.accessibleEdges && Array.isArray(data.accessibleEdges)) {
+            setAccessibleEdges(data.accessibleEdges);
           } else {
             // Fallback to local computation
-            const nextNode = result.newPosition;
+            const nextNode = data.newPosition;
             if (nextNode) {
               setAccessibleEdges(getAccessibleEdges(nextNode));
             }
           }
         }
         
-        if (result.newPosition === 'TARGET') {
+        if (data.newPosition === 'TARGET') {
           setResultMessage('🎉 VICTORY! You reached the center!');
         }
       } else {
-        setResultMessage(`❌ ${result.message}`);
+        setResultMessage(`❌ ${data.message}`);
         setShowResult(true);
         
-        if (result.executionDetails && result.executionDetails.results) {
+        if (data.executionDetails && data.executionDetails.results) {
         }
         
         // Update health on failure if provided
-        const newHealth = (typeof result.health !== 'undefined') ? result.health : result.newHealth;
+        const newHealth = (typeof data.health !== 'undefined') ? data.health : data.newHealth;
         if (typeof newHealth !== 'undefined') {
           setPlayers(prev => ({
             ...prev,
