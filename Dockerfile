@@ -15,11 +15,11 @@ COPY backend/. .
 
 # Environment
 ENV NODE_ENV=production
-# EB sets PORT env var; our server reads it via backend/config/index.js
-ENV PORT=3001
+# Bind app to 8080 (required by Elastic Beanstalk Docker platform)
+ENV PORT=8080
 
-# Expose the port (informational)
-EXPOSE 3001
+# Expose the port EB expects containers to listen on
+EXPOSE 8080
 
-# Start backend server
-CMD ["node", "server.js"]
+# Start the Battle Royale server directly
+CMD ["node", "battle_royale_server.js"]
