@@ -14,6 +14,20 @@ const languageOptions = [
   // Add more languages as needed
 ];
 
+// Map Judge0 language IDs to Monaco language IDs
+const monacoLanguageById = {
+  71: 'python',
+  63: 'javascript',
+  54: 'cpp',
+};
+
+// Simple starter templates by Monaco language id
+const codeTemplates = {
+  python: `# Write your solution here\n# Read input from STDIN and print to STDOUT\ndef main():\n    # TODO\n    pass\n\nif __name__ == "__main__":\n    main()` ,
+  javascript: `// Write your solution here\n// Read input from STDIN and print to STDOUT\nfunction main() {\n  // TODO\n}\n\nmain();`,
+  cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    // TODO\n    return 0;\n}`,
+};
+
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5051";
 
 export default function CodeRunner(props) {
@@ -87,8 +101,9 @@ export default function CodeRunner(props) {
     setResult(null);
     setAccepted(false);
     try {
+      const codeToSubmit = (editorRef.current && editorRef.current.getValue && editorRef.current.getValue()) || sourceCode || "";
       const res = await axios.post(`${API_URL}/run`, {
-        source_code: sourceCode,
+        source_code: codeToSubmit,
         language_id: languageId,
         stdin: testcase.input,
         expected_output: testcase.expected_output,
@@ -144,14 +159,25 @@ export default function CodeRunner(props) {
   function handleEditorDidMount(editor, monaco) {
     editorRef.current = editor;
     if (!ytextRef.current) return;
-    // Set initial value
+    // Initialize editor/Yjs with a template if empty
+    const currentY = ytextRef.current.toString();
+    if (!currentY || currentY.trim().length === 0) {
+      const lang = monacoLanguageById[languageId] || 'plaintext';
+      const tpl = codeTemplates[lang];
+      if (tpl) {
+        ytextRef.current.insert(0, tpl);
+      }
+    }
+    // Set initial value from Yjs
     editor.setValue(ytextRef.current.toString());
+    setSourceCode(editor.getValue());
     // Update Monaco when Yjs changes
     const updateMonaco = () => {
       if (editor.getValue() !== ytextRef.current.toString()) {
         const pos = editor.getPosition();
         editor.setValue(ytextRef.current.toString());
         if (pos) editor.setPosition(pos);
+        setSourceCode(editor.getValue());
       }
     };
     ytextRef.current.observe(updateMonaco);
@@ -160,9 +186,31 @@ export default function CodeRunner(props) {
       if (editor.getValue() !== ytextRef.current.toString()) {
         ytextRef.current.delete(0, ytextRef.current.length);
         ytextRef.current.insert(0, editor.getValue());
+        setSourceCode(editor.getValue());
       }
     });
   }
+
+  // When language changes, update template if the editor is empty
+  useEffect(() => {
+    const editor = editorRef.current;
+    const ytext = ytextRef.current;
+    if (!editor) return;
+    const current = ytext ? ytext.toString() : editor.getValue();
+    if (!current || current.trim().length === 0) {
+      const lang = monacoLanguageById[languageId] || 'plaintext';
+      const tpl = codeTemplates[lang];
+      if (tpl) {
+        if (ytext) {
+          ytext.delete(0, ytext.length);
+          ytext.insert(0, tpl);
+        } else {
+          editor.setValue(tpl);
+        }
+        setSourceCode(tpl);
+      }
+    }
+  }, [languageId, collabReady]);
 
   if (testcaseLoading) {
     return <div style={{ maxWidth: 600, margin: "2rem auto" }}>Loading challenge...</div>;
@@ -205,9 +253,9 @@ export default function CodeRunner(props) {
             {collabReady ? (
               <MonacoEditor
                 height="350px"
-                defaultLanguage="python"
+                language={monacoLanguageById[languageId] || 'plaintext'}
                 theme="vs-dark"
-                options={{ fontSize: 15, fontFamily: 'monospace', minimap: { enabled: false } }}
+                options={{ fontSize: 15, fontFamily: 'monospace', minimap: { enabled: false }, readOnly: false }}
                 onMount={handleEditorDidMount}
               />
             ) : (

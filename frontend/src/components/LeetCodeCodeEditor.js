@@ -22,6 +22,8 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
       ];
   const [language, setLanguage] = useState(computedLanguages[0]?.id || 'javascript');
   const [code, setCode] = useState('');
+  const [codeByLanguage, setCodeByLanguage] = useState({});
+  const prevLangRef = useRef(language);
   const editorRef = useRef(null);
 
   const templates = useMemo(
@@ -29,9 +31,24 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
     [initialCode]
   );
 
-  // Initialize code when component mounts or language changes
+  // Initialize code on mount and handle language switching while preserving per-language buffers
   useEffect(() => {
-    setCode(templates[language] || '');
+    // Save current code for the previous language
+    const prevLang = prevLangRef.current;
+    setCodeByLanguage(prev => ({
+      ...prev,
+      [prevLang]: code
+    }));
+
+    // Load code for the new language or fall back to template
+    setCode((prevCodes) => {
+      const nextFromState = (codeByLanguage && typeof codeByLanguage[language] === 'string') ? codeByLanguage[language] : undefined;
+      const nextCode = nextFromState !== undefined ? nextFromState : (templates[language] || '');
+      return nextCode;
+    });
+
+    prevLangRef.current = language;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, templates]);
 
   const handleSubmit = () => {
@@ -87,7 +104,11 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
           path={`file.${language}`}
           language={language}
           value={code}
-          onChange={(val) => setCode(val || '')}
+          onChange={(val) => {
+            const v = val || '';
+            setCode(v);
+            setCodeByLanguage(prev => ({ ...prev, [language]: v }));
+          }}
           onMount={(editor) => {
             editorRef.current = editor;
             setTimeout(() => {
@@ -104,8 +125,7 @@ const LeetCodeCodeEditor = ({ onSubmitAnswer, supportedLanguages, initialCode, q
             selectOnLineNumbers: true,
             roundedSelection: false,
             readOnly: false,
-            cursorStyle: 'line',
-            automaticLayout: true
+            cursorStyle: 'line'
           }}
         />
       </div>

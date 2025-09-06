@@ -673,7 +673,9 @@ export default function BattleRoyaleGame() {
                   display: 'flex', 
                   flexDirection: 'column',
                   position: 'relative',
-                  zIndex: 1
+                  zIndex: 1,
+                  // Reserve space so the floating minimap doesn't overlap the editor surface
+                  paddingRight: '320px'
                 }}>
                   <LeetCodeCodeEditor
                     question={currentQuestion}
