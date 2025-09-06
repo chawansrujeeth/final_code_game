@@ -11,6 +11,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  
   const handleSignUp = async () => {
     if (!email || !password) {
       setError('Please enter both email and password.');
