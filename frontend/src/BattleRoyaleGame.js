@@ -335,6 +335,7 @@ export default function BattleRoyaleGame() {
     if (!isConnected || !sessionId || !playerId || !edgeId) return;
     
     try {
+      console.log('[BR][client] Emitting request_question', { sessionId, playerId, edgeId });
       battleRoyaleSocket.socket.emit('request_question', {
         sessionId,
         playerId,
@@ -354,6 +355,14 @@ export default function BattleRoyaleGame() {
     
     try {
       // Backend expects 'submit_answer'
+      console.log('[BR][client] Emitting submit_answer', {
+        sessionId,
+        playerId,
+        questionId: currentQuestion?.id,
+        edgeId: selectedEdgeId,
+        language,
+        codeLength: code ? code.length : 0
+      });
       battleRoyaleSocket.socket.emit('submit_answer', {
         sessionId,
         playerId,
@@ -369,23 +378,8 @@ export default function BattleRoyaleGame() {
   };
 
   const handleSubmitAnswer = async (code, language) => {
-    if (!currentQuestion) {
-      return;
-    }
-
-    try {
-      // Emit code submission to backend
-      battleRoyaleSocket.emit('submit_answer', {
-        sessionId: sessionId,
-        playerId: playerId,
-        questionId: currentQuestion.id,
-        code: code,
-        language: language,
-        edgeId: selectedEdgeId
-      });
-    } catch (error) {
-      setConnectionError('Failed to submit answer. Please try again.');
-    }
+    // Delegate to the canonical submit function
+    return submitCodeAnswer(code, language);
   };
 
   // Handle server responses for questions and code execution

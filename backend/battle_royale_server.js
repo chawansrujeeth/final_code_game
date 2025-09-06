@@ -1928,6 +1928,22 @@ async function maybeAutoStartBySelections(sessionId, session) {
 // Socket.IO connection handling with Render optimizations
 io.on('connection', (socket) => {
   console.log('🔌 New socket connection:', socket.id);
+  // Debug: log every incoming socket event name + payload keys
+  try {
+    socket.onAny((event, payload) => {
+      let keys = null;
+      try {
+        if (payload && typeof payload === 'object') {
+          keys = Object.keys(payload);
+        } else {
+          keys = typeof payload;
+        }
+      } catch (_) {}
+      console.log('📨 inbound event:', event, { socketId: socket.id, keys });
+    });
+  } catch (e) {
+    console.warn('socket.onAny unavailable:', e?.message);
+  }
   
   // Send welcome message
   socket.emit('connection_success', { 
@@ -2243,8 +2259,24 @@ io.on('connection', (socket) => {
   socket.on('submit_answer', async (data) => {
     try {
       const { sessionId, playerId, questionId, code, language, edgeId } = data;
+      console.log('📩 submit_answer received:', {
+        socketId: socket.id,
+        sessionId,
+        playerId,
+        questionId,
+        edgeId,
+        language,
+        codeLength: code ? code.length : 0
+      });
       
       if (!sessionId || !playerId || !questionId || !code || !language) {
+        console.warn('⚠️ submit_answer missing fields:', {
+          hasSessionId: !!sessionId,
+          hasPlayerId: !!playerId,
+          hasQuestionId: !!questionId,
+          hasCode: !!code,
+          hasLanguage: !!language
+        });
         socket.emit('code_result', { 
           success: false, 
           message: 'Missing required data for code submission' 
@@ -2254,6 +2286,11 @@ io.on('connection', (socket) => {
 
       const session = await getOrCreateSession(sessionId);
       const player = session.players.get(playerId);
+      console.log('✅ Session loaded for submit:', {
+        playersCount: session.players.size,
+        playerFound: !!player,
+        currentNode: player ? player.currentNode : null
+      });
       
       if (!player) {
         socket.emit('code_result', { 
@@ -2278,17 +2315,38 @@ io.on('connection', (socket) => {
         return;
       }
 
+      console.log('🧠 Question fetched:', {
+        questionId,
+        hasTestcase: !!questionData.testcase
+      });
       
       // Execute code with Judge0 using test cases
       let testCases = questionData.testcase;
       if (!Array.isArray(testCases)) {
         testCases = [testCases];
       }
+      console.log('🧪 Prepared test cases:', {
+        count: Array.isArray(testCases) ? testCases.length : 0
+      });
       
+      console.log('🚀 Executing code via Judge0:', {
+        language,
+        testCount: Array.isArray(testCases) ? testCases.length : 0
+      });
       const executionResult = await judge0Service.runTestCases(code, language, testCases);
+      console.log('📊 Judge0 result summary:', {
+        passedCount: executionResult.passedCount,
+        totalCount: executionResult.totalCount,
+        allPassed: executionResult.allPassed
+      });
       
       // Determine target node from edge
       const targetNode = getTargetNodeFromEdge(edgeId, player.currentNode);
+      console.log('🧭 Computed targetNode for edge traversal:', {
+        edgeId,
+        fromNode: player.currentNode,
+        targetNode
+      });
       
       // Update player state based on execution result
       if (executionResult.allPassed) {
@@ -2344,6 +2402,10 @@ io.on('connection', (socket) => {
         session.updatePlayer(playerId, {
           health: newHealth
         });
+        console.log('❌ Testcases failed – deducting health:', {
+          playerId,
+          newHealth
+        });
         
         // Check if player is eliminated
         if (newHealth <= 0) {
@@ -2381,7 +2443,10 @@ io.on('connection', (socket) => {
       });
       
     } catch (error) {
-      console.error('❌ Error executing code:', error);
+      console.error('❌ Error executing code:', {
+        message: error.message,
+        stack: error.stack
+      });
       socket.emit('code_result', { 
         success: false, 
         message: `Code execution failed: ${error.message}`,
