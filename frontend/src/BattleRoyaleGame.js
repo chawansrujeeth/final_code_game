@@ -353,7 +353,8 @@ export default function BattleRoyaleGame() {
     if (!currentQuestion || !isConnected || !selectedEdgeId) return;
     
     try {
-      battleRoyaleSocket.socket.emit('submit_code_answer', {
+      // Backend expects 'submit_answer'
+      battleRoyaleSocket.socket.emit('submit_answer', {
         sessionId,
         playerId,
         questionId: currentQuestion.id,
