@@ -2317,23 +2317,43 @@ io.on('connection', (socket) => {
 
       console.log('🧠 Question fetched:', {
         questionId,
-        hasTestcase: !!questionData.testcase
+        hasTestcase: !!questionData.testcase,
+        testcaseType: typeof questionData.testcase
       });
       
       // Execute code with Judge0 using test cases
-      let testCases = questionData.testcase;
-      if (!Array.isArray(testCases)) {
-        testCases = [testCases];
+      // Prefer test cases provided by client payload if present and valid
+      let incomingTestCases = data.testCases;
+      if (typeof incomingTestCases === 'string') {
+        try { incomingTestCases = JSON.parse(incomingTestCases); } catch (_) {}
       }
+
+      let testCasesToUse;
+      let source = 'db';
+      // Normalize using backend Judge0 service utility
+      const normalizedIncoming = judge0Service.normalizeTestCases(incomingTestCases);
+      if (Array.isArray(normalizedIncoming) && normalizedIncoming.length > 0) {
+        testCasesToUse = normalizedIncoming;
+        source = 'client';
+      } else {
+        // Fallback to DB testcase
+        let parsed = questionData.testcase;
+        if (typeof parsed === 'string') {
+          try { parsed = JSON.parse(parsed); } catch (_) { /* keep as-is */ }
+        }
+        testCasesToUse = judge0Service.normalizeTestCases(parsed);
+      }
+
       console.log('🧪 Prepared test cases:', {
-        count: Array.isArray(testCases) ? testCases.length : 0
+        source,
+        count: Array.isArray(testCasesToUse) ? testCasesToUse.length : 0
       });
       
       console.log('🚀 Executing code via Judge0:', {
         language,
-        testCount: Array.isArray(testCases) ? testCases.length : 0
+        testCount: Array.isArray(testCasesToUse) ? testCasesToUse.length : 0
       });
-      const executionResult = await judge0Service.runTestCases(code, language, testCases);
+      const executionResult = await judge0Service.runTestCases(code, language, testCasesToUse);
       console.log('📊 Judge0 result summary:', {
         passedCount: executionResult.passedCount,
         totalCount: executionResult.totalCount,

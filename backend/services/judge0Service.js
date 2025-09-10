@@ -41,7 +41,7 @@ class Judge0Service {
   }
 
   // Submit code for execution
-  async submitCode(code, language, input = '') {
+  async submitCode(code, language, input = '', expectedOutput = null) {
     if (!this.apiKeys || this.apiKeys.length === 0) {
       throw new Error('Judge0 API key not configured');
     }
@@ -56,8 +56,10 @@ class Judge0Service {
           {
             source_code: code,
             language_id: this.getLanguageId(language),
-            stdin: input,
-            expected_output: null
+            // Ensure stdin is always a string; Judge0 drops undefined properties
+            stdin: typeof input === 'string' ? input : (input == null ? '' : String(input)),
+            // Pass expected_output along so Judge0 can also compute a status
+            expected_output: (typeof expectedOutput === 'string' ? expectedOutput : (expectedOutput == null ? null : String(expectedOutput)))
           },
           {
             headers: {
@@ -96,35 +98,112 @@ class Judge0Service {
     throw new Error('Code execution failed: Unknown error');
   }
 
+  // Normalize heterogeneous test case shapes into a consistent array
+  normalizeTestCases(testCases) {
+    try {
+      // If testCases is a JSON string, try to parse it
+      if (typeof testCases === 'string') {
+        try {
+          const parsed = JSON.parse(testCases);
+          return this.normalizeTestCases(parsed);
+        } catch (_) {
+          // If it's a plain string (e.g., raw stdin), treat as single input with unknown expected output
+          return [{ input: testCases, output: undefined }];
+        }
+      }
+
+      // If it's a single object, wrap into array
+      if (testCases && !Array.isArray(testCases)) {
+        // Support shape: { inputs: [...], outputs: [...] }
+        if (Array.isArray(testCases.inputs) || Array.isArray(testCases.outputs)) {
+          const ins = Array.isArray(testCases.inputs) ? testCases.inputs : [];
+          const outs = Array.isArray(testCases.outputs) ? testCases.outputs : [];
+          const len = Math.max(ins.length, outs.length);
+          const expanded = [];
+          for (let i = 0; i < len; i++) {
+            expanded.push({
+              input: ins[i] !== undefined ? ins[i] : '',
+              output: outs[i] !== undefined ? outs[i] : undefined
+            });
+          }
+          return this.normalizeTestCases(expanded);
+        }
+        // Support shape: { cases: [...] }
+        if (Array.isArray(testCases.cases)) {
+          return this.normalizeTestCases(testCases.cases);
+        }
+        return this.normalizeTestCases([testCases]);
+      }
+
+      // If it's already an array, map each item to { input, output }
+      if (Array.isArray(testCases)) {
+        // Edge case: array contains a single object with inputs/outputs
+        if (testCases.length === 1 && testCases[0] && (Array.isArray(testCases[0].inputs) || Array.isArray(testCases[0].outputs))) {
+          return this.normalizeTestCases(testCases[0]);
+        }
+        return testCases.map((tc) => {
+          // If item itself is a string, interpret as stdin-only
+          if (typeof tc === 'string') {
+            return { input: tc, output: undefined };
+          }
+          // Otherwise, try common fields
+          const input =
+            tc?.input ?? tc?.stdin ?? tc?.in ?? tc?.args ?? tc?.parameters ?? '';
+          const output =
+            tc?.output ?? tc?.expected_output ?? tc?.expected ?? tc?.out ?? undefined;
+
+          // If input is an object/array, stringify; ensure string for Judge0
+          const inputStr =
+            typeof input === 'string' ? input : (input == null ? '' : JSON.stringify(input));
+          // For output, keep string if provided
+          const outputStr =
+            typeof output === 'string' ? output : (output == null ? undefined : JSON.stringify(output));
+
+          return { input: inputStr, output: outputStr };
+        });
+      }
+
+      // Fallback: no valid cases
+      return [];
+    } catch (e) {
+      // On any unexpected error, return empty list
+      return [];
+    }
+  }
+
   // Run code with test cases
   async runTestCases(code, language, testCases) {
+    const normalized = this.normalizeTestCases(testCases);
     const results = [];
     
-    for (let i = 0; i < testCases.length; i++) {
-      const testCase = testCases[i];
+    for (let i = 0; i < normalized.length; i++) {
+      const testCase = normalized[i];
       try {
-        const input = typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input);
-        const result = await this.submitCode(code, language, input);
-        
-        const expectedOutput = typeof testCase.output === 'string' ? testCase.output : JSON.stringify(testCase.output);
-        const actualOutput = result.stdout?.trim() || '';
+        const input = typeof testCase.input === 'string' ? testCase.input : (testCase.input == null ? '' : String(testCase.input));
+        const expectedOutput = typeof testCase.output === 'string' ? testCase.output : (testCase.output == null ? undefined : String(testCase.output));
+        const result = await this.submitCode(code, language, input, expectedOutput);
+
+        // Normalize outputs for comparison (trim trailing whitespace/newlines)
+        const actualOutput = (result.stdout ?? '').toString().trim();
+        const expectedTrimmed = (expectedOutput ?? '').toString().trim();
+        const passed = expectedOutput == null ? false : (actualOutput === expectedTrimmed);
         
         results.push({
           testCaseIndex: i,
           input: input,
           expectedOutput: expectedOutput,
           actualOutput: actualOutput,
-          passed: actualOutput === expectedOutput,
+          passed: passed,
           executionTime: result.time,
           memory: result.memory,
           status: result.status,
-          error: result.stderr
+          error: result.stderr || result.compile_output || null
         });
       } catch (error) {
         results.push({
           testCaseIndex: i,
-          input: testCase.input,
-          expectedOutput: testCase.output,
+          input: normalized[i]?.input,
+          expectedOutput: normalized[i]?.output,
           actualOutput: '',
           passed: false,
           executionTime: null,
@@ -137,7 +216,7 @@ class Judge0Service {
 
     return {
       results,
-      allPassed: results.every(r => r.passed),
+      allPassed: results.length > 0 && results.every(r => r.passed),
       passedCount: results.filter(r => r.passed).length,
       totalCount: results.length
     };

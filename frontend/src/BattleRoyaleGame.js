@@ -361,7 +361,8 @@ export default function BattleRoyaleGame() {
         questionId: currentQuestion?.id,
         edgeId: selectedEdgeId,
         language,
-        codeLength: code ? code.length : 0
+        codeLength: code ? code.length : 0,
+        testCount: Array.isArray(currentQuestion?.testCases) ? currentQuestion.testCases.length : 0
       });
       battleRoyaleSocket.socket.emit('submit_answer', {
         sessionId,
@@ -369,7 +370,9 @@ export default function BattleRoyaleGame() {
         questionId: currentQuestion.id,
         code,
         language,
-        edgeId: selectedEdgeId
+        edgeId: selectedEdgeId,
+        // Send the exact test cases we received to ensure backend passes stdin/expected_output
+        testCases: currentQuestion.testCases
       });
       
     } catch (error) {
@@ -685,10 +688,10 @@ export default function BattleRoyaleGame() {
                       { id: 'cpp', name: 'C++' }
                     ]}
                     initialCode={{
-                      javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n    return result;\n}\n\nsolution();',
-                      python: '# Write your solution here\ndef solution():\n    # Your code here\n    return result\n\nprint(solution())',
-                      java: 'public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        System.out.println(solution());\n    }\n    \n    public static Object solution() {\n        // Your code here\n        return result;\n    }\n}',
-                      cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    cout << solution() << endl;\n    return 0;\n}\n\n// Your solution function\nint solution() {\n    // Your code here\n    return result;\n}'
+                      javascript: '// Read input from STDIN and write output to STDOUT\nconst fs = require(\'fs\');\nconst input = fs.readFileSync(0, \"utf8\").trim();\n\n// TODO: parse input and compute result\nconst result = input; // echo for starter\nconsole.log(result);',
+                      python: '# Read input from STDIN and write output to STDOUT\nimport sys\ninput_data = sys.stdin.read().strip()\n\n# TODO: parse input_data and compute result\nresult = input_data  # echo for starter\nprint(result)',
+                      java: 'import java.io.*;\npublic class Main {\n  public static void main(String[] args) throws Exception {\n    String input = new String(System.in.readAllBytes()).trim();\n    // TODO: parse input and compute result\n    String result = input; // echo for starter\n    System.out.print(result);\n  }\n}',
+                      cpp: '#include <bits/stdc++.h>\nusing namespace std;\nint main(){\n  ios::sync_with_stdio(false);\n  cin.tie(nullptr);\n  string all,line; bool first=true; while (getline(cin,line)) { if (!first) all+="\\n"; first=false; all+=line; }\n  // TODO: parse all and compute result\n  cout << all;\n  return 0;\n}'
                     }}
                   />
                 </div>
