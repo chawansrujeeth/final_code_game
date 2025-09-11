@@ -59,6 +59,14 @@ export default function BattleRoyaleMap({
   const canvasRef = useRef(null);
   const allowedNodeIdsRef = useRef(null);
   useEffect(() => { allowedNodeIdsRef.current = allowedNodeIds; }, [allowedNodeIds]);
+  // Track the latest current node to avoid stale closures in event handlers
+  const currentNodeRef = useRef(null);
+  useEffect(() => {
+    const cn = (players && selfPlayerId && players[selfPlayerId])
+      ? players[selfPlayerId].currentNode
+      : null;
+    currentNodeRef.current = cn;
+  }, [players, selfPlayerId]);
   
   // Game state (client-driven if zoneState not provided)
   // Use persisted values (if any) so the timer/zone state does not reset when the
@@ -671,7 +679,22 @@ useEffect(() => {
     });
 
     cyRef.current.on('tap', 'edge', (e) => {
-      onEdgeClick(e.target.data());
+      // Only allow clicking edges that touch the current player's node.
+      // This keeps previously discovered accessible edges visible but view-only,
+      // preventing server-side "Edge not accessible" errors after moving.
+      const data = e.target.data();
+      const currentNode = currentNodeRef.current;
+      if (currentNode) {
+        const s = data.source;
+        const t = data.target;
+        const touchesCurrent = (s === currentNode || t === currentNode);
+        if (!touchesCurrent) {
+          // Not traversable from current position; treat as view-only.
+          console.log('[BR] Edge not adjacent to current node; view-only', { edgeId: data.id, currentNode });
+          return;
+        }
+      }
+      onEdgeClick(data);
     });
 
     // Generic tap for placing markers when in marker mode
