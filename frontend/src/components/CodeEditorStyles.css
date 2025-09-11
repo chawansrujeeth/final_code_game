@@ -1,0 +1,167 @@
+/* Enhanced Monaco Editor Styles */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Smooth scrollbar styles */
+.monaco-editor .scrollbar .slider {
+  background: rgba(121, 121, 121, 0.4) !important;
+  border-radius: 4px !important;
+}
+
+.monaco-editor .scrollbar .slider:hover {
+  background: rgba(121, 121, 121, 0.7) !important;
+}
+
+.monaco-editor .scrollbar .slider.active {
+  background: rgba(191, 191, 191, 0.8) !important;
+}
+
+/* Enhanced cursor animation */
+.monaco-editor .cursor {
+  animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Smooth selection */
+.monaco-editor .selected-text {
+  background-color: rgba(38, 79, 120, 0.6) !important;
+  transition: background-color 0.1s ease;
+}
+
+/* Line highlight */
+.monaco-editor .current-line {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border: none !important;
+}
+
+/* Bracket matching */
+.monaco-editor .bracket-match {
+  background-color: rgba(0, 100, 0, 0.3) !important;
+  border: 1px solid rgba(0, 255, 0, 0.8) !important;
+}
+
+/* Enhanced autocomplete */
+.monaco-editor .suggest-widget {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
+  border: 1px solid #404040 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row {
+  transition: background-color 0.1s ease !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused {
+  background-color: rgba(0, 122, 255, 0.2) !important;
+}
+
+/* Parameter hints */
+.monaco-editor .parameter-hints-widget {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
+  border: 1px solid #404040 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Hover widget */
+.monaco-editor .monaco-hover {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
+  border: 1px solid #404040 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Find widget */
+.monaco-editor .find-widget {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
+  border: 1px solid #404040 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Context menu */
+.monaco-menu {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%) !important;
+  border: 1px solid #404040 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+.monaco-menu .monaco-action-bar .action-item .action-label:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Minimap (when enabled) */
+.monaco-editor .minimap {
+  background: rgba(30, 30, 30, 0.8) !important;
+}
+
+/* Line numbers */
+.monaco-editor .line-numbers {
+  color: #858585 !important;
+  font-weight: 400 !important;
+}
+
+.monaco-editor .line-numbers.active-line-number {
+  color: #c6c6c6 !important;
+  font-weight: 500 !important;
+}
+
+/* Folding controls */
+.monaco-editor .folding-decoration {
+  color: #858585 !important;
+  transition: color 0.1s ease !important;
+}
+
+.monaco-editor .folding-decoration:hover {
+  color: #c6c6c6 !important;
+}
+
+/* Enhanced syntax highlighting for better readability */
+.monaco-editor .token.keyword {
+  color: #569cd6 !important;
+  font-weight: 500 !important;
+}
+
+.monaco-editor .token.string {
+  color: #ce9178 !important;
+}
+
+.monaco-editor .token.comment {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.monaco-editor .token.number {
+  color: #b5cea8 !important;
+}
+
+.monaco-editor .token.function {
+  color: #dcdcaa !important;
+  font-weight: 500 !important;
+}
+
+.monaco-editor .token.type {
+  color: #4ec9b0 !important;
+}
+
+.monaco-editor .token.variable {
+  color: #9cdcfe !important;
+}

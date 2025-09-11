@@ -992,13 +992,13 @@ async function assignRandomSpawnNodesAndStart(sessionId) {
 
     ordered.forEach((p) => {
       let node;
-      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !finalTaken.has(p.selectedSpawnNode)) {
-        // Player has selected a valid, available node
+      if (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode)) {
+        // Player selected a valid node; we reserved it earlier
         node = p.selectedSpawnNode;
         finalTaken.add(node);
         console.log(`✅ Player ${p.playerId} assigned selected spawn: ${node}`);
       } else {
-        // Player didn't select or selected node is taken, assign random
+        // Player didn't select; assign next available
         node = getNextAvailable();
         console.log(`🎲 Player ${p.playerId} assigned random spawn: ${node} (selected: ${p.selectedSpawnNode || 'none'})`);
       }
@@ -1871,7 +1871,7 @@ async function maybeAutoStartBySelections(sessionId, session) {
     };
 
     ordered.forEach((p) => {
-      const node = (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode) && !taken.has(p.selectedSpawnNode))
+      const node = (p.selectedSpawnNode && allowedSpawnNodes.includes(p.selectedSpawnNode))
         ? p.selectedSpawnNode
         : nextAvailable();
       taken.add(node);
