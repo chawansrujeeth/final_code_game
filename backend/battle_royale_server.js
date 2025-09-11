@@ -2210,12 +2210,25 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Validate that the requested edge is accessible from the player's current node
+      const currentNode = player.currentNode;
+      const [a, b] = String(edgeId).split('-');
+      const accessibleEdges = getAccessibleEdgesForNode(currentNode);
+      const matchedEdge = accessibleEdges.find(e =>
+        (e.source === a && e.target === b) || (e.source === b && e.target === a)
+      );
+      if (!matchedEdge) {
+        console.log('❌ Edge not accessible from current node', { edgeId, currentNode });
+        socket.emit('error', { message: 'Edge not accessible from current position' });
+        return;
+      }
+
       // Get question for this specific edge using questionAssignmentService
-      const assignedQuestion = questionAssignmentService.getQuestionForEdge(sessionId, edgeId);
+      const assignedQuestion = questionAssignmentService.getQuestionForEdge(sessionId, matchedEdge.id);
       
       if (!assignedQuestion) {
           socket.emit('error', { 
-          message: `No question assigned to edge ${edgeId}. Please try again.` 
+          message: `No question assigned to edge ${matchedEdge.id}. Please try again.` 
         });
         return;
       }
@@ -2269,13 +2282,14 @@ io.on('connection', (socket) => {
         codeLength: code ? code.length : 0
       });
       
-      if (!sessionId || !playerId || !questionId || !code || !language) {
+      if (!sessionId || !playerId || !questionId || !code || !language || !edgeId) {
         console.warn('⚠️ submit_answer missing fields:', {
           hasSessionId: !!sessionId,
           hasPlayerId: !!playerId,
           hasQuestionId: !!questionId,
           hasCode: !!code,
-          hasLanguage: !!language
+          hasLanguage: !!language,
+          hasEdgeId: !!edgeId
         });
         socket.emit('code_result', { 
           success: false, 
@@ -2296,6 +2310,46 @@ io.on('connection', (socket) => {
         socket.emit('code_result', { 
           success: false, 
           message: 'Player not found' 
+        });
+        return;
+      }
+
+      // Ensure game is active
+      if (!session.gameState.isGameActive || session.gameState.gameOver) {
+        socket.emit('code_result', {
+          success: false,
+          message: 'Game is not active'
+        });
+        return;
+      }
+
+      // Validate that the edge is accessible from the player's current node
+      const [ea, eb] = String(edgeId).split('-');
+      const accessibleEdges = getAccessibleEdgesForNode(player.currentNode);
+      const matchedEdge = accessibleEdges.find(e =>
+        (e.source === ea && e.target === eb) || (e.source === eb && e.target === ea)
+      );
+      if (!matchedEdge) {
+        socket.emit('code_result', {
+          success: false,
+          message: 'Edge not accessible from current position'
+        });
+        return;
+      }
+
+      // Validate the question against the assigned question for this edge
+      const assignedQuestion = questionAssignmentService.getQuestionForEdge(sessionId, matchedEdge.id);
+      if (!assignedQuestion) {
+        socket.emit('code_result', {
+          success: false,
+          message: `No question assigned to edge ${matchedEdge.id}`
+        });
+        return;
+      }
+      if (assignedQuestion.questionId !== questionId) {
+        socket.emit('code_result', {
+          success: false,
+          message: 'Question mismatch for this edge'
         });
         return;
       }
@@ -2360,10 +2414,10 @@ io.on('connection', (socket) => {
         allPassed: executionResult.allPassed
       });
       
-      // Determine target node from edge
-      const targetNode = getTargetNodeFromEdge(edgeId, player.currentNode);
+      // Determine target node from edge (use canonical matchedEdge.id)
+      const targetNode = getTargetNodeFromEdge(matchedEdge.id, player.currentNode);
       console.log('🧭 Computed targetNode for edge traversal:', {
-        edgeId,
+        edgeId: matchedEdge.id,
         fromNode: player.currentNode,
         targetNode
       });
