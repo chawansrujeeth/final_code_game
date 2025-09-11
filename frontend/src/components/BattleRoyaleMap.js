@@ -761,13 +761,16 @@ useEffect(() => {
 
     // Mark accessible edges with glow effect
     if (accessibleEdges && accessibleEdges.length > 0) {
+      const currentNode = (players && selfPlayerId && players[selfPlayerId]) ? players[selfPlayerId].currentNode : null;
       accessibleEdges.forEach(edge => {
         const edgeId = edge.edgeId || edge.id || `${edge.fromNode || edge.source}-${edge.toNode || edge.target}`;
         const cyEdge = cy.$(`edge[id="${edgeId}"]`);
         if (cyEdge.length > 0) {
           cyEdge.data('accessible', true);
-          // Add special highlighting for current player's edges
-          if (edge.fromNode && players[selfPlayerId] && players[selfPlayerId].currentNode === edge.fromNode) {
+          // Highlight if this edge touches the player's current node
+          const s = edge.source || edge.fromNode;
+          const t = edge.target || edge.toNode;
+          if (currentNode && (s === currentNode || t === currentNode)) {
             cyEdge.data('currentPlayerEdge', true);
           }
         }
@@ -777,7 +780,7 @@ useEffect(() => {
         const reverseEdge = cy.$(`edge[id="${reverseId}"]`);
         if (reverseEdge.length > 0) {
           reverseEdge.data('accessible', true);
-          if (edge.fromNode && players[selfPlayerId] && players[selfPlayerId].currentNode === edge.fromNode) {
+          if (currentNode && ( (edge.toNode || edge.target) === currentNode || (edge.fromNode || edge.source) === currentNode )) {
             reverseEdge.data('currentPlayerEdge', true);
           }
         }

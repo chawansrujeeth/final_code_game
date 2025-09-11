@@ -53,13 +53,12 @@ export default function BattleRoyaleGame() {
   const [connectionError, setConnectionError] = useState(null);
   
   // Edge question state
-  const [currentEdgeQuestion, setCurrentEdgeQuestion] = useState(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [playerAnswer, setPlayerAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
-  
+
   // Get all accessible edges for current player (undirected graph)
   const getAccessibleEdges = (currentNode) => {
     if (!currentNode) return [];
@@ -120,6 +119,47 @@ export default function BattleRoyaleGame() {
       edge.source === currentNode || edge.target === currentNode
     );
   };
+
+  // Helpers to accumulate accessible edges without duplicates
+  const edgeKey = (e) => {
+    if (!e) return null;
+    const id = e.edgeId || e.id;
+    if (id && typeof id === 'string') return id;
+    const s = e.fromNode || e.source;
+    const t = e.toNode || e.target;
+    if (!s || !t) return null;
+    return `${s}-${t}`;
+  };
+
+  const mergeAccessibleEdges = (prevEdges, newEdges) => {
+    const map = new Map();
+    (prevEdges || []).forEach(e => {
+      const k = edgeKey(e);
+      if (!k) return;
+      // Normalize stored shape
+      map.set(k, {
+        id: e.id || k,
+        source: e.source || e.fromNode,
+        target: e.target || e.toNode,
+        difficulty: e.difficulty,
+        pathType: e.pathType
+      });
+    });
+    (newEdges || []).forEach(e => {
+      const k = edgeKey(e);
+      if (!k) return;
+      if (!map.has(k)) {
+        map.set(k, {
+          id: e.id || k,
+          source: e.source || e.fromNode,
+          target: e.target || e.toNode,
+          difficulty: e.difficulty,
+          pathType: e.pathType
+        });
+      }
+    });
+    return Array.from(map.values());
+  };
   
   // Socket connection and session management
   useEffect(() => {
@@ -164,6 +204,8 @@ export default function BattleRoyaleGame() {
           } else {
             setGameState(prev => ({ ...prev, isGameActive: true }));
           }
+          // Reset accumulated accessible edges at the start of each game
+          setAccessibleEdges([]);
           if (data.players) {
             const updatedPlayers = {};
             data.players.forEach(player => {
@@ -310,10 +352,10 @@ export default function BattleRoyaleGame() {
     const currentNode = players[playerId]?.currentNode;
     if (currentNode) {
       const edges = getAccessibleEdges(currentNode);
-      setAccessibleEdges(edges);
-      console.log(`🔓 Updated accessible edges for ${currentNode}:`, edges.map(e => e.id));
+      setAccessibleEdges(prev => mergeAccessibleEdges(prev, edges));
+      console.log(`🔓 Merged accessible edges for ${currentNode}:`, edges.map(e => e.id));
     } else {
-      setAccessibleEdges([]);
+      // Keep previously opened edges; do not clear when currentNode is temporarily unavailable
     }
   }, [gameState.isGameActive, playerId, players]);
 
@@ -460,12 +502,12 @@ export default function BattleRoyaleGame() {
           }));
           // Update accessible edges from backend response (preferred) or local computation (fallback)
           if (data.accessibleEdges && Array.isArray(data.accessibleEdges)) {
-            setAccessibleEdges(data.accessibleEdges);
+            setAccessibleEdges(prev => mergeAccessibleEdges(prev, data.accessibleEdges));
           } else {
             // Fallback to local computation
             const nextNode = data.newPosition;
             if (nextNode) {
-              setAccessibleEdges(getAccessibleEdges(nextNode));
+              setAccessibleEdges(prev => mergeAccessibleEdges(prev, getAccessibleEdges(nextNode)));
             }
           }
         }
