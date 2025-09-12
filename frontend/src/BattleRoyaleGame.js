@@ -344,20 +344,24 @@ export default function BattleRoyaleGame() {
   
   // Update accessible edges when game becomes active or player position changes
   useEffect(() => {
-    if (!gameState.isGameActive || !playerId) {
+    if (!gameState.isGameActive || !playerId || !isConnected) {
       setAccessibleEdges([]);
       return;
     }
 
     const currentNode = players[playerId]?.currentNode;
     if (currentNode) {
-      const edges = getAccessibleEdges(currentNode);
-      setAccessibleEdges(prev => mergeAccessibleEdges(prev, edges));
-      console.log(`🔓 Merged accessible edges for ${currentNode}:`, edges.map(e => e.id));
-    } else {
-      // Keep previously opened edges; do not clear when currentNode is temporarily unavailable
+      try {
+        // Ask server for the authoritative accessible edges
+        battleRoyaleSocket.socket.emit('get_accessible_edges', {
+          sessionId,
+          playerId
+        });
+      } catch (err) {
+        console.error('Failed to request accessible edges:', err);
+      }
     }
-  }, [gameState.isGameActive, playerId, players]);
+  }, [gameState.isGameActive, playerId, players, isConnected, sessionId]);
 
   
   
@@ -475,6 +479,14 @@ export default function BattleRoyaleGame() {
       setMapState(prev => ({ ...prev, isMinimized: true }));
     };
 
+    const handleAccessibleEdgesUpdate = (data) => {
+      // Only process for this player if playerId is provided
+      if (data && data.playerId && data.playerId !== playerId) return;
+      if (data && Array.isArray(data.accessibleEdges)) {
+        setAccessibleEdges(prev => mergeAccessibleEdges(prev, data.accessibleEdges));
+      }
+    };
+    
     const handleCodeResult = (data) => {
       if (data.success) {
         // Handle successful code execution
@@ -545,12 +557,14 @@ export default function BattleRoyaleGame() {
     
     battleRoyaleSocket.on('question_received', handleQuestionReceived);
     battleRoyaleSocket.on('code_result', handleCodeResult);
+    battleRoyaleSocket.on('accessible_edges_update', handleAccessibleEdgesUpdate);
     
     return () => {
       battleRoyaleSocket.off('question_received', handleQuestionReceived);
       battleRoyaleSocket.off('code_result', handleCodeResult);
+      battleRoyaleSocket.off('accessible_edges_update', handleAccessibleEdgesUpdate);
     };
-  }, [battleRoyaleSocket]);
+  }, [battleRoyaleSocket, playerId]);
   
   // Deprecated functions - removed as server is now authoritative
   // All game logic is handled by the backend server

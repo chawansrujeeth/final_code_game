@@ -60,7 +60,7 @@ class QuestionAssignmentService {
    */
   getAllEdges() {
     return [
-      // R3 circular edges (Easy - lateral)
+      // R3 circular edges (Easy - lateral, 8 nodes)
       { id: 'R3_1-R3_2', difficulty: 'easy', type: 'lateral' },
       { id: 'R3_2-R3_3', difficulty: 'easy', type: 'lateral' },
       { id: 'R3_3-R3_4', difficulty: 'easy', type: 'lateral' },
@@ -70,43 +70,51 @@ class QuestionAssignmentService {
       { id: 'R3_7-R3_8', difficulty: 'easy', type: 'lateral' },
       { id: 'R3_8-R3_1', difficulty: 'easy', type: 'lateral' },
 
-      // R3 to R2 edges (Easy - inward)
+      // R3 to R2 edges (Easy - inward, 1:1 mapping to 8)
       { id: 'R3_1-R2_1', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_2-R2_1', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_3-R2_2', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_4-R2_2', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_5-R2_3', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_6-R2_3', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_7-R2_4', difficulty: 'easy', type: 'inward' },
-      { id: 'R3_8-R2_4', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_2-R2_2', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_3-R2_3', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_4-R2_4', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_5-R2_5', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_6-R2_6', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_7-R2_7', difficulty: 'easy', type: 'inward' },
+      { id: 'R3_8-R2_8', difficulty: 'easy', type: 'inward' },
 
-      // R2 circular edges (Medium - lateral)
+      // R2 circular edges (Medium - lateral, 8 nodes)
       { id: 'R2_1-R2_2', difficulty: 'medium', type: 'lateral' },
       { id: 'R2_2-R2_3', difficulty: 'medium', type: 'lateral' },
       { id: 'R2_3-R2_4', difficulty: 'medium', type: 'lateral' },
-      { id: 'R2_4-R2_1', difficulty: 'medium', type: 'lateral' },
+      { id: 'R2_4-R2_5', difficulty: 'medium', type: 'lateral' },
+      { id: 'R2_5-R2_6', difficulty: 'medium', type: 'lateral' },
+      { id: 'R2_6-R2_7', difficulty: 'medium', type: 'lateral' },
+      { id: 'R2_7-R2_8', difficulty: 'medium', type: 'lateral' },
+      { id: 'R2_8-R2_1', difficulty: 'medium', type: 'lateral' },
 
-      // R2 to R1 edges (Medium - inward)
+      // R2 to R1 edges (Medium - inward, 8 -> 6 mapping)
       { id: 'R2_1-R1_1', difficulty: 'medium', type: 'inward' },
-      { id: 'R2_1-R1_2', difficulty: 'medium', type: 'inward' },
       { id: 'R2_2-R1_2', difficulty: 'medium', type: 'inward' },
-      { id: 'R2_2-R1_3', difficulty: 'medium', type: 'inward' },
       { id: 'R2_3-R1_3', difficulty: 'medium', type: 'inward' },
-      { id: 'R2_3-R1_4', difficulty: 'medium', type: 'inward' },
-      { id: 'R2_4-R1_4', difficulty: 'medium', type: 'inward' },
-      { id: 'R2_4-R1_1', difficulty: 'medium', type: 'inward' },
+      { id: 'R2_4-R1_3', difficulty: 'medium', type: 'inward' },
+      { id: 'R2_5-R1_4', difficulty: 'medium', type: 'inward' },
+      { id: 'R2_6-R1_5', difficulty: 'medium', type: 'inward' },
+      { id: 'R2_7-R1_6', difficulty: 'medium', type: 'inward' },
+      { id: 'R2_8-R1_6', difficulty: 'medium', type: 'inward' },
 
-      // R1 circular edges (Hard - lateral)
+      // R1 circular edges (Hard - lateral, 6 nodes)
       { id: 'R1_1-R1_2', difficulty: 'hard', type: 'lateral' },
       { id: 'R1_2-R1_3', difficulty: 'hard', type: 'lateral' },
       { id: 'R1_3-R1_4', difficulty: 'hard', type: 'lateral' },
-      { id: 'R1_4-R1_1', difficulty: 'hard', type: 'lateral' },
+      { id: 'R1_4-R1_5', difficulty: 'hard', type: 'lateral' },
+      { id: 'R1_5-R1_6', difficulty: 'hard', type: 'lateral' },
+      { id: 'R1_6-R1_1', difficulty: 'hard', type: 'lateral' },
 
-      // R1 to TARGET edges (Hard - final)
+      // R1 to TARGET edges (Hard - final, 6)
       { id: 'R1_1-TARGET', difficulty: 'hard', type: 'final' },
       { id: 'R1_2-TARGET', difficulty: 'hard', type: 'final' },
       { id: 'R1_3-TARGET', difficulty: 'hard', type: 'final' },
-      { id: 'R1_4-TARGET', difficulty: 'hard', type: 'final' }
+      { id: 'R1_4-TARGET', difficulty: 'hard', type: 'final' },
+      { id: 'R1_5-TARGET', difficulty: 'hard', type: 'final' },
+      { id: 'R1_6-TARGET', difficulty: 'hard', type: 'final' }
     ];
   }
 

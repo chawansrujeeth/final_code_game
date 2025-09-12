@@ -585,19 +585,6 @@ useEffect(() => {
           }
         },
         {
-          selector: 'edge[currentPlayerEdge]',
-          style: {
-            'width': 8,
-            'line-color': '#ff6b35',
-            'line-style': 'solid',
-            'opacity': 1,
-            'z-index': 1000,
-            'shadow-blur': 20,
-            'shadow-color': '#ff6b35',
-            'shadow-opacity': 1
-          }
-        },
-        {
           selector: 'node:selected',
           style: {
             'border-width': 4,
@@ -782,30 +769,19 @@ useEffect(() => {
       }
     });
 
-    // Mark accessible edges with glow effect
+    // Mark accessible edges with a uniform glow effect
     if (accessibleEdges && accessibleEdges.length > 0) {
-      const currentNode = (players && selfPlayerId && players[selfPlayerId]) ? players[selfPlayerId].currentNode : null;
       accessibleEdges.forEach(edge => {
         const edgeId = edge.edgeId || edge.id || `${edge.fromNode || edge.source}-${edge.toNode || edge.target}`;
         const cyEdge = cy.$(`edge[id="${edgeId}"]`);
         if (cyEdge.length > 0) {
           cyEdge.data('accessible', true);
-          // Highlight if this edge touches the player's current node
-          const s = edge.source || edge.fromNode;
-          const t = edge.target || edge.toNode;
-          if (currentNode && (s === currentNode || t === currentNode)) {
-            cyEdge.data('currentPlayerEdge', true);
-          }
         }
-        
-        // Also check reverse edge for undirected graph
+        // Also mark reverse edge for undirected graph
         const reverseId = `${edge.toNode || edge.target}-${edge.fromNode || edge.source}`;
         const reverseEdge = cy.$(`edge[id="${reverseId}"]`);
         if (reverseEdge.length > 0) {
           reverseEdge.data('accessible', true);
-          if (currentNode && ( (edge.toNode || edge.target) === currentNode || (edge.fromNode || edge.source) === currentNode )) {
-            reverseEdge.data('currentPlayerEdge', true);
-          }
         }
       });
     }

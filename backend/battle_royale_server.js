@@ -1396,7 +1396,7 @@ class PersistentGameSession {
   // Define all edges in the game (moved from frontend)
   getAllEdgeDefinitions() {
     return [
-      // R3 circular edges
+      // R3 circular edges (8-noded ring)
       { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
@@ -1406,33 +1406,37 @@ class PersistentGameSession {
       { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
       { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
       
-      // R3 to R2 edges
+      // R3 to R2 edges (1:1 mapping to 8-noded ring)
       { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_4-R2_2', source: 'R3_4', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_5-R2_3', source: 'R3_5', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_6-R2_3', source: 'R3_6', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
-      { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_2-R2_2', source: 'R3_2', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_3-R2_3', source: 'R3_3', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_4-R2_4', source: 'R3_4', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_5-R2_5', source: 'R3_5', target: 'R2_5', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_6-R2_6', source: 'R3_6', target: 'R2_6', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_7-R2_7', source: 'R3_7', target: 'R2_7', difficulty: 'easy', pathType: 'inward' },
+      { id: 'R3_8-R2_8', source: 'R3_8', target: 'R2_8', difficulty: 'easy', pathType: 'inward' },
       
-      // R2 circular edges
+      // R2 circular edges (8-noded ring)
       { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
       { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
       { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
-      { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_4-R2_5', source: 'R2_4', target: 'R2_5', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_5-R2_6', source: 'R2_5', target: 'R2_6', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_6-R2_7', source: 'R2_6', target: 'R2_7', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_7-R2_8', source: 'R2_7', target: 'R2_8', difficulty: 'medium', pathType: 'lateral' },
+      { id: 'R2_8-R2_1', source: 'R2_8', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
       
-      // R2 to R1 edges
+      // R2 to R1 edges (8-to-6 mapping per frontend)
       { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
-      { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
       { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
-      { id: 'R2_2-R1_3', source: 'R2_2', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
       { id: 'R2_3-R1_3', source: 'R2_3', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
-      { id: 'R2_3-R1_4', source: 'R2_3', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
-      { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
-      { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_4-R1_3', source: 'R2_4', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_5-R1_4', source: 'R2_5', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_6-R1_5', source: 'R2_6', target: 'R1_5', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_7-R1_6', source: 'R2_7', target: 'R1_6', difficulty: 'medium', pathType: 'inward' },
+      { id: 'R2_8-R1_6', source: 'R2_8', target: 'R1_6', difficulty: 'medium', pathType: 'inward' },
       
-      // R1 circular edges
+      // R1 circular edges (6-noded ring)
       { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
@@ -1440,7 +1444,7 @@ class PersistentGameSession {
       { id: 'R1_5-R1_6', source: 'R1_5', target: 'R1_6', difficulty: 'hard', pathType: 'lateral' },
       { id: 'R1_6-R1_1', source: 'R1_6', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
       
-      // R1 to TARGET edges
+      // R1 to TARGET edges (6 nodes)
       { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
       { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
       { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
@@ -2171,6 +2175,43 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Provide current accessible edges for the requesting player
+  socket.on('get_accessible_edges', async (data) => {
+    try {
+      const { sessionId, playerId } = data || {};
+      if (!sessionId || !playerId) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      const session = await getOrCreateSession(sessionId);
+      const player = session.getPlayerData(playerId);
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in session' });
+        return;
+      }
+
+      if (!session.gameState.isGameActive || session.gameState.gameOver) {
+        socket.emit('accessible_edges_update', {
+          playerId,
+          currentNode: player.currentNode || null,
+          accessibleEdges: []
+        });
+        return;
+      }
+
+      const edges = getAccessibleEdgesForNode(player.currentNode);
+      socket.emit('accessible_edges_update', {
+        playerId,
+        currentNode: player.currentNode,
+        accessibleEdges: edges
+      });
+    } catch (error) {
+      console.error('Error handling get_accessible_edges:', error);
+      socket.emit('error', { message: 'Failed to get accessible edges' });
+    }
+  });
+
   // Request question for edge traversal
   socket.on('request_question', async (data) => {
     try {
@@ -2470,6 +2511,12 @@ io.on('connection', (socket) => {
             results: executionResult.results
           }
         });
+        // Also emit updated accessible edges for the player after moving
+        socket.emit('accessible_edges_update', {
+          playerId,
+          currentNode: targetNode,
+          accessibleEdges
+        });
       } else {
         // Some test cases failed - lose health
         const newHealth = Math.max(0, (player.health || 100) - 10);
@@ -2713,9 +2760,9 @@ function getTargetNodeFromEdge(edgeId, currentNode) {
 function getAccessibleEdgesForNode(currentNode) {
   if (!currentNode) return [];
   
-  // Define all edges in the battle royale map (bidirectional)
+  // Define all edges in the battle royale map (bidirectional), aligned to frontend
   const allEdges = [
-    // R3 circular edges
+    // R3 circular edges (8-noded ring)
     { id: 'R3_1-R3_2', source: 'R3_1', target: 'R3_2', difficulty: 'easy', pathType: 'lateral' },
     { id: 'R3_2-R3_3', source: 'R3_2', target: 'R3_3', difficulty: 'easy', pathType: 'lateral' },
     { id: 'R3_3-R3_4', source: 'R3_3', target: 'R3_4', difficulty: 'easy', pathType: 'lateral' },
@@ -2725,43 +2772,51 @@ function getAccessibleEdgesForNode(currentNode) {
     { id: 'R3_7-R3_8', source: 'R3_7', target: 'R3_8', difficulty: 'easy', pathType: 'lateral' },
     { id: 'R3_8-R3_1', source: 'R3_8', target: 'R3_1', difficulty: 'easy', pathType: 'lateral' },
     
-    // R3 to R2 edges
+    // R3 to R2 edges (1:1 mapping)
     { id: 'R3_1-R2_1', source: 'R3_1', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_2-R2_1', source: 'R3_2', target: 'R2_1', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_3-R2_2', source: 'R3_3', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_4-R2_2', source: 'R3_4', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_5-R2_3', source: 'R3_5', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_6-R2_3', source: 'R3_6', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_7-R2_4', source: 'R3_7', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
-    { id: 'R3_8-R2_4', source: 'R3_8', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_2-R2_2', source: 'R3_2', target: 'R2_2', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_3-R2_3', source: 'R3_3', target: 'R2_3', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_4-R2_4', source: 'R3_4', target: 'R2_4', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_5-R2_5', source: 'R3_5', target: 'R2_5', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_6-R2_6', source: 'R3_6', target: 'R2_6', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_7-R2_7', source: 'R3_7', target: 'R2_7', difficulty: 'easy', pathType: 'inward' },
+    { id: 'R3_8-R2_8', source: 'R3_8', target: 'R2_8', difficulty: 'easy', pathType: 'inward' },
     
-    // R2 circular edges
+    // R2 circular edges (8-noded ring)
     { id: 'R2_1-R2_2', source: 'R2_1', target: 'R2_2', difficulty: 'medium', pathType: 'lateral' },
     { id: 'R2_2-R2_3', source: 'R2_2', target: 'R2_3', difficulty: 'medium', pathType: 'lateral' },
     { id: 'R2_3-R2_4', source: 'R2_3', target: 'R2_4', difficulty: 'medium', pathType: 'lateral' },
-    { id: 'R2_4-R2_1', source: 'R2_4', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_4-R2_5', source: 'R2_4', target: 'R2_5', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_5-R2_6', source: 'R2_5', target: 'R2_6', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_6-R2_7', source: 'R2_6', target: 'R2_7', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_7-R2_8', source: 'R2_7', target: 'R2_8', difficulty: 'medium', pathType: 'lateral' },
+    { id: 'R2_8-R2_1', source: 'R2_8', target: 'R2_1', difficulty: 'medium', pathType: 'lateral' },
     
-    // R2 to R1 edges
+    // R2 to R1 edges (8-to-6 mapping)
     { id: 'R2_1-R1_1', source: 'R2_1', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
-    { id: 'R2_1-R1_2', source: 'R2_1', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
     { id: 'R2_2-R1_2', source: 'R2_2', target: 'R1_2', difficulty: 'medium', pathType: 'inward' },
-    { id: 'R2_2-R1_3', source: 'R2_2', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
     { id: 'R2_3-R1_3', source: 'R2_3', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
-    { id: 'R2_3-R1_4', source: 'R2_3', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
-    { id: 'R2_4-R1_4', source: 'R2_4', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
-    { id: 'R2_4-R1_1', source: 'R2_4', target: 'R1_1', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_4-R1_3', source: 'R2_4', target: 'R1_3', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_5-R1_4', source: 'R2_5', target: 'R1_4', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_6-R1_5', source: 'R2_6', target: 'R1_5', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_7-R1_6', source: 'R2_7', target: 'R1_6', difficulty: 'medium', pathType: 'inward' },
+    { id: 'R2_8-R1_6', source: 'R2_8', target: 'R1_6', difficulty: 'medium', pathType: 'inward' },
     
-    // R1 circular edges
+    // R1 circular edges (6-noded ring)
     { id: 'R1_1-R1_2', source: 'R1_1', target: 'R1_2', difficulty: 'hard', pathType: 'lateral' },
     { id: 'R1_2-R1_3', source: 'R1_2', target: 'R1_3', difficulty: 'hard', pathType: 'lateral' },
     { id: 'R1_3-R1_4', source: 'R1_3', target: 'R1_4', difficulty: 'hard', pathType: 'lateral' },
-    { id: 'R1_4-R1_1', source: 'R1_4', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_4-R1_5', source: 'R1_4', target: 'R1_5', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_5-R1_6', source: 'R1_5', target: 'R1_6', difficulty: 'hard', pathType: 'lateral' },
+    { id: 'R1_6-R1_1', source: 'R1_6', target: 'R1_1', difficulty: 'hard', pathType: 'lateral' },
     
-    // R1 to TARGET edges
+    // R1 to TARGET edges (6 nodes)
     { id: 'R1_1-TARGET', source: 'R1_1', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
     { id: 'R1_2-TARGET', source: 'R1_2', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
     { id: 'R1_3-TARGET', source: 'R1_3', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
     { id: 'R1_4-TARGET', source: 'R1_4', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    { id: 'R1_5-TARGET', source: 'R1_5', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
+    { id: 'R1_6-TARGET', source: 'R1_6', target: 'TARGET', difficulty: 'hard', pathType: 'final' },
   ];
   
   // Filter edges that are connected to the current node (bidirectional)
