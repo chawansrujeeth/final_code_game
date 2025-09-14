@@ -511,17 +511,16 @@ useEffect(() => {
         {
           selector: 'node[id="TARGET"]',
           style: {
-            'background-color': '#ff6b6b',
-            'width': isMinimized ? 25 : 35,
-            'height': isMinimized ? 25 : 35,
+            'background-color': '#4ecdc4',
+            'width': isMinimized ? 20 : 30,
+            'height': isMinimized ? 20 : 30,
             'label': '',
             'text-valign': 'center',
             'text-halign': 'center',
             'color': '#ffffff',
-            'font-size': isMinimized ? '8px' : '10px',
+            'font-size': isMinimized ? '6px' : '8px',
             'font-weight': 'bold',
-            'border-width': 3,
-            'border-color': '#ffffff'
+            'border-width': 0
           }
         },
         {
