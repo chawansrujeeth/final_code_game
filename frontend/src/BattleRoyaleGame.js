@@ -36,6 +36,8 @@ export default function BattleRoyaleGame() {
   
   const [selectedPlayer, setSelectedPlayer] = useState(null); // Will be set to this client's playerId
   const [accessibleEdges, setAccessibleEdges] = useState([]);
+  // Interface-level stats panel toggle
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
   
   // Socket and session management
   const [sessionId, setSessionId] = useState(() => {
@@ -602,11 +604,28 @@ export default function BattleRoyaleGame() {
     }));
   };
   
+  // Derived HUD counts (interface-level)
+  const playerArray = Object.values(players || {});
+  const totalPlayersCount = playerArray.length;
+  const aliveFromPlayers = playerArray.filter(p => {
+    if (!p) return false;
+    if (typeof p.isAlive === 'boolean') return p.isAlive;
+    if (typeof p.health === 'number') return p.health > 0;
+    return true;
+  }).length;
+  const aliveCount = (gameState && typeof gameState.playersAlive === 'number')
+    ? gameState.playersAlive
+    : aliveFromPlayers;
+  const globalElims = (typeof aliveCount === 'number' && totalPlayersCount > 0)
+    ? Math.max(0, totalPlayersCount - aliveCount)
+    : 0;
+
   return (
     <>
       {/* CSS Animations */}
       <style>{`
         @keyframes expandIn {
+ 
           from {
             opacity: 0;
             transform: scale(0.95) translateY(-10px);
@@ -646,7 +665,8 @@ export default function BattleRoyaleGame() {
           height: '100%',
           background: '#1e1e1e',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          position: 'relative'
         }}>
           {currentQuestion ? (
             <LeetCodeQuestionViewer 
@@ -667,6 +687,92 @@ export default function BattleRoyaleGame() {
               background: '#1e1e1e'
             }}>
               Click an accessible edge (dark blue) to see the question
+            </div>
+          )}
+          {/* Floating interface-level HUD on Questions side */}
+          <button
+            title="Match stats"
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              zIndex: 2000,
+              background: 'linear-gradient(45deg, #00ff88, #00cc6a)',
+              color: '#000',
+              border: '1px solid #00b86b',
+              borderRadius: '999px',
+              padding: '6px 10px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 800,
+              lineHeight: 1,
+              boxShadow: '0 6px 18px rgba(0,255,136,0.25)'
+            }}
+            onClick={() => setShowStatsPanel(v => !v)}
+          >
+            🧑‍🤝‍🧑 {typeof aliveCount === 'number' ? aliveCount : '--'}/{totalPlayersCount || '--'}
+            <span style={{ opacity: 0.7, margin: '0 6px' }}>|</span>
+            🔥 {globalElims}
+          </button>
+
+          {showStatsPanel && (
+            <div style={{
+              position: 'absolute',
+              top: '48px',
+              left: '12px',
+              zIndex: 2100,
+              width: '280px',
+              maxHeight: '55%',
+              overflowY: 'auto',
+              background: 'rgba(0, 0, 0, 0.92)',
+              color: '#fff',
+              border: '1px solid #00b86b',
+              borderRadius: '12px',
+              boxShadow: '0 12px 30px rgba(0,255,136,0.2)',
+              backdropFilter: 'blur(6px)',
+              padding: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <div style={{ fontWeight: 800, letterSpacing: '0.5px', color: '#00ff88' }}>MATCH STATS</div>
+                <button onClick={() => setShowStatsPanel(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '8px', fontSize: '12px' }}>
+                <div>🧑‍🤝‍🧑 Alive: <strong>{typeof aliveCount === 'number' ? aliveCount : '--'}</strong>/{totalPlayersCount || '--'}</div>
+                <div>🔥 Kills: <strong>{globalElims}</strong></div>
+              </div>
+              <div style={{ height: '1px', background: '#114', margin: '6px 0 8px' }} />
+              <div style={{ fontSize: '11px', marginBottom: '6px', opacity: 0.8 }}>Players</div>
+              <div>
+                {Object.entries(players || {})
+                  .sort((a, b) => {
+                    const al = (a[1]?.isAlive ? 1 : 0);
+                    const bl = (b[1]?.isAlive ? 1 : 0);
+                    if (bl !== al) return bl - al;
+                    const ah = a[1]?.health ?? 0;
+                    const bh = b[1]?.health ?? 0;
+                    return bh - ah;
+                  })
+                  .map(([pid, pdata]) => (
+                  <div key={pid} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 999, background: pdata?.isAlive ? '#00ff88' : '#ff4444' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {pid === playerId ? 'You' : `P-${pid.slice(-4)}`}
+                        </span>
+                        <span style={{ opacity: 0.8 }}>{pdata?.questionsAnswered ?? 0} Q</span>
+                      </div>
+                      <div style={{ width: '100%', height: 6, background: '#333', borderRadius: 3, overflow: 'hidden', marginTop: 3 }}>
+                        <div style={{ width: `${pdata?.health ?? 0}%`, height: '100%', background: (pdata?.health ?? 0) > 50 ? '#00ff88' : (pdata?.health ?? 0) > 20 ? '#ffcc00' : '#ff4444' }} />
+                      </div>
+                    </div>
+                    <div style={{ width: 38, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{pdata?.health ?? 0}</div>
+                  </div>
+                ))}
+                {Object.keys(players || {}).length === 0 && (
+                  <div style={{ color: '#999', fontSize: '11px' }}>No players connected</div>
+                )}
+              </div>
             </div>
           )}
         </div>
